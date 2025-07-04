@@ -1,0 +1,8 @@
+git+https://github.com/typemytype/drawbot
+git+https://github.com/mathieureguer/drawbotgrid
+git+https://github.com/tallpauley/wordsiv
+fonttools>=4.58.5
+cocoa-vanilla>=0.8.0
+pyobjc>=11.1
+jaraco.text>=4.4.0
+
