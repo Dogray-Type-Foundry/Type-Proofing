@@ -11,6 +11,31 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SETTINGS_PATH = os.path.join(SCRIPT_DIR, "drawbot_proof_settings.json")
 WINDOW_TITLE = "DrawBot Proof Generator with Preview"
 
+# Arabic/Farsi character templates for script analysis
+arTemplate = "ابجدهوزحطيكلمنسعفصقرشتثخذضظغء"
+faTemplate = "یهونملگکقفغعظطضصشسژزرذدخحچجثتپباء"
+arfaDualJoin = "بتثپنقفڤسشصضطظكلهةمعغحخجچيئىکگی"
+arfaRightJoin = "اأإآٱرزدذوؤژ"
+
+# Positional forms for Arabic/Farsi contextual analysis
+posForms = ("init", "medi", "fina")
+
+# Import Arabic text constants
+try:
+    from importlib import reload
+    import prooftexts
+
+    reload(prooftexts)
+    # Make Arabic texts available globally
+    arabicVocalization = prooftexts.arabicVocalization
+    arabicLatinMixed = prooftexts.arabicLatinMixed
+    arabicFarsiUrduNumbers = prooftexts.arabicFarsiUrduNumbers
+except ImportError:
+    print("Warning: prooftexts module not found. Arabic text constants not available.")
+    arabicVocalization = "Arabic vocalization text not available"
+    arabicLatinMixed = "Arabic-Latin mixed text not available"
+    arabicFarsiUrduNumbers = "Arabic-Farsi-Urdu numbers text not available"
+
 # Some constants related to page and layout
 # Page dimensions and margin
 pageDimensions = "A4Landscape"

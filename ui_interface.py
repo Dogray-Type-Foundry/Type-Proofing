@@ -26,6 +26,9 @@ from config import (
     spacingFontSize,
     largeTextFontSize,
     smallTextFontSize,
+    arabicVocalization,
+    arabicLatinMixed,
+    arabicFarsiUrduNumbers,
 )
 from font_analysis import (
     FontManager,
@@ -35,7 +38,12 @@ from font_analysis import (
     variableFont,
     product_dict,
 )
-from proof_generation import charsetProof, spacingProof, textProof
+from proof_generation import (
+    charsetProof,
+    spacingProof,
+    textProof,
+    arabicContextualFormsProof,
+)
 
 # Import proof texts
 try:
@@ -439,6 +447,13 @@ class ControlsTab:
             "Small Paired Styles Proof",
             "Small Wordsiv Proof",
             "Small Mixed Text Proof",
+            "Big Arabic Text Proof",
+            "Big Farsi Text Proof",
+            "Small Arabic Text Proof",
+            "Small Farsi Text Proof",
+            "Arabic Vocalization Proof",
+            "Arabic-Latin Mixed Proof",
+            "Arabic Numbers Proof",
         }
 
         proof_options_items = []
@@ -476,6 +491,38 @@ class ControlsTab:
             (
                 "Small Mixed Text Proof",
                 self.settings.get_proof_option("SmallMixedTextProof"),
+            ),
+            (
+                "Arabic Contextual Forms",
+                self.settings.get_proof_option("ArabicContextualFormsProof"),
+            ),
+            (
+                "Big Arabic Text Proof",
+                self.settings.get_proof_option("BigArabicTextProof"),
+            ),
+            (
+                "Big Farsi Text Proof",
+                self.settings.get_proof_option("BigFarsiTextProof"),
+            ),
+            (
+                "Small Arabic Text Proof",
+                self.settings.get_proof_option("SmallArabicTextProof"),
+            ),
+            (
+                "Small Farsi Text Proof",
+                self.settings.get_proof_option("SmallFarsiTextProof"),
+            ),
+            (
+                "Arabic Vocalization Proof",
+                self.settings.get_proof_option("ArabicVocalizationProof"),
+            ),
+            (
+                "Arabic-Latin Mixed Proof",
+                self.settings.get_proof_option("ArabicLatinMixedProof"),
+            ),
+            (
+                "Arabic Numbers Proof",
+                self.settings.get_proof_option("ArabicNumbersProof"),
             ),
         ]:
             item = {"Option": option, "Enabled": enabled}
@@ -613,6 +660,13 @@ class ProofWindow(object):
             ("SmallPairedStylesProof", "Small Paired Styles Proof"),
             ("SmallWordsivProof", "Small Wordsiv Proof"),
             ("SmallMixedTextProof", "Small Mixed Text Proof"),
+            ("BigArabicTextProof", "Big Arabic Text Proof"),
+            ("BigFarsiTextProof", "Big Farsi Text Proof"),
+            ("SmallArabicTextProof", "Small Arabic Text Proof"),
+            ("SmallFarsiTextProof", "Small Farsi Text Proof"),
+            ("ArabicVocalizationProof", "Arabic Vocalization Proof"),
+            ("ArabicLatinMixedProof", "Arabic-Latin Mixed Proof"),
+            ("ArabicNumbersProof", "Arabic Numbers Proof"),
         ]
         self.default_on_features = DEFAULT_ON_FEATURES
         self.proof_settings = {}
@@ -769,6 +823,22 @@ class ProofWindow(object):
                         proof_options["SmallDiacriticsProof"] = enabled
                     elif option == "Small Mixed Text Proof":
                         proof_options["SmallMixedTextProof"] = enabled
+                    elif option == "Arabic Contextual Forms":
+                        proof_options["ArabicContextualFormsProof"] = enabled
+                    elif option == "Big Arabic Text Proof":
+                        proof_options["BigArabicTextProof"] = enabled
+                    elif option == "Big Farsi Text Proof":
+                        proof_options["BigFarsiTextProof"] = enabled
+                    elif option == "Small Arabic Text Proof":
+                        proof_options["SmallArabicTextProof"] = enabled
+                    elif option == "Small Farsi Text Proof":
+                        proof_options["SmallFarsiTextProof"] = enabled
+                    elif option == "Arabic Vocalization Proof":
+                        proof_options["ArabicVocalizationProof"] = enabled
+                    elif option == "Arabic-Latin Mixed Proof":
+                        proof_options["ArabicLatinMixedProof"] = enabled
+                    elif option == "Arabic Numbers Proof":
+                        proof_options["ArabicNumbersProof"] = enabled
 
                 # Build otfeatures dict from proof_settings
                 otfeatures_by_proof = {}
@@ -781,8 +851,8 @@ class ProofWindow(object):
                     if cols_key in self.proof_settings:
                         cols_by_proof[proof_key] = self.proof_settings[cols_key]
 
-                    # Get paragraphs setting for SmallWordsivProof
-                    if proof_key == "SmallWordsivProof":
+                    # Get paragraphs setting (only for SmallWordsivProof)
+                    if proof_key in ["SmallWordsivProof"]:
                         para_key = f"{proof_key}_para"
                         if para_key in self.proof_settings:
                             paras_by_proof[proof_key] = self.proof_settings[para_key]
@@ -828,9 +898,17 @@ class ProofWindow(object):
 
         # Initialize default values for all proof types
         for proof_key, _ in self.proof_types_with_otf:
-            # Column settings
+            # Column settings - set proper defaults for each proof type
             cols_key = f"{proof_key}_cols"
-            default_cols = 1 if proof_key == "BigParagraphProof" else 2
+            # Big proofs use 1 column, small/mixed use 2 columns
+            if proof_key in [
+                "BigParagraphProof",
+                "BigArabicTextProof",
+                "BigFarsiTextProof",
+            ]:
+                default_cols = 1
+            else:
+                default_cols = 2
             self.proof_settings[cols_key] = self.settings.get(cols_key, default_cols)
 
             # Paragraph settings (only for SmallWordsivProof)
@@ -877,6 +955,13 @@ class ProofWindow(object):
             "Small Paired Styles Proof": "SmallPairedStylesProof",
             "Small Wordsiv Proof": "SmallWordsivProof",
             "Small Mixed Text Proof": "SmallMixedTextProof",
+            "Big Arabic Text Proof": "BigArabicTextProof",
+            "Big Farsi Text Proof": "BigFarsiTextProof",
+            "Small Arabic Text Proof": "SmallArabicTextProof",
+            "Small Farsi Text Proof": "SmallFarsiTextProof",
+            "Arabic Vocalization Proof": "ArabicVocalizationProof",
+            "Arabic-Latin Mixed Proof": "ArabicLatinMixedProof",
+            "Arabic Numbers Proof": "ArabicNumbersProof",
         }
 
         # Only show popover for proofs that have settings
@@ -974,16 +1059,25 @@ class ProofWindow(object):
         # Update numeric settings
         numeric_items = []
 
-        # Columns setting (all proof types)
+        # Columns setting with appropriate defaults
         cols_key = f"{proof_key}_cols"
-        default_cols = 1 if proof_key == "BigParagraphProof" else 2
+        # Big proofs and Big Arabic/Farsi proofs default to 1 column
+        if proof_key in [
+            "BigParagraphProof",
+            "BigArabicTextProof",
+            "BigFarsiTextProof",
+        ]:
+            default_cols = 1
+        else:
+            # All other proofs default to 2 columns
+            default_cols = 2
         cols_value = self.proof_settings.get(cols_key, default_cols)
         numeric_items.append(
             {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
         )
 
         # Paragraphs setting (only for SmallWordsivProof)
-        if proof_key == "SmallWordsivProof":
+        if proof_key in ["SmallWordsivProof"]:
             para_key = f"{proof_key}_para"
             para_value = self.proof_settings.get(para_key, 5)
             numeric_items.append(
@@ -1248,6 +1342,191 @@ class ProofWindow(object):
                     cat,
                     fullCharacterSet,
                 )
+
+            # Arabic Contextual Forms Proof (no settings needed)
+            if proof_options.get("ArabicContextualFormsProof"):
+                arabicContextualFormsProof(
+                    cat,
+                    axesProduct,
+                    indFont,
+                    pairedStaticStyles,
+                    otfeatures_by_proof.get("ArabicContextualFormsProof", {}),
+                )
+
+            # Big Arabic Text Proof
+            if proof_options.get("BigArabicTextProof"):
+                arabic_chars = cat.get("ar", "") or cat.get("arab", "")
+                if arabic_chars:
+                    textProof(
+                        arabic_chars,
+                        axesProduct,
+                        indFont,
+                        pairedStaticStyles,
+                        cols_by_proof.get("BigArabicTextProof", 1),
+                        2,  # Fixed paragraph count for big text
+                        False,
+                        largeTextFontSize,
+                        "Big Arabic text proof",
+                        False,
+                        False,
+                        False,
+                        None,
+                        otfeatures_by_proof.get("BigArabicTextProof", {}),
+                        0,
+                        cat,
+                        fullCharacterSet,
+                        "ar",
+                    )
+
+            # Big Farsi Text Proof
+            if proof_options.get("BigFarsiTextProof"):
+                farsi_chars = cat.get("fa", "") or cat.get("arab", "")
+                if farsi_chars:
+                    textProof(
+                        farsi_chars,
+                        axesProduct,
+                        indFont,
+                        pairedStaticStyles,
+                        cols_by_proof.get("BigFarsiTextProof", 1),
+                        2,  # Fixed paragraph count for big text
+                        False,
+                        largeTextFontSize,
+                        "Big Farsi text proof",
+                        False,
+                        False,
+                        False,
+                        None,
+                        otfeatures_by_proof.get("BigFarsiTextProof", {}),
+                        0,
+                        cat,
+                        fullCharacterSet,
+                        "fa",
+                    )
+
+            # Small Arabic Text Proof
+            if proof_options.get("SmallArabicTextProof"):
+                arabic_chars = cat.get("ar", "") or cat.get("arab", "")
+                if arabic_chars:
+                    textProof(
+                        arabic_chars,
+                        axesProduct,
+                        indFont,
+                        pairedStaticStyles,
+                        cols_by_proof.get("SmallArabicTextProof", 2),
+                        5,  # Fixed paragraph count for small text
+                        False,
+                        smallTextFontSize,
+                        "Small Arabic text proof",
+                        False,
+                        False,
+                        False,
+                        None,
+                        otfeatures_by_proof.get("SmallArabicTextProof", {}),
+                        0,
+                        cat,
+                        fullCharacterSet,
+                        "ar",
+                    )
+
+            # Small Farsi Text Proof
+            if proof_options.get("SmallFarsiTextProof"):
+                farsi_chars = cat.get("fa", "") or cat.get("arab", "")
+                if farsi_chars:
+                    textProof(
+                        farsi_chars,
+                        axesProduct,
+                        indFont,
+                        pairedStaticStyles,
+                        cols_by_proof.get("SmallFarsiTextProof", 2),
+                        5,  # Fixed paragraph count for small text
+                        False,
+                        smallTextFontSize,
+                        "Small Farsi text proof",
+                        False,
+                        False,
+                        False,
+                        None,
+                        otfeatures_by_proof.get("SmallFarsiTextProof", {}),
+                        0,
+                        cat,
+                        fullCharacterSet,
+                        "fa",
+                    )
+
+            # Arabic Vocalization Proof
+            if proof_options.get("ArabicVocalizationProof"):
+                arabic_chars = cat.get("ar", "") or cat.get("arab", "")
+                if arabic_chars:
+                    textProof(
+                        arabic_chars,
+                        axesProduct,
+                        indFont,
+                        pairedStaticStyles,
+                        cols_by_proof.get("ArabicVocalizationProof", 2),
+                        5,
+                        False,
+                        smallTextFontSize,
+                        "Arabic vocalization proof",
+                        False,
+                        False,
+                        False,
+                        (arabicVocalization,),
+                        otfeatures_by_proof.get("ArabicVocalizationProof", {}),
+                        0,
+                        cat,
+                        fullCharacterSet,
+                        "ar",
+                    )
+
+            # Arabic-Latin Mixed Proof
+            if proof_options.get("ArabicLatinMixedProof"):
+                arabic_chars = cat.get("ar", "") or cat.get("arab", "")
+                if arabic_chars:
+                    textProof(
+                        arabic_chars,
+                        axesProduct,
+                        indFont,
+                        pairedStaticStyles,
+                        cols_by_proof.get("ArabicLatinMixedProof", 2),
+                        5,
+                        False,
+                        smallTextFontSize,
+                        "Arabic-Latin mixed proof",
+                        False,
+                        False,
+                        False,
+                        (arabicLatinMixed,),
+                        otfeatures_by_proof.get("ArabicLatinMixedProof", {}),
+                        0,
+                        cat,
+                        fullCharacterSet,
+                        "ar",
+                    )
+
+            # Arabic Numbers Proof
+            if proof_options.get("ArabicNumbersProof"):
+                arabic_chars = cat.get("ar", "") or cat.get("arab", "")
+                if arabic_chars:
+                    textProof(
+                        arabic_chars,
+                        axesProduct,
+                        indFont,
+                        pairedStaticStyles,
+                        cols_by_proof.get("ArabicNumbersProof", 2),
+                        5,
+                        False,
+                        smallTextFontSize,
+                        "Arabic numbers proof",
+                        False,
+                        False,
+                        False,
+                        (arabicFarsiUrduNumbers,),
+                        otfeatures_by_proof.get("ArabicNumbersProof", {}),
+                        0,
+                        cat,
+                        fullCharacterSet,
+                        "ar",
+                    )
 
         db.endDrawing()
         # Save the proof doc

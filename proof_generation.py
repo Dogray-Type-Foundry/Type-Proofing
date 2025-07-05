@@ -24,6 +24,7 @@ from config import (
     wordsivSeed,
     dualStyleSeed,
     FsSelection,
+    posForms,
 )
 from font_analysis import get_ttfont, upperTemplate, lowerTemplate, product_dict
 
@@ -267,10 +268,17 @@ def generateTextProofString(
     forceWordsiv=False,
     cat=None,
     fullCharacterSet=None,
+    lang=None,
 ):
     """Generate long text proofing strings either through wordsiv or premade strings."""
     if cat is None:
         return ""
+
+    # Handle Arabic/Farsi languages with specific logic
+    if lang in ["ar", "fa"]:
+        return _generate_arabic_farsi_text(
+            characterSet, para, bigProof, lang, cat, fullCharacterSet
+        )
 
     textProofString = ""
     upper_set = set(cat["uniLu"])
@@ -418,6 +426,94 @@ def _generate_lowercase_text(cat, para, fullCharacterSet, characterSet):
     return lowerInitials_str + " ".join(str(elem) for elem in wsvtext)
 
 
+def _generate_arabic_farsi_text(
+    characterSet, para, bigProof, lang, cat, fullCharacterSet
+):
+    """Generate Arabic/Farsi text using WordSiv with contextual forms."""
+    textProofString = ""
+
+    # Set vocabulary based on language
+    vocab = "ar" if lang == "ar" else "fa"
+
+    try:
+        # Use fullCharacterSet as glyphs if available, otherwise fall back to characterSet
+        glyphs = fullCharacterSet if fullCharacterSet else "".join(characterSet)
+        wsv = WordSiv(glyphs=glyphs, vocab=vocab, seed=wordsivSeed)
+
+        # Determine number of words based on proof type
+        numberOfWords = 3 if bigProof else 5
+
+        # Generate contextual form proofs for each character
+        arabWords = ""
+        for g in characterSet:
+            arabWords += g + ". "
+
+            # Generate words with different positional forms
+            for p in posForms:
+                try:
+                    # Generate words containing the character in specific position
+                    if p == "init":
+                        # Use startswith for initial form
+                        arabList = wsv.words(
+                            n_words=numberOfWords,
+                            min_wl=5,
+                            max_wl=14,
+                            startswith=g,
+                        )
+                    elif p == "medi":
+                        # Use inner for medial form
+                        arabList = wsv.words(
+                            n_words=numberOfWords,
+                            min_wl=5,
+                            max_wl=14,
+                            inner=g,
+                        )
+                    elif p == "fina":
+                        # Use endswith for final form
+                        arabList = wsv.words(
+                            n_words=numberOfWords,
+                            min_wl=5,
+                            max_wl=14,
+                            endswith=g,
+                        )
+                    else:
+                        # Fallback to contains if position not recognized
+                        arabList = wsv.words(
+                            n_words=numberOfWords,
+                            min_wl=5,
+                            max_wl=14,
+                            contains=g,
+                        )
+
+                    if arabList:
+                        arabString = " ".join([str(elem) for elem in arabList])
+                        arabWords += arabString + " "
+                except Exception as e:
+                    # Fallback to simple word generation if positional forms fail
+                    try:
+                        arabList = wsv.words(
+                            n_words=numberOfWords,
+                            min_wl=5,
+                            max_wl=14,
+                            contains=g,
+                        )
+                        if arabList:
+                            arabString = " ".join([str(elem) for elem in arabList])
+                            arabWords += arabString + " "
+                    except:
+                        pass
+            arabWords += "\n"
+
+        textProofString = arabWords
+
+    except Exception as e:
+        print(f"Error generating {lang} text: {e}")
+        # Fallback to character display
+        textProofString = " ".join(characterSet)
+
+    return textProofString
+
+
 def generateSpacingString(characterSet):
     """Create empty formatted string that we will fill with spacing strings."""
     spacingString = ""
@@ -545,6 +641,7 @@ def textProof(
     accents=0,
     cat=None,
     fullCharacterSet=None,
+    lang=None,
 ):
     """Generate text proof with various options."""
     textStringInput = ""
@@ -572,13 +669,17 @@ def textProof(
                 if textSize == smallTextFontSize:
                     textStringInput += "\n"
     elif not injectText:
+        # Determine if this is a big or small proof based on font size
+        bigProof = textSize == largeTextFontSize
         textStringInput = generateTextProofString(
             characterSet,
             para,
             casing,
+            bigProof=bigProof,
             forceWordsiv=forceWordsiv,
             cat=cat,
             fullCharacterSet=fullCharacterSet,
+            lang=lang,
         )
     elif injectText:
         for t in injectText:
@@ -589,12 +690,15 @@ def textProof(
         axisDict = {}
         for axisData in axesProduct:
             axisDict = dict(axisData)
+            # Use right alignment for Arabic/Farsi text
+            text_align = "right" if lang in ["ar", "fa"] else "left"
             textString = stringMaker(
                 textStringInput,
                 textSize,
                 indFont,
                 axesProduct,
                 pairedStaticStyles,
+                alignInput=text_align,
                 OTFeaInput=otFea,
                 VFAxisInput=axisDict,
                 upit=upit,
@@ -607,12 +711,15 @@ def textProof(
                 currentFont=indFont,
             )
     elif axesProduct == "":
+        # Use right alignment for Arabic/Farsi text
+        text_align = "right" if lang in ["ar", "fa"] else "left"
         textString = stringMaker(
             textStringInput,
             textSize,
             indFont,
             axesProduct,
             pairedStaticStyles,
+            alignInput=text_align,
             OTFeaInput=otFea,
             upit=upit,
             rgbd=rgbd,
@@ -623,3 +730,162 @@ def textProof(
             columnNumber=cols,
             currentFont=indFont,
         )
+
+
+def generateArabicContextualProof(cat):
+    """Generate Arabic contextual form proofs for dual-joining and right-joining characters."""
+    contextualProof = ""
+
+    # Dual-joining characters proof
+    dualJoins = ""
+    for char in cat.get("arab", ""):
+        if char == "ء":  # Hamza special case
+            dualJoins += char + " "
+        elif char in cat.get("arfaDualJoin", ""):
+            # Show character in isolation and repeated forms
+            dualJoins += char + " " + char + char + char + " "
+
+    if dualJoins:
+        contextualProof += "Dual-joining forms:\n" + dualJoins + "\n\n"
+
+    # Right-joining characters proof
+    rightJoins = ""
+    for char in cat.get("arab", ""):
+        if char in cat.get("arfaRightJoin", ""):
+            # Show character with connecting letter
+            rightJoins += char + " " + "ب" + char + " "
+
+    if rightJoins:
+        contextualProof += "Right-joining forms:\n" + rightJoins + "\n\n"
+
+    return contextualProof
+
+
+def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=None):
+    """Generate Arabic contextual form proof pages."""
+    contextualString = generateArabicContextualProof(cat)
+
+    if not contextualString:
+        return
+
+    sectionName = "Arabic Contextual Forms"
+
+    try:
+        if axesProduct:
+            axisDict = {}
+            for axisData in axesProduct:
+                axisDict = dict(axisData)
+                formattedString = stringMaker(
+                    contextualString,
+                    charsetFontSize,
+                    indFont,
+                    axesProduct,
+                    pairedStaticStyles,
+                    "center",
+                    0,  # No tracking for contextual forms
+                    otFea,
+                    axisDict,
+                )
+                drawContent(
+                    formattedString, sectionName + " - " + str(axisData), 1, indFont
+                )
+        elif axesProduct == "":
+            formattedString = stringMaker(
+                contextualString,
+                charsetFontSize,
+                indFont,
+                axesProduct,
+                pairedStaticStyles,
+                "center",
+                0,
+                otFea,
+            )
+            drawContent(
+                formattedString,
+                sectionName + " - " + db.font(indFont).split("-")[1],
+                1,
+                indFont,
+            )
+    except Exception as e:
+        print(f"Error in arabicContextualProof: {e}")
+        traceback.print_exc()
+
+
+def generateArabicContextualFormsProof(cat):
+    """Generate Arabic contextual forms proof showing each character in all its forms."""
+    contextualProof = ""
+
+    # Get Arabic characters
+    arabic_chars = cat.get("arab", "")
+    if not arabic_chars:
+        return ""
+
+    # Dual-joining characters proof - show isolated and connected forms
+    for char in arabic_chars:
+        if char == "ء":  # Hamza special case
+            contextualProof += char + " "
+        elif char in cat.get("arfaDualJoin", ""):
+            # Show character: isolated, then connected forms
+            contextualProof += char + " " + char + char + char + " "
+
+    contextualProof += "\n\n"
+
+    # Right-joining characters proof - show with connecting letter
+    for char in arabic_chars:
+        if char in cat.get("arfaRightJoin", ""):
+            # Show character with connecting letter
+            contextualProof += char + " " + "ب" + char + " "
+
+    return contextualProof
+
+
+def arabicContextualFormsProof(
+    cat, axesProduct, indFont, pairedStaticStyles, otFea=None
+):
+    """Generate Arabic contextual forms proof pages using large character set font size."""
+    contextualString = generateArabicContextualFormsProof(cat)
+
+    if not contextualString:
+        return
+
+    sectionName = "Arabic Contextual Forms"
+
+    try:
+        if axesProduct:
+            axisDict = {}
+            for axisData in axesProduct:
+                axisDict = dict(axisData)
+                formattedString = stringMaker(
+                    contextualString,
+                    charsetFontSize,  # Use character set font size (large)
+                    indFont,
+                    axesProduct,
+                    pairedStaticStyles,
+                    "center",
+                    0,  # No tracking for contextual forms
+                    otFea,
+                    axisDict,
+                )
+                drawContent(
+                    formattedString, sectionName + " - " + str(axisData), 1, indFont
+                )
+        elif axesProduct == "":
+            formattedString = stringMaker(
+                contextualString,
+                charsetFontSize,
+                indFont,
+                axesProduct,
+                pairedStaticStyles,
+                "center",
+                0,
+                otFea,
+            )
+            drawContent(
+                formattedString,
+                sectionName + " - " + db.font(indFont).split("-")[1],
+                1,
+                indFont,
+            )
+    except Exception as e:
+        print(f"Error in arabicContextualFormsProof: {e}")
+        traceback.print_exc()

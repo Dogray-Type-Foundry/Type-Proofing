@@ -8,8 +8,16 @@ from itertools import product
 import drawBot as db
 from fontTools.agl import toUnicode
 from fontTools.ttLib import TTFont
+from fontTools.unicodedata import script, block
 
-from config import FsSelection, axesValues
+from config import (
+    FsSelection,
+    axesValues,
+    arTemplate,
+    faTemplate,
+    arfaDualJoin,
+    arfaRightJoin,
+)
 
 # Character set, filtering out empty glyphs that would normally have outlines.
 _ttfont_cache = {}
@@ -32,23 +40,26 @@ def filteredCharset(inputFont):
     """Get charset excluding glyphs without outlines."""
     f = get_ttfont(inputFont)
     gset = f.getGlyphSet()
-    charset = []
-
-    has_glyf = "glyf" in f
-    has_cff = "CFF " in f
-
-    for glyph_name in gset:
-        if "." in glyph_name:  # Skip composite glyphs
-            continue
-
-        if has_cff:
-            char_strings = f["CFF "].cff.topDictIndex[0].CharStrings
-            if char_strings[glyph_name].calcBounds(char_strings) is not None:
-                charset.append(toUnicode(glyph_name))
-        elif has_glyf and f["glyf"][glyph_name].numberOfContours > 0:
-            charset.append(toUnicode(glyph_name))
-
-    return "".join(charset)
+    charset = ""
+    for i in gset:
+        if "." in i:
+            pass
+        else:
+            if "CFF " in f:
+                top_dict = f["CFF "].cff.topDictIndex[0]
+                char_strings = top_dict.CharStrings
+                char_string = char_strings[i]
+                bounds = char_string.calcBounds(char_strings)
+                if bounds is None:
+                    continue
+                else:
+                    charset = charset + toUnicode(i)
+            elif "glyf" in f:
+                if f["glyf"][i].numberOfContours == 0:
+                    continue
+                else:
+                    charset = charset + toUnicode(i)
+    return charset
 
 
 def findAccented(char):
@@ -62,6 +73,7 @@ def categorize(charset):
     cat_map = {
         "Lu": "uniLu",
         "Ll": "uniLl",
+        "Lo": "uniLo",
         "Po": "uniPo",
         "Pc": "uniPc",
         "Pd": "uniPd",
@@ -76,7 +88,20 @@ def categorize(charset):
     }
 
     result = {k: [] for k in cat_map.values()}
-    result.update({"uniLlBase": [], "uniLuBase": [], "accented": []})
+    result.update(
+        {
+            "uniLlBase": [],
+            "uniLuBase": [],
+            "accented": [],
+            "latn": [],
+            "arab": [],
+            "fa": [],
+            "ar": [],
+            "arabTyped": [],
+            "arfaDualJoin": [],
+            "arfaRightJoin": [],
+        }
+    )
 
     for char in charset:
         cat = unicodedata.category(char)
@@ -87,6 +112,30 @@ def categorize(charset):
             base_key = "uniLlBase" if cat == "Ll" else "uniLuBase"
             target_key = "accented" if findAccented(char) else base_key
             result[target_key].append(char)
+
+        # Script-based categorization
+        try:
+            char_script = script(char)
+            if char_script == "Latn":
+                result["latn"].append(char)
+            elif char_script == "Arab":
+                result["arab"].append(char)
+                # Check if it's specifically Arabic block
+                if block(char) == "Arabic":
+                    result["arabTyped"].append(char)
+        except (ImportError, AttributeError):
+            # Fallback if fontTools.unicodedata is not available
+            pass
+
+        # Template-based categorization for Arabic/Farsi
+        if char in arTemplate:
+            result["ar"].append(char)
+        if char in faTemplate:
+            result["fa"].append(char)
+        if char in arfaDualJoin:
+            result["arfaDualJoin"].append(char)
+        if char in arfaRightJoin:
+            result["arfaRightJoin"].append(char)
 
     # Convert to strings and add boolean flags
     result_str = {k: "".join(v) for k, v in result.items()}
