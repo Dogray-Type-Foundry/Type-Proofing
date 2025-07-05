@@ -548,22 +548,34 @@ class ControlsTab:
         )
         y += 230
 
-        # Buttons
+        # Buttons - Left side: Generate Proof and Close Window
         self.group.generateButton = vanilla.Button(
             (10, -110, 140, 30),
             "Generate Proof",
             callback=self.parent_window.generateCallback,
         )
-        self.group.resetButton = vanilla.Button(
-            (10, -70, 140, 30),
-            "Reset Settings",
-            callback=self.parent_window.resetSettingsCallback,
-        )
         self.group.closeButton = vanilla.Button(
-            (10, -30, 140, 30),
+            (10, -70, 140, 30),
             "Close Window",
             callback=self.parent_window.closeWindowCallback,
         )
+
+        # Buttons - Right side: Add Settings File and Reset Settings
+        self.group.addSettingsButton = vanilla.Button(
+            (-290, -110, 140, 30),
+            "Add Settings File",
+            callback=self.parent_window.addSettingsFileCallback,
+        )
+        self.group.resetButton = vanilla.Button(
+            (-290, -70, 140, 30),
+            "Reset Settings",
+            callback=self.parent_window.resetSettingsCallback,
+        )
+
+    def update_table(self):
+        """Update the table with current font data."""
+        table_data = self.font_manager.get_table_data()
+        self.group.tableView.set(table_data)
 
     def fontSizeEditCallback(self, sender):
         """Handle edits to font sizes."""
@@ -785,15 +797,43 @@ class ProofWindow(object):
             # Show confirmation dialog
             from vanilla.dialogs import askYesNo
 
-            result = askYesNo(
-                "Reset All Settings",
-                "This will reset all settings to defaults and clear all loaded fonts. Are you sure?",
-                default=1,  # Default to "No"
+            message_text = (
+                "This will reset all settings to defaults and clear all loaded fonts."
             )
+            if self.settings.user_settings_file:
+                message_text += f"\n\nThis will also stop using the custom settings file:\n{self.settings.user_settings_file}"
+            message_text += "\n\nAre you sure?"
+
+            result = askYesNo("Reset All Settings", message_text)
 
             if result == 1:  # User clicked Yes
-                # Reset settings to defaults
+                # Reset settings to defaults (this also clears user_settings_file)
                 self.settings.reset_to_defaults()
+
+                # Override proof options to all be False (unchecked)
+                proof_option_keys = [
+                    "showBaselines",
+                    "CharacterSetProof",
+                    "SpacingProof",
+                    "BigParagraphProof",
+                    "BigDiacriticsProof",
+                    "SmallParagraphProof",
+                    "SmallPairedStylesProof",
+                    "SmallWordsivProof",
+                    "SmallDiacriticsProof",
+                    "SmallMixedTextProof",
+                    "ArabicContextualFormsProof",
+                    "BigArabicTextProof",
+                    "BigFarsiTextProof",
+                    "SmallArabicTextProof",
+                    "SmallFarsiTextProof",
+                    "ArabicVocalizationProof",
+                    "ArabicLatinMixedProof",
+                    "ArabicNumbersProof",
+                ]
+
+                for option_key in proof_option_keys:
+                    self.settings.set_proof_option(option_key, False)
 
                 # Clear font manager
                 self.font_manager.fonts = tuple()
@@ -803,14 +843,8 @@ class ProofWindow(object):
                 # Refresh UI
                 self.filesTab.update_table()
 
-                # Recreate controls tab with default values
-                old_group = self.controlsTab.group
-                self.controlsTab = ControlsTab(self, self.settings)
-                self.mainContent.controlsGroup = self.controlsTab.group
-
-                # Show the correct tab
-                current_tab = self.tabSwitcher.get()
-                self.controlsTab.group.show(current_tab == 1)
+                # Refresh controls tab with default values
+                self.refresh_controls_tab()
 
                 self.initialize_proof_settings()
 
@@ -1643,7 +1677,201 @@ class ProofWindow(object):
         print(datetime.datetime.now() - now)
         return proofPath
 
+    def addSettingsFileCallback(self, sender):
+        """Handle the Add Settings File button click."""
+        try:
+            from vanilla.dialogs import getFile
 
-if __name__ == "__main__":
-    ProofWindow()
-    AppHelper.runEventLoop()
+            # Show file dialog to select settings file
+            result = getFile(
+                title="Select Settings File",
+                messageText="Choose a JSON settings file to load:",
+                fileTypes=["json"],
+                allowsMultipleSelection=False,
+            )
+
+            if result and len(result) > 0:
+                settings_file_path = result[0]
+
+                # Try to load the settings file
+                if self.settings.load_user_settings_file(settings_file_path):
+                    # Clear font manager and reload fonts
+                    self.font_manager.fonts = tuple()
+                    self.font_manager.font_info = {}
+                    self.font_manager.axis_values_by_font = {}
+
+                    # Load fonts from the new settings
+                    font_paths = self.settings.get_fonts()
+                    if font_paths:
+                        self.font_manager.load_fonts(font_paths)
+
+                        # Load axis values
+                        for font_path in font_paths:
+                            axis_values = self.settings.get_font_axis_values(font_path)
+                            if axis_values:
+                                self.font_manager.axis_values_by_font[font_path] = (
+                                    axis_values
+                                )
+
+                    # Refresh UI
+                    self.filesTab.update_table()
+
+                    # Refresh controls tab with new values
+                    self.refresh_controls_tab()
+
+                    self.initialize_proof_settings()
+
+                    print(f"Settings loaded from: {settings_file_path}")
+
+                    # Show information dialog
+                    from vanilla.dialogs import message
+
+                    message(
+                        "Settings Loaded",
+                        f"Settings have been loaded from:\n{settings_file_path}\n\n"
+                        "Changes will now be saved to this file instead of the auto-save file.",
+                        informativeText="You can use 'Reset Settings' to clear this file and return to auto-save mode.",
+                    )
+                else:
+                    from vanilla.dialogs import message
+
+                    message(
+                        "Error Loading Settings",
+                        f"Failed to load settings from:\n{settings_file_path}\n\n"
+                        "Please check that the file contains valid JSON and try again.",
+                    )
+
+        except Exception as e:
+            print(f"Error loading settings file: {e}")
+            traceback.print_exc()
+            from vanilla.dialogs import message
+
+            message("Error", f"An error occurred while loading the settings file:\n{e}")
+
+    def refresh_controls_tab(self):
+        """Refresh the controls tab with current settings values."""
+        try:
+            # Update font size list
+            font_size_items = [
+                {
+                    "Setting": "Charset Font Size",
+                    "Value": self.settings.get_font_size("charset"),
+                },
+                {
+                    "Setting": "Spacing Font Size",
+                    "Value": self.settings.get_font_size("spacing"),
+                },
+                {
+                    "Setting": "Large Text Font Size",
+                    "Value": self.settings.get_font_size("large"),
+                },
+                {
+                    "Setting": "Small Text Font Size",
+                    "Value": self.settings.get_font_size("small"),
+                },
+            ]
+            self.controlsTab.group.fontSizeList.set(font_size_items)
+
+            # Update proof options list
+            proofs_with_settings = {
+                "Big Paragraph Proof",
+                "Small Paragraph Proof",
+                "Small Paired Styles Proof",
+                "Small Wordsiv Proof",
+                "Small Mixed Text Proof",
+                "Big Arabic Text Proof",
+                "Big Farsi Text Proof",
+                "Small Arabic Text Proof",
+                "Small Farsi Text Proof",
+                "Arabic Vocalization Proof",
+                "Arabic-Latin Mixed Proof",
+                "Arabic Numbers Proof",
+            }
+
+            proof_options_items = []
+            for option, enabled in [
+                (
+                    "Show Baselines/Grid",
+                    self.settings.get_proof_option("showBaselines"),
+                ),
+                (
+                    "Character Set Proof",
+                    self.settings.get_proof_option("CharacterSetProof"),
+                ),
+                ("Spacing Proof", self.settings.get_proof_option("SpacingProof")),
+                (
+                    "Big Paragraph Proof",
+                    self.settings.get_proof_option("BigParagraphProof"),
+                ),
+                (
+                    "Big Diacritics Proof",
+                    self.settings.get_proof_option("BigDiacriticsProof"),
+                ),
+                (
+                    "Small Paragraph Proof",
+                    self.settings.get_proof_option("SmallParagraphProof"),
+                ),
+                (
+                    "Small Paired Styles Proof",
+                    self.settings.get_proof_option("SmallPairedStylesProof"),
+                ),
+                (
+                    "Small Wordsiv Proof",
+                    self.settings.get_proof_option("SmallWordsivProof"),
+                ),
+                (
+                    "Small Diacritics Proof",
+                    self.settings.get_proof_option("SmallDiacriticsProof"),
+                ),
+                (
+                    "Small Mixed Text Proof",
+                    self.settings.get_proof_option("SmallMixedTextProof"),
+                ),
+                (
+                    "Arabic Contextual Forms",
+                    self.settings.get_proof_option("ArabicContextualFormsProof"),
+                ),
+                (
+                    "Big Arabic Text Proof",
+                    self.settings.get_proof_option("BigArabicTextProof"),
+                ),
+                (
+                    "Big Farsi Text Proof",
+                    self.settings.get_proof_option("BigFarsiTextProof"),
+                ),
+                (
+                    "Small Arabic Text Proof",
+                    self.settings.get_proof_option("SmallArabicTextProof"),
+                ),
+                (
+                    "Small Farsi Text Proof",
+                    self.settings.get_proof_option("SmallFarsiTextProof"),
+                ),
+                (
+                    "Arabic Vocalization Proof",
+                    self.settings.get_proof_option("ArabicVocalizationProof"),
+                ),
+                (
+                    "Arabic-Latin Mixed Proof",
+                    self.settings.get_proof_option("ArabicLatinMixedProof"),
+                ),
+                (
+                    "Arabic Numbers Proof",
+                    self.settings.get_proof_option("ArabicNumbersProof"),
+                ),
+            ]:
+                item = {"Option": option, "Enabled": enabled}
+                # Add indicator text for proofs with settings
+                if option in proofs_with_settings:
+                    item["Settings"] = "⚙"  # Gear symbol as text
+                else:
+                    item["Settings"] = ""
+                proof_options_items.append(item)
+
+            self.controlsTab.group.proofOptionsList.set(proof_options_items)
+
+        except Exception as e:
+            print(f"Error refreshing controls tab: {e}")
+            import traceback
+
+            traceback.print_exc()
