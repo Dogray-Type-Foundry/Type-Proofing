@@ -32,28 +32,17 @@ log.setLevel(logging.ERROR)
 # Import and run the main application
 if __name__ == "__main__":
     try:
-        print("Starting Font Proofing Application...")
-
         from ui_interface import ProofWindow
         from PyObjCTools import AppHelper
 
         # Create and show the main window
         window = ProofWindow()
-        print("Application window created successfully.")
-        print("Starting event loop...")
 
         # Start the application event loop
         AppHelper.runEventLoop()
 
     except ImportError as e:
         print(f"Import error: {e}")
-        print("Please ensure all required dependencies are installed:")
-        print("- drawBot")
-        print("- fontTools")
-        print("- wordsiv")
-        print("- vanilla")
-        print("- PyObjC (AppKit/Foundation)")
-        print("- drawBotGrid (custom extension)")
     except KeyboardInterrupt:
         print("\nApplication interrupted by user.")
     except Exception as e:

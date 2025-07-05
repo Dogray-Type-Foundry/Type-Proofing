@@ -238,10 +238,23 @@ def pairStaticStyles(fonts):
 class FontManager:
     """Manages font information and processing."""
 
-    def __init__(self):
+    def __init__(self, settings=None):
+        self.settings = settings
         self.fonts = tuple()
         self.font_info = {}
         self.axis_values_by_font = {}
+
+        # Load fonts from settings if available
+        if self.settings:
+            saved_fonts = self.settings.get_fonts()
+            if saved_fonts:
+                self.fonts = tuple(saved_fonts)
+                self.update_font_info()
+                # Load axis values from settings
+                for font_path in self.fonts:
+                    axis_values = self.settings.get_font_axis_values(font_path)
+                    if axis_values:
+                        self.axis_values_by_font[font_path] = axis_values
 
     def add_fonts(self, paths):
         """Add new fonts to the collection."""
@@ -273,6 +286,11 @@ class FontManager:
 
         self.fonts = tuple(list(self.fonts) + new_fonts)
         self.update_font_info()
+
+        # Save to settings
+        if self.settings:
+            self.settings.set_fonts(list(self.fonts))
+
         return True
 
     def remove_fonts_by_indices(self, indices):
@@ -287,6 +305,16 @@ class FontManager:
                     del self.axis_values_by_font[removed]
         self.fonts = tuple(fonts_list)
         self.update_font_info()
+
+        # Save to settings
+        if self.settings:
+            self.settings.set_fonts(list(self.fonts))
+            # Also clean up axis values in settings
+            for font_path in list(
+                self.settings.data.get("fonts", {}).get("axis_values", {}).keys()
+            ):
+                if font_path not in self.fonts:
+                    del self.settings.data["fonts"]["axis_values"][font_path]
 
     def update_font_info(self):
         """Update font information for all loaded fonts."""
@@ -377,6 +405,10 @@ class FontManager:
                 axes_dict[axis.strip()] = values
 
             self.axis_values_by_font[font_path] = axes_dict
+
+            # Save to settings
+            if self.settings:
+                self.settings.set_font_axis_values(font_path, axes_dict)
 
     def get_family_name(self):
         """Get family name from the first font."""

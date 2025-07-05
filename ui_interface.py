@@ -171,6 +171,8 @@ class FilesTab:
         self.parent_window = parent_window
         self.font_manager = font_manager
         self.create_ui()
+        # Update table with any fonts loaded from settings
+        self.update_table()
 
     def create_ui(self):
         """Create the Files tab UI components."""
@@ -251,7 +253,6 @@ class FilesTab:
 
     def removeFontsCallback(self, sender):
         """Handle the Remove Selected button click."""
-        print("removeFontsCallback called")
         self.group.tableView.removeSelection()
         # Sync backend with UI
         table_data = self.group.tableView.get()
@@ -264,7 +265,6 @@ class FilesTab:
         self.font_manager.remove_fonts_by_indices(indices_to_remove)
         self.update_table()
         self.parent_window.initialize_proof_settings()
-        print(f"Fonts after removal: {self.font_manager.fonts}")
 
     def axisEditCallback(self, sender):
         """Handle axis editing in the table."""
@@ -303,7 +303,6 @@ class FilesTab:
 
         # Internal reordering
         if source == self.group.tableView:
-            print("Performing internal reordering")
             indexes = sender.getDropItemValues(
                 items, "dev.drawbot.proof.fontListIndexes"
             )
@@ -334,15 +333,11 @@ class FilesTab:
                 self.font_manager.fonts = tuple(new_font_paths)
                 self.font_manager.update_axis_values_from_table(table_data)
                 self.parent_window.initialize_proof_settings()
-                print(
-                    f"Fonts reordered: {[os.path.basename(p) for p in new_font_paths]}"
-                )
 
             return True
 
         # File drops from external sources
         else:
-            print("Performing file drop")
             try:
                 file_items = sender.getDropItemValues(items, "fileURL")
                 if file_items:
@@ -352,7 +347,6 @@ class FilesTab:
                         if item.path().lower().endswith((".otf", ".ttf"))
                     ]
                     if paths:
-                        print(f"Adding fonts from drop: {paths}")
                         self.add_fonts(paths)
                         return True
             except Exception as e:
@@ -368,7 +362,6 @@ class FilesTab:
                             and item.path().lower().endswith((".otf", ".ttf"))
                         ]
                         if paths:
-                            print(f"Adding fonts from drop (fallback): {paths}")
                             self.add_fonts(paths)
                             return True
                 except Exception as e2:
@@ -378,7 +371,6 @@ class FilesTab:
 
     def deleteFontCallback(self, sender):
         """Handle font deletion from the table."""
-        print("deleteFontCallback called")
         selection = sender.getSelection()
         if not selection:
             return
@@ -558,12 +550,17 @@ class ControlsTab:
 
         # Buttons
         self.group.generateButton = vanilla.Button(
-            (10, -80, 140, 30),
+            (10, -110, 140, 30),
             "Generate Proof",
             callback=self.parent_window.generateCallback,
         )
+        self.group.resetButton = vanilla.Button(
+            (10, -70, 140, 30),
+            "Reset Settings",
+            callback=self.parent_window.resetSettingsCallback,
+        )
         self.group.closeButton = vanilla.Button(
-            (10, -40, 140, 30),
+            (10, -30, 140, 30),
             "Close Window",
             callback=self.parent_window.closeWindowCallback,
         )
@@ -651,7 +648,7 @@ class ProofWindow(object):
 
         # Initialize settings and font manager
         self.settings = Settings(SETTINGS_PATH)
-        self.font_manager = FontManager()
+        self.font_manager = FontManager(self.settings)
 
         # Initialize proof-specific settings storage
         self.proof_types_with_otf = [
@@ -739,6 +736,90 @@ class ProofWindow(object):
         self.controlsTab.group.show(idx == 1)
         self.previewTab.group.show(idx == 2)
 
+    def save_all_settings(self):
+        """Save all current settings to the settings file."""
+        try:
+            # Save font sizes
+            font_size_items = self.controlsTab.group.fontSizeList.get()
+            for item in font_size_items:
+                setting = item["Setting"]
+                value = item["Value"]
+                try:
+                    value = int(value)
+                    if setting == "Charset Font Size":
+                        self.settings.set_font_size("charset", value)
+                    elif setting == "Spacing Font Size":
+                        self.settings.set_font_size("spacing", value)
+                    elif setting == "Large Text Font Size":
+                        self.settings.set_font_size("large", value)
+                    elif setting == "Small Text Font Size":
+                        self.settings.set_font_size("small", value)
+                except (ValueError, TypeError):
+                    pass  # Skip invalid values
+
+            # Save proof options
+            proof_options_items = self.controlsTab.group.proofOptionsList.get()
+            for item in proof_options_items:
+                option = item["Option"]
+                enabled = bool(item["Enabled"])
+
+                if option == "Show Baselines/Grid":
+                    self.settings.set_proof_option("showBaselines", enabled)
+                elif option.endswith(" Proof"):
+                    # Convert display name back to key
+                    key = option.replace(" ", "").replace("Proof", "Proof")
+                    self.settings.set_proof_option(key, enabled)
+
+            # Save proof-specific settings
+            self.settings.set_proof_settings(self.proof_settings)
+
+            # Save the settings file
+            self.settings.save()
+
+        except Exception as e:
+            print(f"Error saving settings: {e}")
+
+    def resetSettingsCallback(self, sender):
+        """Handle the Reset Settings button click."""
+        try:
+            # Show confirmation dialog
+            from vanilla.dialogs import askYesNo
+
+            result = askYesNo(
+                "Reset All Settings",
+                "This will reset all settings to defaults and clear all loaded fonts. Are you sure?",
+                default=1,  # Default to "No"
+            )
+
+            if result == 1:  # User clicked Yes
+                # Reset settings to defaults
+                self.settings.reset_to_defaults()
+
+                # Clear font manager
+                self.font_manager.fonts = tuple()
+                self.font_manager.font_info = {}
+                self.font_manager.axis_values_by_font = {}
+
+                # Refresh UI
+                self.filesTab.update_table()
+
+                # Recreate controls tab with default values
+                old_group = self.controlsTab.group
+                self.controlsTab = ControlsTab(self, self.settings)
+                self.mainContent.controlsGroup = self.controlsTab.group
+
+                # Show the correct tab
+                current_tab = self.tabSwitcher.get()
+                self.controlsTab.group.show(current_tab == 1)
+
+                self.initialize_proof_settings()
+
+                print("Settings reset to defaults.")
+
+        except Exception as e:
+            print(f"Error resetting settings: {e}")
+            traceback.print_exc()
+
     def closeWindowCallback(self, sender):
         """Handle the Close Window button click."""
         # Restore stdout and stderr
@@ -750,6 +831,9 @@ class ProofWindow(object):
     def generateCallback(self, sender):
         """Handle the Generate Proof button click."""
         try:
+            # Save all current settings before generating
+            self.save_all_settings()
+
             # Setup stdout/stderr redirection
             buffer = io.StringIO()
             old_stdout = sys.stdout
@@ -894,7 +978,11 @@ class ProofWindow(object):
 
     def initialize_proof_settings(self):
         """Initialize proof-specific settings storage."""
-        self.proof_settings = {}
+        # Load existing proof settings from the settings file
+        saved_proof_settings = self.settings.get_proof_settings()
+        self.proof_settings = (
+            saved_proof_settings.copy() if saved_proof_settings else {}
+        )
 
         # Initialize default values for all proof types
         for proof_key, _ in self.proof_types_with_otf:
@@ -909,12 +997,15 @@ class ProofWindow(object):
                 default_cols = 1
             else:
                 default_cols = 2
-            self.proof_settings[cols_key] = self.settings.get(cols_key, default_cols)
+
+            if cols_key not in self.proof_settings:
+                self.proof_settings[cols_key] = default_cols
 
             # Paragraph settings (only for SmallWordsivProof)
             if proof_key == "SmallWordsivProof":
                 para_key = f"{proof_key}_para"
-                self.proof_settings[para_key] = self.settings.get(para_key, 5)
+                if para_key not in self.proof_settings:
+                    self.proof_settings[para_key] = 5
 
             # OpenType features
             if self.font_manager.fonts:
@@ -925,10 +1016,9 @@ class ProofWindow(object):
 
                 for tag in feature_tags:
                     feature_key = f"otf_{proof_key}_{tag}"
-                    default_value = tag in self.default_on_features
-                    self.proof_settings[feature_key] = self.settings.get(
-                        feature_key, default_value
-                    )
+                    if feature_key not in self.proof_settings:
+                        default_value = tag in self.default_on_features
+                        self.proof_settings[feature_key] = default_value
 
     def proofSelectionCallback(self, sender):
         """Handle proof selection to show popover with settings."""

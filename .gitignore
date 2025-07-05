@@ -5,3 +5,5 @@
 .DS_Store
 .python-version
 .nova
+*.ttf
+*.otf
