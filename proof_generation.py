@@ -438,11 +438,11 @@ def _generate_arabic_farsi_text(
 
     try:
         # Use fullCharacterSet as glyphs if available, otherwise fall back to characterSet
-        glyphs = fullCharacterSet if fullCharacterSet else "".join(characterSet)
+        glyphs = fullCharacterSet
         wsv = WordSiv(glyphs=glyphs, vocab=vocab, seed=wordsivSeed)
 
         # Determine number of words based on proof type
-        numberOfWords = 3 if bigProof else 5
+        numberOfWords = 4 if bigProof else 6
 
         # Generate contextual form proofs for each character
         arabWords = ""
