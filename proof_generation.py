@@ -208,7 +208,7 @@ def _apply_alternating_variations(textString, textInput, VFAxisInput, axis, valu
         textString.append(txt=word + " ")
 
 
-def drawContent(textToDraw, pageTitle, columnNumber, currentFont):
+def drawContent(textToDraw, pageTitle, columnNumber, currentFont, direction="ltr"):
     """Function to draw content with proper layout."""
     try:
         showBaselines = (
@@ -241,6 +241,7 @@ def drawContent(textToDraw, pageTitle, columnNumber, currentFont):
                     subdivisions=columnNumber,
                     gutter=20,
                     draw_grid=getattr(db, "showBaselines", True),
+                    direction=direction,
                 )
             else:
                 # Fallback to simple text box without grid
@@ -692,6 +693,8 @@ def textProof(
             axisDict = dict(axisData)
             # Use right alignment for Arabic/Farsi text
             text_align = "right" if lang in ["ar", "fa"] else "left"
+            # Use rtl direction for Arabic/Farsi text
+            text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
             textString = stringMaker(
                 textStringInput,
                 textSize,
@@ -709,10 +712,13 @@ def textProof(
                 sectionName + " - " + str(axisData),
                 columnNumber=cols,
                 currentFont=indFont,
+                direction=text_direction,
             )
     elif axesProduct == "":
         # Use right alignment for Arabic/Farsi text
         text_align = "right" if lang in ["ar", "fa"] else "left"
+        # Use rtl direction for Arabic/Farsi text
+        text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
         textString = stringMaker(
             textStringInput,
             textSize,
@@ -729,6 +735,7 @@ def textProof(
             sectionName + " - " + db.font(indFont).split("-")[1],
             columnNumber=cols,
             currentFont=indFont,
+            direction=text_direction,
         )
 
 
@@ -787,7 +794,11 @@ def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=N
                     axisDict,
                 )
                 drawContent(
-                    formattedString, sectionName + " - " + str(axisData), 1, indFont
+                    formattedString,
+                    sectionName + " - " + str(axisData),
+                    1,
+                    indFont,
+                    direction="rtl",
                 )
         elif axesProduct == "":
             formattedString = stringMaker(
@@ -805,6 +816,7 @@ def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=N
                 sectionName + " - " + db.font(indFont).split("-")[1],
                 1,
                 indFont,
+                direction="rtl",
             )
     except Exception as e:
         print(f"Error in arabicContextualProof: {e}")
@@ -867,7 +879,11 @@ def arabicContextualFormsProof(
                     axisDict,
                 )
                 drawContent(
-                    formattedString, sectionName + " - " + str(axisData), 1, indFont
+                    formattedString,
+                    sectionName + " - " + str(axisData),
+                    1,
+                    indFont,
+                    direction="rtl",
                 )
         elif axesProduct == "":
             formattedString = stringMaker(
@@ -885,6 +901,7 @@ def arabicContextualFormsProof(
                 sectionName + " - " + db.font(indFont).split("-")[1],
                 1,
                 indFont,
+                direction="rtl",
             )
     except Exception as e:
         print(f"Error in arabicContextualFormsProof: {e}")
