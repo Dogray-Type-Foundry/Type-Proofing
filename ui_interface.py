@@ -416,7 +416,7 @@ class ControlsTab:
         ]
 
         self.group.fontSizeList = vanilla.List(
-            (10, y, 390, 100),
+            (10, y, 400, 100),
             font_size_items,
             columnDescriptions=[
                 {"title": "Setting", "key": "Setting", "width": 150, "editable": False},
@@ -526,7 +526,7 @@ class ControlsTab:
             proof_options_items.append(item)
 
         self.group.proofOptionsList = vanilla.List(
-            (10, y, 390, 220),
+            (10, y, 400, 340),
             proof_options_items,
             columnDescriptions=[
                 {"title": "Option", "key": "Option", "width": 200, "editable": False},
@@ -548,26 +548,27 @@ class ControlsTab:
         )
         y += 230
 
-        # Buttons - Left side: Generate Proof and Close Window
+        # Buttons arranged in a 2x2 grid at the bottom
+        # First row: Generate Proof and Add Settings File
         self.group.generateButton = vanilla.Button(
             (10, -110, 140, 30),
             "Generate Proof",
             callback=self.parent_window.generateCallback,
         )
+        self.group.addSettingsButton = vanilla.Button(
+            (160, -110, 140, 30),
+            "Add Settings File",
+            callback=self.parent_window.addSettingsFileCallback,
+        )
+
+        # Second row: Close Window and Reset Settings
         self.group.closeButton = vanilla.Button(
             (10, -70, 140, 30),
             "Close Window",
             callback=self.parent_window.closeWindowCallback,
         )
-
-        # Buttons - Right side: Add Settings File and Reset Settings
-        self.group.addSettingsButton = vanilla.Button(
-            (-290, -110, 140, 30),
-            "Add Settings File",
-            callback=self.parent_window.addSettingsFileCallback,
-        )
         self.group.resetButton = vanilla.Button(
-            (-290, -70, 140, 30),
+            (160, -70, 140, 30),
             "Reset Settings",
             callback=self.parent_window.resetSettingsCallback,
         )
@@ -721,7 +722,7 @@ class ProofWindow(object):
             (0, 0, -0, -0),
             [
                 dict(view=self.mainContent, identifier="main", size=600),
-                dict(view=self.debugTextEditor, identifier="debug", size=200),
+                dict(view=self.debugTextEditor, identifier="debug", size=100),
             ],
             isVertical=False,
         )
