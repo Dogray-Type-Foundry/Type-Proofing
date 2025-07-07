@@ -388,6 +388,66 @@ class ControlsTab:
         self.popover_states = {}  # Track which popovers are shown for each row
         self.create_ui()
 
+    def get_proof_options_list(self):
+        """Generate dynamic proof options list based on font capabilities."""
+        # Base proof options (always shown)
+        base_options = [
+            ("Show Baselines/Grid", "showBaselines"),
+            ("Character Set Proof", "CharacterSetProof"),
+            ("Spacing Proof", "SpacingProof"),
+            ("Big Paragraph Proof", "BigParagraphProof"),
+            ("Big Diacritics Proof", "BigDiacriticsProof"),
+            ("Small Paragraph Proof", "SmallParagraphProof"),
+            ("Small Paired Styles Proof", "SmallPairedStylesProof"),
+            ("Small Wordsiv Proof", "SmallWordsivProof"),
+            ("Small Diacritics Proof", "SmallDiacriticsProof"),
+            ("Small Mixed Text Proof", "SmallMixedTextProof"),
+        ]
+
+        # Arabic/Persian proof options (shown only if fonts support Arabic)
+        arabic_options = [
+            ("Arabic Contextual Forms", "ArabicContextualFormsProof"),
+            ("Big Arabic Text Proof", "BigArabicTextProof"),
+            ("Big Farsi Text Proof", "BigFarsiTextProof"),
+            ("Small Arabic Text Proof", "SmallArabicTextProof"),
+            ("Small Farsi Text Proof", "SmallFarsiTextProof"),
+            ("Arabic Vocalization Proof", "ArabicVocalizationProof"),
+            ("Arabic-Latin Mixed Proof", "ArabicLatinMixedProof"),
+            ("Arabic Numbers Proof", "ArabicNumbersProof"),
+        ]
+
+        # Check if any loaded font supports Arabic
+        show_arabic_proofs = self.parent_window.font_manager.has_arabic_support()
+
+        # Build the complete options list
+        all_options = base_options[:]
+        if show_arabic_proofs:
+            all_options.extend(arabic_options)
+
+        # Convert to UI format
+        proof_options_items = []
+        for display_name, settings_key in all_options:
+            enabled = self.settings.get_proof_option(settings_key)
+            item = {
+                "Option": display_name,
+                "Enabled": enabled,
+                "_original_option": display_name,
+            }
+            proof_options_items.append(item)
+
+        return proof_options_items
+
+    def refresh_proof_options_list(self):
+        """Refresh the proof options list when fonts change."""
+        try:
+            # Generate new proof options list
+            proof_options_items = self.get_proof_options_list()
+
+            # Update the list
+            self.group.proofOptionsList.set(proof_options_items)
+        except Exception as e:
+            print(f"Error refreshing proof options list: {e}")
+
     def create_ui(self):
         """Create the Controls tab UI components."""
         try:
@@ -421,89 +481,14 @@ class ControlsTab:
                 "Arabic Numbers Proof",
             }
 
-            proof_options_items = []
+            # Generate dynamic proof options list
+            proof_options_items = self.get_proof_options_list()
 
-            for option, enabled in [
-                (
-                    "Show Baselines/Grid",
-                    self.settings.get_proof_option("showBaselines"),
-                ),
-                (
-                    "Character Set Proof",
-                    self.settings.get_proof_option("CharacterSetProof"),
-                ),
-                ("Spacing Proof", self.settings.get_proof_option("SpacingProof")),
-                (
-                    "Big Paragraph Proof",
-                    self.settings.get_proof_option("BigParagraphProof"),
-                ),
-                (
-                    "Big Diacritics Proof",
-                    self.settings.get_proof_option("BigDiacriticsProof"),
-                ),
-                (
-                    "Small Paragraph Proof",
-                    self.settings.get_proof_option("SmallParagraphProof"),
-                ),
-                (
-                    "Small Paired Styles Proof",
-                    self.settings.get_proof_option("SmallPairedStylesProof"),
-                ),
-                (
-                    "Small Wordsiv Proof",
-                    self.settings.get_proof_option("SmallWordsivProof"),
-                ),
-                (
-                    "Small Diacritics Proof",
-                    self.settings.get_proof_option("SmallDiacriticsProof"),
-                ),
-                (
-                    "Small Mixed Text Proof",
-                    self.settings.get_proof_option("SmallMixedTextProof"),
-                ),
-                (
-                    "Arabic Contextual Forms",
-                    self.settings.get_proof_option("ArabicContextualFormsProof"),
-                ),
-                (
-                    "Big Arabic Text Proof",
-                    self.settings.get_proof_option("BigArabicTextProof"),
-                ),
-                (
-                    "Big Farsi Text Proof",
-                    self.settings.get_proof_option("BigFarsiTextProof"),
-                ),
-                (
-                    "Small Arabic Text Proof",
-                    self.settings.get_proof_option("SmallArabicTextProof"),
-                ),
-                (
-                    "Small Farsi Text Proof",
-                    self.settings.get_proof_option("SmallFarsiTextProof"),
-                ),
-                (
-                    "Arabic Vocalization Proof",
-                    self.settings.get_proof_option("ArabicVocalizationProof"),
-                ),
-                (
-                    "Arabic-Latin Mixed Proof",
-                    self.settings.get_proof_option("ArabicLatinMixedProof"),
-                ),
-                (
-                    "Arabic Numbers Proof",
-                    self.settings.get_proof_option("ArabicNumbersProof"),
-                ),
-            ]:
-                # No longer adding asterisks - all proofs have settings but don't need visual indicator
+            # Track popover states for proofs with settings
+            for item in proof_options_items:
+                option = item["Option"]
                 if option in proofs_with_settings:
                     self.popover_states[option] = False  # Track popover visibility
-
-                item = {
-                    "Option": option,
-                    "Enabled": enabled,
-                    "_original_option": option,
-                }
-                proof_options_items.append(item)
 
             self.group.proofOptionsList = vanilla.List2(
                 (10, y, 260, 450),  # Increased height since we removed font size list
@@ -788,6 +773,10 @@ class ProofWindow(object):
         self.filesTab = FilesTab(self, self.font_manager)
         self.controlsTab = ControlsTab(self, self.settings)
         self.previewTab = PreviewTab(self)
+
+        # Refresh proof options list after tabs are created
+        if hasattr(self, "controlsTab") and self.controlsTab:
+            self.controlsTab.refresh_proof_options_list()
 
         # --- Main Content Group (holds the three tab groups) ---
         self.mainContent = vanilla.Group((0, 44, -0, -0))
@@ -1173,6 +1162,10 @@ class ProofWindow(object):
                     if feature_key not in self.proof_settings:
                         default_value = tag in self.default_on_features
                         self.proof_settings[feature_key] = default_value
+
+        # Refresh proof options list to show/hide Arabic proofs based on loaded fonts
+        if hasattr(self, "controlsTab") and self.controlsTab:
+            self.controlsTab.refresh_proof_options_list()
 
     def proofSelectionCallback(self, sender):
         """Handle proof selection to show popover with settings."""
@@ -1990,108 +1983,8 @@ class ProofWindow(object):
     def refresh_controls_tab(self):
         """Refresh the controls tab with current settings values."""
         try:
-            # Update proof options list
-            proofs_with_settings = {
-                "Character Set Proof",
-                "Spacing Proof",
-                "Big Paragraph Proof",
-                "Big Diacritics Proof",
-                "Small Paragraph Proof",
-                "Small Paired Styles Proof",
-                "Small Wordsiv Proof",
-                "Small Diacritics Proof",
-                "Small Mixed Text Proof",
-                "Arabic Contextual Forms",
-                "Big Arabic Text Proof",
-                "Big Farsi Text Proof",
-                "Small Arabic Text Proof",
-                "Small Farsi Text Proof",
-                "Arabic Vocalization Proof",
-                "Arabic-Latin Mixed Proof",
-                "Arabic Numbers Proof",
-            }
-
-            proof_options_items = []
-            for option, enabled in [
-                (
-                    "Show Baselines/Grid",
-                    self.settings.get_proof_option("showBaselines"),
-                ),
-                (
-                    "Character Set Proof",
-                    self.settings.get_proof_option("CharacterSetProof"),
-                ),
-                ("Spacing Proof", self.settings.get_proof_option("SpacingProof")),
-                (
-                    "Big Paragraph Proof",
-                    self.settings.get_proof_option("BigParagraphProof"),
-                ),
-                (
-                    "Big Diacritics Proof",
-                    self.settings.get_proof_option("BigDiacriticsProof"),
-                ),
-                (
-                    "Small Paragraph Proof",
-                    self.settings.get_proof_option("SmallParagraphProof"),
-                ),
-                (
-                    "Small Paired Styles Proof",
-                    self.settings.get_proof_option("SmallPairedStylesProof"),
-                ),
-                (
-                    "Small Wordsiv Proof",
-                    self.settings.get_proof_option("SmallWordsivProof"),
-                ),
-                (
-                    "Small Diacritics Proof",
-                    self.settings.get_proof_option("SmallDiacriticsProof"),
-                ),
-                (
-                    "Small Mixed Text Proof",
-                    self.settings.get_proof_option("SmallMixedTextProof"),
-                ),
-                (
-                    "Arabic Contextual Forms",
-                    self.settings.get_proof_option("ArabicContextualFormsProof"),
-                ),
-                (
-                    "Big Arabic Text Proof",
-                    self.settings.get_proof_option("BigArabicTextProof"),
-                ),
-                (
-                    "Big Farsi Text Proof",
-                    self.settings.get_proof_option("BigFarsiTextProof"),
-                ),
-                (
-                    "Small Arabic Text Proof",
-                    self.settings.get_proof_option("SmallArabicTextProof"),
-                ),
-                (
-                    "Small Farsi Text Proof",
-                    self.settings.get_proof_option("SmallFarsiTextProof"),
-                ),
-                (
-                    "Arabic Vocalization Proof",
-                    self.settings.get_proof_option("ArabicVocalizationProof"),
-                ),
-                (
-                    "Arabic-Latin Mixed Proof",
-                    self.settings.get_proof_option("ArabicLatinMixedProof"),
-                ),
-                (
-                    "Arabic Numbers Proof",
-                    self.settings.get_proof_option("ArabicNumbersProof"),
-                ),
-            ]:
-                # No longer adding asterisks to proof names
-                item = {
-                    "Option": option,
-                    "Enabled": enabled,
-                    "_original_option": option,
-                }
-                proof_options_items.append(item)
-
-            self.controlsTab.group.proofOptionsList.set(proof_options_items)
+            # Use the dynamic proof options list
+            self.controlsTab.refresh_proof_options_list()
 
         except Exception as e:
             print(f"Error refreshing controls tab: {e}")

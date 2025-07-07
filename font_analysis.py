@@ -354,9 +354,7 @@ class FontManager:
                 self.font_info[font_path] = font_info
 
             except Exception as e:
-                print(f"Error processing font {font_path}: {e}")(
-                    f"Error processing font {font_path}: {e}"
-                )
+                print(f"Error processing font {font_path}: {e}")
                 self.font_info[font_path] = {
                     "axes": {},
                     "name": os.path.basename(font_path),
@@ -425,6 +423,26 @@ class FontManager:
     def get_axis_values_for_font(self, font_path):
         """Get axis values for a specific font."""
         return self.axis_values_by_font.get(font_path, {})
+
+    def has_arabic_support(self):
+        """Check if any loaded font supports Arabic characters."""
+        if not self.fonts:
+            return False
+
+        required_chars = {"ب", "ا", "ح", "د", "ر"}  # Arabic test characters
+
+        for font_path in self.fonts:
+            try:
+                charset = filteredCharset(font_path)
+                font_chars = set(charset)
+
+                if required_chars.issubset(font_chars):
+                    return True
+            except Exception as e:
+                print(f"Error checking Arabic support in {font_path}: {e}")
+                continue
+
+        return False
 
     def load_fonts(self, font_paths):
         """Load fonts from a list of paths."""
