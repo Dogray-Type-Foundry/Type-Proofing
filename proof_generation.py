@@ -590,10 +590,13 @@ def charsetProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=N
         traceback.print_exc()
 
 
-def spacingProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None):
+def spacingProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None, columns=None):
     """Generate spacing proof."""
     # Use provided font size or fall back to global default
     proof_font_size = fontSize if fontSize is not None else spacingFontSize
+    
+    # Use provided columns or fall back to default spacing proof columns (2)
+    proof_columns = columns if columns is not None else 2
     
     sectionName = "Spacing proof"
     if axesProduct:
@@ -610,7 +613,7 @@ def spacingProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=N
                 OTFeaInput=dict(liga=False, kern=False) if otFea is None else otFea,
                 VFAxisInput=axisDict,
             )
-            drawContent(spacingString, sectionName + " - " + str(axisData), 2, indFont)
+            drawContent(spacingString, sectionName + " - " + str(axisData), proof_columns, indFont)
 
     elif axesProduct == "":
         spacingStringInput = generateSpacingString(characterSet)
@@ -625,7 +628,7 @@ def spacingProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=N
         drawContent(
             spacingString,
             sectionName + " - " + db.font(indFont).split("-")[1],
-            2,
+            proof_columns,
             indFont,
         )
 

@@ -1497,6 +1497,7 @@ class ProofWindow(object):
 
             if proof_options.get("SpacingProof"):
                 spacing_font_size = self.get_proof_font_size("SpacingProof")
+                spacing_columns = cols_by_proof.get("SpacingProof", 2)
                 spacingProof(
                     fullCharacterSet,
                     axesProduct,
@@ -1504,6 +1505,7 @@ class ProofWindow(object):
                     pairedStaticStyles,
                     otfeatures_by_proof.get("SpacingProof", {}),
                     spacing_font_size,
+                    spacing_columns,
                 )
             if proof_options.get("BigParagraphProof"):
                 big_paragraph_font_size = self.get_proof_font_size("BigParagraphProof")
