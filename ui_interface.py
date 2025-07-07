@@ -391,12 +391,10 @@ class ControlsTab:
     def create_ui(self):
         """Create the Controls tab UI components."""
         try:
-            print("Creating Controls tab UI...")
             self.group = vanilla.Group((0, 0, -0, -0))
             y = 10
 
             # Proof Options List (removed Font Size List)
-            print("Creating proof options list...")
             self.group.proofOptionsLabel = vanilla.TextBox(
                 (10, y, 150, 20), "Proof Options:"
             )
@@ -423,7 +421,6 @@ class ControlsTab:
                 "Arabic Numbers Proof",
             }
 
-            print("Building proof options items...")
             proof_options_items = []
 
             for option, enabled in [
@@ -508,7 +505,6 @@ class ControlsTab:
                 }
                 proof_options_items.append(item)
 
-            print("Creating proof options List2...")
             self.group.proofOptionsList = vanilla.List2(
                 (10, y, 260, 450),  # Increased height since we removed font size list
                 proof_options_items,
@@ -535,7 +531,6 @@ class ControlsTab:
             )
             y += 460  # Adjust button position
 
-            print("Creating buttons...")
             # Buttons arranged in a 2x2 grid at the bottom
             # First row: Generate Proof and Add Settings File
             self.group.generateButton = vanilla.Button(
@@ -560,8 +555,6 @@ class ControlsTab:
                 "Reset Settings",
                 callback=self.parent_window.resetSettingsCallback,
             )
-            print("Controls tab UI created successfully!")
-
         except Exception as e:
             print(f"Error creating Controls tab UI: {e}")
             import traceback
