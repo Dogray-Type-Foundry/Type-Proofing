@@ -310,11 +310,13 @@ class FontManager:
         if self.settings:
             self.settings.set_fonts(list(self.fonts))
             # Also clean up axis values in settings
-            for font_path in list(
-                self.settings.data.get("fonts", {}).get("axis_values", {}).keys()
-            ):
+            saved_axis_values = self.settings.data.get("fonts", {}).get(
+                "axis_values", {}
+            )
+            for font_path in list(saved_axis_values.keys()):
                 if font_path not in self.fonts:
-                    del self.settings.data["fonts"]["axis_values"][font_path]
+                    # Use the proper method to remove axis values
+                    self.settings.set_font_axis_values(font_path, {})
 
     def update_font_info(self):
         """Update font information for all loaded fonts."""
@@ -352,7 +354,9 @@ class FontManager:
                 self.font_info[font_path] = font_info
 
             except Exception as e:
-                print(f"Error processing font {font_path}: {e}")
+                print(f"Error processing font {font_path}: {e}")(
+                    f"Error processing font {font_path}: {e}"
+                )
                 self.font_info[font_path] = {
                     "axes": {},
                     "name": os.path.basename(font_path),
@@ -421,3 +425,26 @@ class FontManager:
     def get_axis_values_for_font(self, font_path):
         """Get axis values for a specific font."""
         return self.axis_values_by_font.get(font_path, {})
+
+    def load_fonts(self, font_paths):
+        """Load fonts from a list of paths."""
+        if not font_paths:
+            return False
+
+        valid_paths = [
+            path
+            for path in font_paths
+            if path.lower().endswith((".otf", ".ttf")) and os.path.exists(path)
+        ]
+
+        if not valid_paths:
+            return False
+
+        self.fonts = tuple(valid_paths)
+        self.update_font_info()
+
+        # Save to settings
+        if self.settings:
+            self.settings.set_fonts(list(self.fonts))
+
+        return True

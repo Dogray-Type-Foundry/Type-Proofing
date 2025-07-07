@@ -870,9 +870,28 @@ class ProofWindow(object):
 
                 if option == "Show Baselines/Grid":
                     self.settings.set_proof_option("showBaselines", enabled)
-                elif option.endswith(" Proof"):
+                else:
                     # Convert display name back to key
-                    key = option.replace(" ", "").replace("Proof", "Proof")
+                    option_name_map = {
+                        "Character Set Proof": "CharacterSetProof",
+                        "Spacing Proof": "SpacingProof",
+                        "Big Paragraph Proof": "BigParagraphProof",
+                        "Big Diacritics Proof": "BigDiacriticsProof",
+                        "Small Paragraph Proof": "SmallParagraphProof",
+                        "Small Paired Styles Proof": "SmallPairedStylesProof",
+                        "Small Wordsiv Proof": "SmallWordsivProof",
+                        "Small Diacritics Proof": "SmallDiacriticsProof",
+                        "Small Mixed Text Proof": "SmallMixedTextProof",
+                        "Arabic Contextual Forms": "ArabicContextualFormsProof",
+                        "Big Arabic Text Proof": "BigArabicTextProof",
+                        "Big Farsi Text Proof": "BigFarsiTextProof",
+                        "Small Arabic Text Proof": "SmallArabicTextProof",
+                        "Small Farsi Text Proof": "SmallFarsiTextProof",
+                        "Arabic Vocalization Proof": "ArabicVocalizationProof",
+                        "Arabic-Latin Mixed Proof": "ArabicLatinMixedProof",
+                        "Arabic Numbers Proof": "ArabicNumbersProof",
+                    }
+                    key = option_name_map.get(option, option.replace(" ", ""))
                     self.settings.set_proof_option(key, enabled)
 
             # Save proof-specific settings
@@ -1670,7 +1689,9 @@ class ProofWindow(object):
 
             # Arabic Contextual Forms Proof
             if proof_options.get("ArabicContextualFormsProof"):
-                arabic_contextual_forms_font_size = self.get_proof_font_size("ArabicContextualFormsProof")
+                arabic_contextual_forms_font_size = self.get_proof_font_size(
+                    "ArabicContextualFormsProof"
+                )
                 arabicContextualFormsProof(
                     cat,
                     axesProduct,
