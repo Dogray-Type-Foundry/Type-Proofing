@@ -9,7 +9,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Store settings file in user's home directory
 SETTINGS_PATH = os.path.expanduser("~/.type-proofing-prefs.json")
-WINDOW_TITLE = "DrawBot Proof Generator with Preview"
+WINDOW_TITLE = "Type Proofing"
 
 # Arabic/Farsi character templates for script analysis
 arTemplate = "ابجدهوزحطيكلمنسعفصقرشتثخذضظغء"
