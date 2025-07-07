@@ -8,6 +8,7 @@ import traceback
 
 # Third-party imports
 import AppKit
+from AppKit import NSBezelStyleRegularSquare
 import drawBot as db
 import objc
 import Quartz.PDFKit as PDFKit
@@ -217,10 +218,10 @@ class FilesTab:
         )
 
         self.group.addButton = vanilla.Button(
-            (10, -35, 140, 20), "Add Fonts", callback=self.addFontsCallback
+            (10, -40, 140, 20), "Add Fonts", callback=self.addFontsCallback
         )
         self.group.removeButton = vanilla.Button(
-            (160, -35, 140, 20), "Remove Selected", callback=self.removeFontsCallback
+            (160, -40, 140, 20), "Remove Selected", callback=self.removeFontsCallback
         )
 
     def update_table(self):
@@ -597,25 +598,24 @@ class ControlsTab:
 
             # Buttons arranged in a 2x2 grid at the bottom
             # First row: Generate Proof and Add Settings File
-            self.group.generateButton = vanilla.Button(
-                (controls_x, -68, 140, 30),
-                "Generate Proof",
+            self.group.generateButton = vanilla.GradientButton(
+                (controls_x, -70, 140, 55),
+                title="Generate Proof",
                 callback=self.parent_window.generateCallback,
             )
+            self.group.generateButton._nsObject.setBezelStyle_(
+                NSBezelStyleRegularSquare
+            )
+            self.group.generateButton._nsObject.setKeyEquivalent_("\r")
+
             self.group.addSettingsButton = vanilla.Button(
-                (controls_x + 145, -68, 140, 30),
+                (controls_x + 150, -68, 140, 20),
                 "Add Settings File",
                 callback=self.parent_window.addSettingsFileCallback,
             )
 
-            # Second row: Close Window and Reset Settings
-            self.group.closeButton = vanilla.Button(
-                (controls_x, -40, 140, 30),
-                "Close Window",
-                callback=self.parent_window.closeWindowCallback,
-            )
             self.group.resetButton = vanilla.Button(
-                (controls_x + 145, -40, 140, 30),
+                (controls_x + 150, -40, 140, 20),
                 "Reset Settings",
                 callback=self.parent_window.resetSettingsCallback,
             )
