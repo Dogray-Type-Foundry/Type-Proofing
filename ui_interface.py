@@ -181,7 +181,7 @@ class FilesTab:
         # Table view for fonts
         columnDescriptions = [
             {"identifier": "name", "title": "Font", "width": 300},
-            {"identifier": "axes", "title": "Axes", "width": 300, "editable": True},
+            {"identifier": "axes", "title": "Axes", "width": 500, "editable": True},
         ]
 
         # Drag settings for internal reordering
@@ -385,60 +385,214 @@ class ControlsTab:
     def __init__(self, parent_window, settings):
         self.parent_window = parent_window
         self.settings = settings
+        self.popover_states = {}  # Track which popovers are shown for each row
         self.create_ui()
 
     def create_ui(self):
         """Create the Controls tab UI components."""
-        self.group = vanilla.Group((0, 0, -0, -0))
-        y = 10
+        try:
+            print("Creating Controls tab UI...")
+            self.group = vanilla.Group((0, 0, -0, -0))
+            y = 10
 
-        # Font Size List
-        self.group.fontSizeLabel = vanilla.TextBox((10, y, 150, 20), "Font Sizes:")
-        y += 25
+            # Proof Options List (removed Font Size List)
+            print("Creating proof options list...")
+            self.group.proofOptionsLabel = vanilla.TextBox(
+                (10, y, 150, 20), "Proof Options:"
+            )
+            y += 25
 
-        font_size_items = [
-            {
-                "Setting": "Charset Font Size",
-                "Value": self.settings.get_font_size("charset"),
-            },
-            {
-                "Setting": "Spacing Font Size",
-                "Value": self.settings.get_font_size("spacing"),
-            },
-            {
-                "Setting": "Large Text Font Size",
-                "Value": self.settings.get_font_size("large"),
-            },
-            {
-                "Setting": "Small Text Font Size",
-                "Value": self.settings.get_font_size("small"),
-            },
-        ]
+            # Define which proofs have settings (all proofs now have font size setting)
+            proofs_with_settings = {
+                "Character Set Proof",
+                "Spacing Proof",
+                "Big Paragraph Proof",
+                "Big Diacritics Proof",
+                "Small Paragraph Proof",
+                "Small Paired Styles Proof",
+                "Small Wordsiv Proof",
+                "Small Diacritics Proof",
+                "Small Mixed Text Proof",
+                "Arabic Contextual Forms",
+                "Big Arabic Text Proof",
+                "Big Farsi Text Proof",
+                "Small Arabic Text Proof",
+                "Small Farsi Text Proof",
+                "Arabic Vocalization Proof",
+                "Arabic-Latin Mixed Proof",
+                "Arabic Numbers Proof",
+            }
 
-        self.group.fontSizeList = vanilla.List(
-            (10, y, 400, 100),
-            font_size_items,
-            columnDescriptions=[
-                {"title": "Setting", "key": "Setting", "width": 150, "editable": False},
-                {"title": "Value", "key": "Value", "width": 100, "editable": True},
-            ],
-            editCallback=self.fontSizeEditCallback,
-        )
-        y += 110
+            print("Building proof options items...")
+            proof_options_items = []
 
-        # Proof Options List
-        self.group.proofOptionsLabel = vanilla.TextBox(
-            (10, y, 150, 20), "Proof Options:"
-        )
-        y += 25
+            for option, enabled in [
+                (
+                    "Show Baselines/Grid",
+                    self.settings.get_proof_option("showBaselines"),
+                ),
+                (
+                    "Character Set Proof",
+                    self.settings.get_proof_option("CharacterSetProof"),
+                ),
+                ("Spacing Proof", self.settings.get_proof_option("SpacingProof")),
+                (
+                    "Big Paragraph Proof",
+                    self.settings.get_proof_option("BigParagraphProof"),
+                ),
+                (
+                    "Big Diacritics Proof",
+                    self.settings.get_proof_option("BigDiacriticsProof"),
+                ),
+                (
+                    "Small Paragraph Proof",
+                    self.settings.get_proof_option("SmallParagraphProof"),
+                ),
+                (
+                    "Small Paired Styles Proof",
+                    self.settings.get_proof_option("SmallPairedStylesProof"),
+                ),
+                (
+                    "Small Wordsiv Proof",
+                    self.settings.get_proof_option("SmallWordsivProof"),
+                ),
+                (
+                    "Small Diacritics Proof",
+                    self.settings.get_proof_option("SmallDiacriticsProof"),
+                ),
+                (
+                    "Small Mixed Text Proof",
+                    self.settings.get_proof_option("SmallMixedTextProof"),
+                ),
+                (
+                    "Arabic Contextual Forms",
+                    self.settings.get_proof_option("ArabicContextualFormsProof"),
+                ),
+                (
+                    "Big Arabic Text Proof",
+                    self.settings.get_proof_option("BigArabicTextProof"),
+                ),
+                (
+                    "Big Farsi Text Proof",
+                    self.settings.get_proof_option("BigFarsiTextProof"),
+                ),
+                (
+                    "Small Arabic Text Proof",
+                    self.settings.get_proof_option("SmallArabicTextProof"),
+                ),
+                (
+                    "Small Farsi Text Proof",
+                    self.settings.get_proof_option("SmallFarsiTextProof"),
+                ),
+                (
+                    "Arabic Vocalization Proof",
+                    self.settings.get_proof_option("ArabicVocalizationProof"),
+                ),
+                (
+                    "Arabic-Latin Mixed Proof",
+                    self.settings.get_proof_option("ArabicLatinMixedProof"),
+                ),
+                (
+                    "Arabic Numbers Proof",
+                    self.settings.get_proof_option("ArabicNumbersProof"),
+                ),
+            ]:
+                # No longer adding asterisks - all proofs have settings but don't need visual indicator
+                if option in proofs_with_settings:
+                    self.popover_states[option] = False  # Track popover visibility
 
-        # Define which proofs have settings (for indicator)
+                item = {
+                    "Option": option,
+                    "Enabled": enabled,
+                    "_original_option": option,
+                }
+                proof_options_items.append(item)
+
+            print("Creating proof options List2...")
+            self.group.proofOptionsList = vanilla.List2(
+                (10, y, 260, 450),  # Increased height since we removed font size list
+                proof_options_items,
+                columnDescriptions=[
+                    {
+                        "identifier": "Option",
+                        "title": "Option",
+                        "key": "Option",
+                        "width": 190,  # Make wider since we removed the Settings column
+                        "editable": False,
+                    },
+                    {
+                        "identifier": "Enabled",
+                        "title": "Enabled",
+                        "key": "Enabled",
+                        "width": 16,
+                        "editable": True,
+                        "cellClass": vanilla.CheckBoxList2Cell,
+                    },
+                ],
+                showColumnTitles=False,
+                autohidesScrollers=True,
+                editCallback=self.proofOptionsEditCallback,
+            )
+            y += 460  # Adjust button position
+
+            print("Creating buttons...")
+            # Buttons arranged in a 2x2 grid at the bottom
+            # First row: Generate Proof and Add Settings File
+            self.group.generateButton = vanilla.Button(
+                (10, -110, 140, 30),
+                "Generate Proof",
+                callback=self.parent_window.generateCallback,
+            )
+            self.group.addSettingsButton = vanilla.Button(
+                (160, -110, 140, 30),
+                "Add Settings File",
+                callback=self.parent_window.addSettingsFileCallback,
+            )
+
+            # Second row: Close Window and Reset Settings
+            self.group.closeButton = vanilla.Button(
+                (10, -70, 140, 30),
+                "Close Window",
+                callback=self.parent_window.closeWindowCallback,
+            )
+            self.group.resetButton = vanilla.Button(
+                (160, -70, 140, 30),
+                "Reset Settings",
+                callback=self.parent_window.resetSettingsCallback,
+            )
+            print("Controls tab UI created successfully!")
+
+        except Exception as e:
+            print(f"Error creating Controls tab UI: {e}")
+            import traceback
+
+            traceback.print_exc()
+            raise
+
+    def update_table(self):
+        """Update the table with current font data."""
+        table_data = self.font_manager.get_table_data()
+        self.group.tableView.set(table_data)
+
+    def proofOptionsEditCallback(self, sender):
+        """Handle edits to proof options."""
+        items = sender.get()
+
+        # Check if this is a checkbox edit
+        edited_index = sender.getEditedIndex()
+
+        # Define which proofs have settings (same as in create_ui)
         proofs_with_settings = {
+            "Character Set Proof",
+            "Spacing Proof",
             "Big Paragraph Proof",
+            "Big Diacritics Proof",
             "Small Paragraph Proof",
             "Small Paired Styles Proof",
             "Small Wordsiv Proof",
+            "Small Diacritics Proof",
             "Small Mixed Text Proof",
+            "Arabic Contextual Forms",
             "Big Arabic Text Proof",
             "Big Farsi Text Proof",
             "Small Arabic Text Proof",
@@ -448,165 +602,39 @@ class ControlsTab:
             "Arabic Numbers Proof",
         }
 
-        proof_options_items = []
-        for option, enabled in [
-            ("Show Baselines/Grid", self.settings.get_proof_option("showBaselines")),
-            (
-                "Character Set Proof",
-                self.settings.get_proof_option("CharacterSetProof"),
-            ),
-            ("Spacing Proof", self.settings.get_proof_option("SpacingProof")),
-            (
-                "Big Paragraph Proof",
-                self.settings.get_proof_option("BigParagraphProof"),
-            ),
-            (
-                "Big Diacritics Proof",
-                self.settings.get_proof_option("BigDiacriticsProof"),
-            ),
-            (
-                "Small Paragraph Proof",
-                self.settings.get_proof_option("SmallParagraphProof"),
-            ),
-            (
-                "Small Paired Styles Proof",
-                self.settings.get_proof_option("SmallPairedStylesProof"),
-            ),
-            (
-                "Small Wordsiv Proof",
-                self.settings.get_proof_option("SmallWordsivProof"),
-            ),
-            (
-                "Small Diacritics Proof",
-                self.settings.get_proof_option("SmallDiacriticsProof"),
-            ),
-            (
-                "Small Mixed Text Proof",
-                self.settings.get_proof_option("SmallMixedTextProof"),
-            ),
-            (
-                "Arabic Contextual Forms",
-                self.settings.get_proof_option("ArabicContextualFormsProof"),
-            ),
-            (
-                "Big Arabic Text Proof",
-                self.settings.get_proof_option("BigArabicTextProof"),
-            ),
-            (
-                "Big Farsi Text Proof",
-                self.settings.get_proof_option("BigFarsiTextProof"),
-            ),
-            (
-                "Small Arabic Text Proof",
-                self.settings.get_proof_option("SmallArabicTextProof"),
-            ),
-            (
-                "Small Farsi Text Proof",
-                self.settings.get_proof_option("SmallFarsiTextProof"),
-            ),
-            (
-                "Arabic Vocalization Proof",
-                self.settings.get_proof_option("ArabicVocalizationProof"),
-            ),
-            (
-                "Arabic-Latin Mixed Proof",
-                self.settings.get_proof_option("ArabicLatinMixedProof"),
-            ),
-            (
-                "Arabic Numbers Proof",
-                self.settings.get_proof_option("ArabicNumbersProof"),
-            ),
-        ]:
-            item = {"Option": option, "Enabled": enabled}
-            # Add indicator text for proofs with settings
-            if option in proofs_with_settings:
-                item["Settings"] = "⚙"  # Gear symbol as text
-            else:
-                item["Settings"] = ""
-            proof_options_items.append(item)
+        if edited_index is not None and edited_index < len(items):
+            item = items[edited_index]
+            option = item.get(
+                "_original_option", item["Option"]
+            )  # Get original option name
+            enabled = item["Enabled"]
 
-        self.group.proofOptionsList = vanilla.List(
-            (10, y, 400, 340),
-            proof_options_items,
-            columnDescriptions=[
-                {"title": "Option", "key": "Option", "width": 200, "editable": False},
-                {
-                    "title": "Enabled",
-                    "key": "Enabled",
-                    "width": 80,
-                    "cell": vanilla.CheckBoxListCell(),
-                },
-                {
-                    "title": "Settings",
-                    "key": "Settings",
-                    "width": 50,
-                    "editable": False,
-                },
-            ],
-            editCallback=self.proofOptionsEditCallback,
-            selectionCallback=self.proofSelectionCallback,
-        )
-        y += 230
+            # If this proof has settings and was just enabled, show the popover
+            if (
+                option in proofs_with_settings
+                and enabled
+                and not self.popover_states.get(option, False)
+            ):
+                # Hide any other open popovers first
+                self.hide_all_popovers_except(option)
 
-        # Buttons arranged in a 2x2 grid at the bottom
-        # First row: Generate Proof and Add Settings File
-        self.group.generateButton = vanilla.Button(
-            (10, -110, 140, 30),
-            "Generate Proof",
-            callback=self.parent_window.generateCallback,
-        )
-        self.group.addSettingsButton = vanilla.Button(
-            (160, -110, 140, 30),
-            "Add Settings File",
-            callback=self.parent_window.addSettingsFileCallback,
-        )
+                # Show the popover for this option
+                self.show_popover_for_option(option, edited_index)
+                self.popover_states[option] = True
+            elif (
+                option in proofs_with_settings
+                and not enabled
+                and self.popover_states.get(option, False)
+            ):
+                # If the proof was disabled, hide its popover
+                self.hide_popover_for_option(option)
+                self.popover_states[option] = False
 
-        # Second row: Close Window and Reset Settings
-        self.group.closeButton = vanilla.Button(
-            (10, -70, 140, 30),
-            "Close Window",
-            callback=self.parent_window.closeWindowCallback,
-        )
-        self.group.resetButton = vanilla.Button(
-            (160, -70, 140, 30),
-            "Reset Settings",
-            callback=self.parent_window.resetSettingsCallback,
-        )
-
-    def update_table(self):
-        """Update the table with current font data."""
-        table_data = self.font_manager.get_table_data()
-        self.group.tableView.set(table_data)
-
-    def fontSizeEditCallback(self, sender):
-        """Handle edits to font sizes."""
-        items = sender.get()
+        # Handle regular proof option edits (save settings)
         for item in items:
-            setting = item["Setting"]
-            value = item["Value"]
-            try:
-                value = int(value)
-                if value <= 0:
-                    print(f"Invalid font size for {setting}: must be > 0")
-                    continue
-
-                if setting == "Charset Font Size":
-                    self.settings.set_font_size("charset", value)
-                elif setting == "Spacing Font Size":
-                    self.settings.set_font_size("spacing", value)
-                elif setting == "Large Text Font Size":
-                    self.settings.set_font_size("large", value)
-                elif setting == "Small Text Font Size":
-                    self.settings.set_font_size("small", value)
-
-            except (ValueError, TypeError):
-                print(f"Invalid font size for {setting}: {value}")
-
-    def proofOptionsEditCallback(self, sender):
-        """Handle edits to proof options."""
-        items = sender.get()
-        for item in items:
-            option = item["Option"]
+            option = item.get(
+                "_original_option", item["Option"]
+            )  # Get original option name
             enabled = item["Enabled"]
 
             if option == "Show Baselines/Grid":
@@ -616,9 +644,69 @@ class ControlsTab:
                 key = option.replace(" ", "").replace("Proof", "Proof")
                 self.settings.set_proof_option(key, enabled)
 
-    def proofSelectionCallback(self, sender):
-        """Handle proof selection to show popover with settings."""
-        self.parent_window.proofSelectionCallback(sender)
+    def hide_all_popovers_except(self, except_option):
+        """Hide all open popovers except the specified one."""
+        for option in self.popover_states:
+            if option != except_option and self.popover_states[option]:
+                self.hide_popover_for_option(option)
+                self.popover_states[option] = False
+
+    def show_popover_for_option(self, option, row_index):
+        """Show popover for the specified option."""
+        # Map proof names to keys for proof types that have settings
+        proof_name_to_key = {
+            "Character Set Proof": "CharacterSetProof",
+            "Spacing Proof": "SpacingProof",
+            "Big Paragraph Proof": "BigParagraphProof",
+            "Big Diacritics Proof": "BigDiacriticsProof",
+            "Small Paragraph Proof": "SmallParagraphProof",
+            "Small Paired Styles Proof": "SmallPairedStylesProof",
+            "Small Wordsiv Proof": "SmallWordsivProof",
+            "Small Diacritics Proof": "SmallDiacriticsProof",
+            "Small Mixed Text Proof": "SmallMixedTextProof",
+            "Arabic Contextual Forms": "ArabicContextualFormsProof",
+            "Big Arabic Text Proof": "BigArabicTextProof",
+            "Big Farsi Text Proof": "BigFarsiTextProof",
+            "Small Arabic Text Proof": "SmallArabicTextProof",
+            "Small Farsi Text Proof": "SmallFarsiTextProof",
+            "Arabic Vocalization Proof": "ArabicVocalizationProof",
+            "Arabic-Latin Mixed Proof": "ArabicLatinMixedProof",
+            "Arabic Numbers Proof": "ArabicNumbersProof",
+        }
+
+        if option in proof_name_to_key:
+            proof_key = proof_name_to_key[option]
+            self.parent_window.current_proof_key = proof_key
+
+            # Get the relative rect for the selected row
+            relativeRect = self.group.proofOptionsList.getNSTableView().rectOfRow_(
+                row_index
+            )
+
+            # Create and show popover
+            if not hasattr(self.parent_window, "proof_settings_popover"):
+                self.parent_window.create_proof_settings_popover()
+
+            # Set the proof type based on current selection
+            proof_keys = [key for key, _ in self.parent_window.proof_types_with_otf]
+            if self.parent_window.current_proof_key in proof_keys:
+                idx = proof_keys.index(self.parent_window.current_proof_key)
+                self.parent_window.proof_settings_popover.proofTypePopup.set(idx)
+                self.parent_window.proofTypeSelectionCallback(
+                    self.parent_window.proof_settings_popover.proofTypePopup
+                )
+
+            # Open popover positioned relative to the selected row
+            self.parent_window.proof_settings_popover.open(
+                parentView=self.group.proofOptionsList.getNSTableView(),
+                preferredEdge="right",
+                relativeRect=relativeRect,
+            )
+
+    def hide_popover_for_option(self, option):
+        """Hide popover for the specified option."""
+        if hasattr(self.parent_window, "proof_settings_popover"):
+            self.parent_window.proof_settings_popover.close()
 
 
 class PreviewTab:
@@ -665,11 +753,16 @@ class ProofWindow(object):
 
         # Initialize proof-specific settings storage
         self.proof_types_with_otf = [
+            ("CharacterSetProof", "Character Set Proof"),
+            ("SpacingProof", "Spacing Proof"),
             ("BigParagraphProof", "Big Paragraph Proof"),
+            ("BigDiacriticsProof", "Big Diacritics Proof"),
             ("SmallParagraphProof", "Small Paragraph Proof"),
             ("SmallPairedStylesProof", "Small Paired Styles Proof"),
             ("SmallWordsivProof", "Small Wordsiv Proof"),
+            ("SmallDiacriticsProof", "Small Diacritics Proof"),
             ("SmallMixedTextProof", "Small Mixed Text Proof"),
+            ("ArabicContextualFormsProof", "Arabic Contextual Forms"),
             ("BigArabicTextProof", "Big Arabic Text Proof"),
             ("BigFarsiTextProof", "Big Farsi Text Proof"),
             ("SmallArabicTextProof", "Small Arabic Text Proof"),
@@ -749,31 +842,37 @@ class ProofWindow(object):
         self.controlsTab.group.show(idx == 1)
         self.previewTab.group.show(idx == 2)
 
+    def get_proof_font_size(self, proof_key):
+        """Get font size for a specific proof from its settings."""
+        font_size_key = f"{proof_key}_fontSize"
+
+        # Set default font size based on proof type
+        if proof_key in [
+            "BigParagraphProof",
+            "BigDiacriticsProof",
+            "BigArabicTextProof",
+            "BigFarsiTextProof",
+        ]:
+            default_font_size = largeTextFontSize
+        elif proof_key == "CharacterSetProof":
+            default_font_size = charsetFontSize
+        elif proof_key == "SpacingProof":
+            default_font_size = spacingFontSize
+        else:
+            # Small proofs and other proofs
+            default_font_size = smallTextFontSize
+
+        return self.proof_settings.get(font_size_key, default_font_size)
+
     def save_all_settings(self):
         """Save all current settings to the settings file."""
         try:
-            # Save font sizes
-            font_size_items = self.controlsTab.group.fontSizeList.get()
-            for item in font_size_items:
-                setting = item["Setting"]
-                value = item["Value"]
-                try:
-                    value = int(value)
-                    if setting == "Charset Font Size":
-                        self.settings.set_font_size("charset", value)
-                    elif setting == "Spacing Font Size":
-                        self.settings.set_font_size("spacing", value)
-                    elif setting == "Large Text Font Size":
-                        self.settings.set_font_size("large", value)
-                    elif setting == "Small Text Font Size":
-                        self.settings.set_font_size("small", value)
-                except (ValueError, TypeError):
-                    pass  # Skip invalid values
-
             # Save proof options
             proof_options_items = self.controlsTab.group.proofOptionsList.get()
             for item in proof_options_items:
-                option = item["Option"]
+                option = item.get(
+                    "_original_option", item["Option"]
+                )  # Get original option name
                 enabled = bool(item["Enabled"])
 
                 if option == "Show Baselines/Grid":
@@ -894,31 +993,15 @@ class ProofWindow(object):
                 # Read axis values - now handled through Files tab per-font settings
                 userAxesValues = {}
 
-                # Read font sizes from list
-                font_size_items = controls.fontSizeList.get()
-                for item in font_size_items:
-                    setting = item["Setting"]
-                    value = item["Value"]
-                    try:
-                        value = int(value)
-                        if setting == "Charset Font Size":
-                            charsetFontSize = value
-                        elif setting == "Spacing Font Size":
-                            spacingFontSize = value
-                        elif setting == "Large Text Font Size":
-                            largeTextFontSize = value
-                        elif setting == "Small Text Font Size":
-                            smallTextFontSize = value
-                    except (ValueError, TypeError):
-                        print(f"Error reading font size for {setting}: {value}")
-
                 # Read proof options from list
                 proof_options_items = controls.proofOptionsList.get()
                 proof_options = {}
                 self.showBaselines = False
 
                 for item in proof_options_items:
-                    option = item["Option"]
+                    option = item.get(
+                        "_original_option", item["Option"]
+                    )  # Get original option name
                     enabled = bool(item["Enabled"])
 
                     if option == "Show Baselines/Grid":
@@ -1023,18 +1106,42 @@ class ProofWindow(object):
         for proof_key, _ in self.proof_types_with_otf:
             # Column settings - set proper defaults for each proof type
             cols_key = f"{proof_key}_cols"
-            # Big proofs use 1 column, small/mixed use 2 columns
+            # Character Set and Arabic Contextual Forms don't use columns
+            if proof_key not in ["CharacterSetProof", "ArabicContextualFormsProof"]:
+                # Big proofs, Big Diacritics, and Big Arabic/Farsi proofs use 1 column
+                if proof_key in [
+                    "BigParagraphProof",
+                    "BigDiacriticsProof",
+                    "BigArabicTextProof",
+                    "BigFarsiTextProof",
+                ]:
+                    default_cols = 1
+                else:
+                    default_cols = 2
+
+                if cols_key not in self.proof_settings:
+                    self.proof_settings[cols_key] = default_cols
+
+            # Font size settings for all proofs
+            font_size_key = f"{proof_key}_fontSize"
+            # Set default font size based on proof type
             if proof_key in [
                 "BigParagraphProof",
+                "BigDiacriticsProof",
                 "BigArabicTextProof",
                 "BigFarsiTextProof",
             ]:
-                default_cols = 1
+                default_font_size = largeTextFontSize
+            elif proof_key == "CharacterSetProof":
+                default_font_size = charsetFontSize
+            elif proof_key == "SpacingProof":
+                default_font_size = spacingFontSize
             else:
-                default_cols = 2
+                # Small proofs and other proofs
+                default_font_size = smallTextFontSize
 
-            if cols_key not in self.proof_settings:
-                self.proof_settings[cols_key] = default_cols
+            if font_size_key not in self.proof_settings:
+                self.proof_settings[font_size_key] = default_font_size
 
             # Paragraph settings (only for SmallWordsivProof)
             if proof_key == "SmallWordsivProof":
@@ -1075,11 +1182,16 @@ class ProofWindow(object):
 
         # Map proof names to keys for proof types that have settings
         proof_name_to_key = {
+            "Character Set Proof": "CharacterSetProof",
+            "Spacing Proof": "SpacingProof",
             "Big Paragraph Proof": "BigParagraphProof",
+            "Big Diacritics Proof": "BigDiacriticsProof",
             "Small Paragraph Proof": "SmallParagraphProof",
             "Small Paired Styles Proof": "SmallPairedStylesProof",
             "Small Wordsiv Proof": "SmallWordsivProof",
+            "Small Diacritics Proof": "SmallDiacriticsProof",
             "Small Mixed Text Proof": "SmallMixedTextProof",
+            "Arabic Contextual Forms": "ArabicContextualFormsProof",
             "Big Arabic Text Proof": "BigArabicTextProof",
             "Big Farsi Text Proof": "BigFarsiTextProof",
             "Small Arabic Text Proof": "SmallArabicTextProof",
@@ -1135,12 +1247,24 @@ class ProofWindow(object):
 
         # Numeric settings list
         popover.numericLabel = vanilla.TextBox((10, 70, -10, 20), "Numeric Settings:")
-        popover.numericList = vanilla.List(
+        popover.numericList = vanilla.List2(
             (10, 95, -10, 120),
             [],
             columnDescriptions=[
-                {"title": "Setting", "key": "Setting", "width": 150},
-                {"title": "Value", "key": "Value", "width": 100, "editable": True},
+                {
+                    "identifier": "Setting",
+                    "title": "Setting",
+                    "key": "Setting",
+                    "width": 150,
+                    "editable": False,
+                },
+                {
+                    "identifier": "Value",
+                    "title": "Value",
+                    "key": "Value",
+                    "width": 100,
+                    "editable": True,
+                },
             ],
             editCallback=self.numericSettingsEditCallback,
         )
@@ -1149,16 +1273,24 @@ class ProofWindow(object):
         popover.featuresLabel = vanilla.TextBox(
             (10, 225, -10, 20), "OpenType Features:"
         )
-        popover.featuresList = vanilla.List(
+        popover.featuresList = vanilla.List2(
             (10, 250, -10, -10),
             [],
             columnDescriptions=[
-                {"title": "Feature", "key": "Feature", "width": 150},
                 {
+                    "identifier": "Feature",
+                    "title": "Feature",
+                    "key": "Feature",
+                    "width": 150,
+                    "editable": False,
+                },
+                {
+                    "identifier": "Enabled",
                     "title": "Enabled",
                     "key": "Enabled",
                     "width": 80,
-                    "cell": vanilla.CheckBoxListCell(),
+                    "editable": True,
+                    "cellClass": vanilla.CheckBoxList2Cell,
                 },
             ],
             editCallback=self.featuresEditCallback,
@@ -1184,22 +1316,47 @@ class ProofWindow(object):
         # Update numeric settings
         numeric_items = []
 
-        # Columns setting with appropriate defaults
-        cols_key = f"{proof_key}_cols"
-        # Big proofs and Big Arabic/Farsi proofs default to 1 column
+        # Font size setting for all proofs (always first)
+        font_size_key = f"{proof_key}_fontSize"
+        # Set default font size based on proof type
         if proof_key in [
             "BigParagraphProof",
+            "BigDiacriticsProof",
             "BigArabicTextProof",
             "BigFarsiTextProof",
         ]:
-            default_cols = 1
+            default_font_size = largeTextFontSize
+        elif proof_key == "CharacterSetProof":
+            default_font_size = charsetFontSize
+        elif proof_key == "SpacingProof":
+            default_font_size = spacingFontSize
         else:
-            # All other proofs default to 2 columns
-            default_cols = 2
-        cols_value = self.proof_settings.get(cols_key, default_cols)
+            # Small proofs and other proofs
+            default_font_size = smallTextFontSize
+
+        font_size_value = self.proof_settings.get(font_size_key, default_font_size)
         numeric_items.append(
-            {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
+            {"Setting": "Font Size", "Value": font_size_value, "_key": font_size_key}
         )
+
+        # Columns setting with appropriate defaults (skip for certain proofs)
+        if proof_key not in ["CharacterSetProof", "ArabicContextualFormsProof"]:
+            cols_key = f"{proof_key}_cols"
+            # Big proofs, Big Arabic/Farsi proofs, and Big Diacritics default to 1 column
+            if proof_key in [
+                "BigParagraphProof",
+                "BigDiacriticsProof",
+                "BigArabicTextProof",
+                "BigFarsiTextProof",
+            ]:
+                default_cols = 1
+            else:
+                # All other proofs default to 2 columns
+                default_cols = 2
+            cols_value = self.proof_settings.get(cols_key, default_cols)
+            numeric_items.append(
+                {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
+            )
 
         # Paragraphs setting (only for SmallWordsivProof)
         if proof_key in ["SmallWordsivProof"]:
@@ -1223,11 +1380,28 @@ class ProofWindow(object):
         feature_items = []
         for tag in feature_tags:
             feature_key = f"otf_{proof_key}_{tag}"
-            default_value = tag in self.default_on_features
-            feature_value = self.proof_settings.get(feature_key, default_value)
-            feature_items.append(
-                {"Feature": tag, "Enabled": feature_value, "_key": feature_key}
-            )
+
+            # Special handling for SpacingProof kern feature
+            if proof_key == "SpacingProof" and tag == "kern":
+                # Kern should always be disabled for spacing proof and not editable
+                feature_value = False
+                self.proof_settings[feature_key] = (
+                    False  # Ensure it's saved as disabled
+                )
+                feature_items.append(
+                    {
+                        "Feature": f"{tag} (always off)",
+                        "Enabled": feature_value,
+                        "_key": feature_key,
+                        "_readonly": True,
+                    }
+                )
+            else:
+                default_value = tag in self.default_on_features
+                feature_value = self.proof_settings.get(feature_key, default_value)
+                feature_items.append(
+                    {"Feature": tag, "Enabled": feature_value, "_key": feature_key}
+                )
 
         popover.featuresList.set(feature_items)
 
@@ -1254,6 +1428,15 @@ class ProofWindow(object):
             if "_key" in item:
                 key = item["_key"]
                 enabled = item["Enabled"]
+
+                # Prevent editing kern feature for SpacingProof
+                if item.get("_readonly", False):
+                    # Reset to disabled if someone tries to change it
+                    if enabled:
+                        item["Enabled"] = False
+                        sender.set(items)
+                    continue
+
                 self.proof_settings[key] = bool(enabled)
 
     def run_proof(
@@ -1309,6 +1492,13 @@ class ProofWindow(object):
 
             # Explicit, in-order proof generation (matches checkbox/UI order)
             if proof_options.get("CharacterSetProof"):
+                charset_font_size = self.get_proof_font_size("CharacterSetProof")
+                # Note: charsetProof function needs to be updated to accept font size parameter
+                # For now, we'll temporarily set the global variable
+                global charsetFontSize
+                original_charset_size = charsetFontSize
+                charsetFontSize = charset_font_size
+
                 charsetProof(
                     fullCharacterSet,
                     axesProduct,
@@ -1316,7 +1506,18 @@ class ProofWindow(object):
                     pairedStaticStyles,
                     otfeatures_by_proof.get("CharacterSetProof", {}),
                 )
+
+                # Restore original value
+                charsetFontSize = original_charset_size
+
             if proof_options.get("SpacingProof"):
+                spacing_font_size = self.get_proof_font_size("SpacingProof")
+                # Note: spacingProof function needs to be updated to accept font size parameter
+                # For now, we'll temporarily set the global variable
+                global spacingFontSize
+                original_spacing_size = spacingFontSize
+                spacingFontSize = spacing_font_size
+
                 spacingProof(
                     fullCharacterSet,
                     axesProduct,
@@ -1324,7 +1525,11 @@ class ProofWindow(object):
                     pairedStaticStyles,
                     otfeatures_by_proof.get("SpacingProof", {}),
                 )
+
+                # Restore original value
+                spacingFontSize = original_spacing_size
             if proof_options.get("BigParagraphProof"):
+                big_paragraph_font_size = self.get_proof_font_size("BigParagraphProof")
                 textProof(
                     cat["uniLu"] + cat["uniLl"],
                     axesProduct,
@@ -1333,7 +1538,7 @@ class ProofWindow(object):
                     cols_by_proof.get("BigParagraphProof", 1),
                     2,
                     False,
-                    largeTextFontSize,
+                    big_paragraph_font_size,
                     "Big size proof",
                     False,
                     False,
@@ -1345,6 +1550,9 @@ class ProofWindow(object):
                     fullCharacterSet,
                 )
             if proof_options.get("BigDiacriticsProof"):
+                big_diacritics_font_size = self.get_proof_font_size(
+                    "BigDiacriticsProof"
+                )
                 textProof(
                     cat["accented"],
                     axesProduct,
@@ -1353,7 +1561,7 @@ class ProofWindow(object):
                     1,
                     3,
                     False,
-                    largeTextFontSize,
+                    big_diacritics_font_size,
                     "Big size accented proof",
                     False,
                     False,
@@ -1365,6 +1573,9 @@ class ProofWindow(object):
                     fullCharacterSet,
                 )
             if proof_options.get("SmallParagraphProof"):
+                small_paragraph_font_size = self.get_proof_font_size(
+                    "SmallParagraphProof"
+                )
                 textProof(
                     cat["uniLu"] + cat["uniLl"],
                     axesProduct,
@@ -1373,7 +1584,7 @@ class ProofWindow(object):
                     cols_by_proof.get("SmallParagraphProof", 2),
                     5,
                     False,
-                    smallTextFontSize,
+                    small_paragraph_font_size,
                     "Small size proof",
                     False,
                     False,
@@ -1385,6 +1596,9 @@ class ProofWindow(object):
                     fullCharacterSet,
                 )
             if proof_options.get("SmallPairedStylesProof"):
+                small_paired_styles_font_size = self.get_proof_font_size(
+                    "SmallPairedStylesProof"
+                )
                 textProof(
                     cat["uniLu"] + cat["uniLl"],
                     axesProduct,
@@ -1393,7 +1607,7 @@ class ProofWindow(object):
                     cols_by_proof.get("SmallPairedStylesProof", 2),
                     5,
                     False,
-                    smallTextFontSize,
+                    small_paired_styles_font_size,
                     "Small size rg & bd proof",
                     False,
                     True,
@@ -1405,6 +1619,7 @@ class ProofWindow(object):
                     fullCharacterSet,
                 )
             if proof_options.get("SmallWordsivProof"):
+                small_wordsiv_font_size = self.get_proof_font_size("SmallWordsivProof")
                 textProof(
                     cat["uniLu"] + cat["uniLl"],
                     axesProduct,
@@ -1413,7 +1628,7 @@ class ProofWindow(object):
                     cols_by_proof.get("SmallWordsivProof", 2),
                     paras_by_proof.get("SmallWordsivProof", 5),
                     False,
-                    smallTextFontSize,
+                    small_wordsiv_font_size,
                     "Small size proof mixed",
                     False,
                     False,
@@ -1425,6 +1640,9 @@ class ProofWindow(object):
                     fullCharacterSet,
                 )
             if proof_options.get("SmallDiacriticsProof"):
+                small_diacritics_font_size = self.get_proof_font_size(
+                    "SmallDiacriticsProof"
+                )
                 textProof(
                     cat["accented"],
                     axesProduct,
@@ -1433,7 +1651,7 @@ class ProofWindow(object):
                     2,
                     4,
                     False,
-                    smallTextFontSize,
+                    small_diacritics_font_size,
                     "Small size accented proof",
                     False,
                     False,
@@ -1445,6 +1663,9 @@ class ProofWindow(object):
                     fullCharacterSet,
                 )
             if proof_options.get("SmallMixedTextProof"):
+                small_mixed_text_font_size = self.get_proof_font_size(
+                    "SmallMixedTextProof"
+                )
                 textProof(
                     cat["uniLu"] + cat["uniLl"],
                     axesProduct,
@@ -1453,7 +1674,7 @@ class ProofWindow(object):
                     cols_by_proof.get("SmallMixedTextProof", 2),
                     5,
                     False,
-                    smallTextFontSize,
+                    small_mixed_text_font_size,
                     "Small size misc proof",
                     False,
                     False,
@@ -1480,6 +1701,7 @@ class ProofWindow(object):
 
             # Big Arabic Text Proof
             if proof_options.get("BigArabicTextProof"):
+                big_arabic_font_size = self.get_proof_font_size("BigArabicTextProof")
                 arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                 if arabic_chars:
                     textProof(
@@ -1490,7 +1712,7 @@ class ProofWindow(object):
                         cols_by_proof.get("BigArabicTextProof", 1),
                         2,  # Fixed paragraph count for big text
                         False,
-                        largeTextFontSize,
+                        big_arabic_font_size,
                         "Big Arabic text proof",
                         False,
                         False,
@@ -1505,6 +1727,7 @@ class ProofWindow(object):
 
             # Big Farsi Text Proof
             if proof_options.get("BigFarsiTextProof"):
+                big_farsi_font_size = self.get_proof_font_size("BigFarsiTextProof")
                 farsi_chars = cat.get("fa", "") or cat.get("arab", "")
                 if farsi_chars:
                     textProof(
@@ -1515,7 +1738,7 @@ class ProofWindow(object):
                         cols_by_proof.get("BigFarsiTextProof", 1),
                         2,  # Fixed paragraph count for big text
                         False,
-                        largeTextFontSize,
+                        big_farsi_font_size,
                         "Big Farsi text proof",
                         False,
                         False,
@@ -1530,6 +1753,9 @@ class ProofWindow(object):
 
             # Small Arabic Text Proof
             if proof_options.get("SmallArabicTextProof"):
+                small_arabic_font_size = self.get_proof_font_size(
+                    "SmallArabicTextProof"
+                )
                 arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                 if arabic_chars:
                     textProof(
@@ -1540,7 +1766,7 @@ class ProofWindow(object):
                         cols_by_proof.get("SmallArabicTextProof", 2),
                         5,  # Fixed paragraph count for small text
                         False,
-                        smallTextFontSize,
+                        small_arabic_font_size,
                         "Small Arabic text proof",
                         False,
                         False,
@@ -1555,6 +1781,7 @@ class ProofWindow(object):
 
             # Small Farsi Text Proof
             if proof_options.get("SmallFarsiTextProof"):
+                small_farsi_font_size = self.get_proof_font_size("SmallFarsiTextProof")
                 farsi_chars = cat.get("fa", "") or cat.get("arab", "")
                 if farsi_chars:
                     textProof(
@@ -1565,7 +1792,7 @@ class ProofWindow(object):
                         cols_by_proof.get("SmallFarsiTextProof", 2),
                         5,  # Fixed paragraph count for small text
                         False,
-                        smallTextFontSize,
+                        small_farsi_font_size,
                         "Small Farsi text proof",
                         False,
                         False,
@@ -1580,6 +1807,9 @@ class ProofWindow(object):
 
             # Arabic Vocalization Proof
             if proof_options.get("ArabicVocalizationProof"):
+                arabic_vocalization_font_size = self.get_proof_font_size(
+                    "ArabicVocalizationProof"
+                )
                 arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                 if arabic_chars:
                     textProof(
@@ -1590,7 +1820,7 @@ class ProofWindow(object):
                         cols_by_proof.get("ArabicVocalizationProof", 2),
                         5,
                         False,
-                        smallTextFontSize,
+                        arabic_vocalization_font_size,
                         "Arabic vocalization proof",
                         False,
                         False,
@@ -1605,6 +1835,9 @@ class ProofWindow(object):
 
             # Arabic-Latin Mixed Proof
             if proof_options.get("ArabicLatinMixedProof"):
+                arabic_latin_mixed_font_size = self.get_proof_font_size(
+                    "ArabicLatinMixedProof"
+                )
                 arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                 if arabic_chars:
                     textProof(
@@ -1615,7 +1848,7 @@ class ProofWindow(object):
                         cols_by_proof.get("ArabicLatinMixedProof", 2),
                         5,
                         False,
-                        smallTextFontSize,
+                        arabic_latin_mixed_font_size,
                         "Arabic-Latin mixed proof",
                         False,
                         False,
@@ -1630,6 +1863,9 @@ class ProofWindow(object):
 
             # Arabic Numbers Proof
             if proof_options.get("ArabicNumbersProof"):
+                arabic_numbers_font_size = self.get_proof_font_size(
+                    "ArabicNumbersProof"
+                )
                 arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                 if arabic_chars:
                     textProof(
@@ -1640,7 +1876,7 @@ class ProofWindow(object):
                         cols_by_proof.get("ArabicNumbersProof", 2),
                         5,
                         False,
-                        smallTextFontSize,
+                        arabic_numbers_font_size,
                         "Arabic numbers proof",
                         False,
                         False,
@@ -1752,34 +1988,18 @@ class ProofWindow(object):
     def refresh_controls_tab(self):
         """Refresh the controls tab with current settings values."""
         try:
-            # Update font size list
-            font_size_items = [
-                {
-                    "Setting": "Charset Font Size",
-                    "Value": self.settings.get_font_size("charset"),
-                },
-                {
-                    "Setting": "Spacing Font Size",
-                    "Value": self.settings.get_font_size("spacing"),
-                },
-                {
-                    "Setting": "Large Text Font Size",
-                    "Value": self.settings.get_font_size("large"),
-                },
-                {
-                    "Setting": "Small Text Font Size",
-                    "Value": self.settings.get_font_size("small"),
-                },
-            ]
-            self.controlsTab.group.fontSizeList.set(font_size_items)
-
             # Update proof options list
             proofs_with_settings = {
+                "Character Set Proof",
+                "Spacing Proof",
                 "Big Paragraph Proof",
+                "Big Diacritics Proof",
                 "Small Paragraph Proof",
                 "Small Paired Styles Proof",
                 "Small Wordsiv Proof",
+                "Small Diacritics Proof",
                 "Small Mixed Text Proof",
+                "Arabic Contextual Forms",
                 "Big Arabic Text Proof",
                 "Big Farsi Text Proof",
                 "Small Arabic Text Proof",
@@ -1861,12 +2081,12 @@ class ProofWindow(object):
                     self.settings.get_proof_option("ArabicNumbersProof"),
                 ),
             ]:
-                item = {"Option": option, "Enabled": enabled}
-                # Add indicator text for proofs with settings
-                if option in proofs_with_settings:
-                    item["Settings"] = "⚙"  # Gear symbol as text
-                else:
-                    item["Settings"] = ""
+                # No longer adding asterisks to proof names
+                item = {
+                    "Option": option,
+                    "Enabled": enabled,
+                    "_original_option": option,
+                }
                 proof_options_items.append(item)
 
             self.controlsTab.group.proofOptionsList.set(proof_options_items)
