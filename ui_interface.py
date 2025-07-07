@@ -804,8 +804,12 @@ class ProofWindow(object):
 
         # Create main window
         self.w = vanilla.Window(
-            (1000, 700), WINDOW_TITLE, minSize=(1000, 700), closable=False
+            (1000, 700), WINDOW_TITLE, minSize=(1000, 700), closable=True
         )
+
+        # Set the window close callback to handle the window close button
+        self.w.bind("close", self.windowCloseCallback)
+        self.w.bind("should close", self.windowShouldCloseCallback)
 
         # SegmentedButton for tab switching
         self.tabSwitcher = vanilla.SegmentedButton(
@@ -1007,11 +1011,54 @@ class ProofWindow(object):
 
     def closeWindowCallback(self, sender):
         """Handle the Close Window button click."""
-        # Restore stdout and stderr
-        sys.stdout = self._original_stdout
-        sys.stderr = self._original_stderr
-        self.w.close()
-        AppHelper.stopEventLoop()
+        self._perform_cleanup_and_exit()
+
+    def windowCloseCallback(self, sender):
+        """Handle the window close button (X) being pressed."""
+        self._perform_cleanup_and_exit()
+
+    def windowShouldCloseCallback(self, sender):
+        """Handle the window should close event to ensure proper cleanup."""
+        # Just allow the close, cleanup will be handled by windowCloseCallback
+        return True
+
+    def _perform_cleanup_and_exit(self):
+        """Perform cleanup and exit the application."""
+        # Prevent multiple calls to this method
+        if hasattr(self, "_exiting"):
+            return
+        self._exiting = True
+
+        try:
+            # Try to save settings quickly without full validation
+            if hasattr(self, "settings"):
+                try:
+                    self.settings.save()
+                except:
+                    pass  # Don't fail if settings can't be saved
+
+            # Restore stdout and stderr
+            try:
+                if hasattr(self, "_original_stdout"):
+                    sys.stdout = self._original_stdout
+                if hasattr(self, "_original_stderr"):
+                    sys.stderr = self._original_stderr
+            except:
+                pass
+
+            # Stop the event loop
+            try:
+                AppHelper.stopEventLoop()
+            except:
+                pass
+
+        except:
+            pass  # Don't let any error prevent exit
+
+        # Force exit the Python process
+        import os
+
+        os._exit(0)
 
     def generateCallback(self, sender):
         """Handle the Generate Proof button click."""
