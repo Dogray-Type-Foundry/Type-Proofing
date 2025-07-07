@@ -412,6 +412,39 @@ class FontManager:
             if self.settings:
                 self.settings.set_font_axis_values(font_path, axes_dict)
 
+    def update_axis_values_from_individual_axes_table(self, table_data, all_axes):
+        """Update axis values from table data with individual axis columns."""
+
+        def parse_value(v):
+            """Parse a string value to float, int, or keep as string."""
+            try:
+                return float(v) if "." in v else int(v)
+            except ValueError:
+                return v
+
+        for row in table_data:
+            font_path = row.get("_path")
+            if not font_path:
+                continue
+
+            axes_dict = {}
+            for axis in all_axes:
+                values_str = row.get(axis, "")
+                if values_str.strip():
+                    values = [
+                        parse_value(v.strip())
+                        for v in values_str.split(",")
+                        if v.strip()
+                    ]
+                    if values:  # Only add if we have valid values
+                        axes_dict[axis] = values
+
+            self.axis_values_by_font[font_path] = axes_dict
+
+            # Save to settings
+            if self.settings:
+                self.settings.set_font_axis_values(font_path, axes_dict)
+
     def get_family_name(self):
         """Get family name from the first font."""
         return (
@@ -466,3 +499,35 @@ class FontManager:
             self.settings.set_fonts(list(self.fonts))
 
         return True
+
+    def get_all_axes(self):
+        """Get all unique axes across all loaded fonts."""
+        all_axes = set()
+        for font_path in self.fonts:
+            axes_dict = self.axis_values_by_font.get(font_path, {})
+            all_axes.update(axes_dict.keys())
+        return sorted(list(all_axes))
+
+    def get_table_data_with_individual_axes(self):
+        """Get formatted data for the file table display with individual axis columns."""
+        all_axes = self.get_all_axes()
+        table_data = []
+
+        for font_path in self.fonts:
+            info = self.font_info.get(font_path, {})
+            row = {"name": info.get("name", os.path.basename(font_path))}
+
+            # Add each axis as a separate column
+            axes_dict = self.axis_values_by_font.get(font_path, {})
+            for axis in all_axes:
+                if axis in axes_dict:
+                    # Format axis values as comma-separated string
+                    axis_values = axes_dict[axis]
+                    row[axis] = ",".join(str(v) for v in axis_values)
+                else:
+                    row[axis] = ""  # Empty for fonts that don't have this axis
+
+            row["_path"] = font_path
+            table_data.append(row)
+
+        return table_data, all_axes

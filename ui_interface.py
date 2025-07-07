@@ -170,6 +170,7 @@ class FilesTab:
     def __init__(self, parent_window, font_manager):
         self.parent_window = parent_window
         self.font_manager = font_manager
+        self.current_axes = []  # Track current axes for editing
         self.create_ui()
         # Update table with any fonts loaded from settings
         self.update_table()
@@ -178,11 +179,13 @@ class FilesTab:
         """Create the Files tab UI components."""
         self.group = vanilla.Group((0, 0, -0, -0))
 
-        # Table view for fonts
-        columnDescriptions = [
+        # Initialize with basic column descriptions - will be updated dynamically
+        self.base_column_descriptions = [
             {"identifier": "name", "title": "Font", "width": 300},
-            {"identifier": "axes", "title": "Axes", "width": 500, "editable": True},
         ]
+
+        # Start with basic columns
+        columnDescriptions = self.base_column_descriptions.copy()
 
         # Drag settings for internal reordering
         dragSettings = dict(makeDragDataCallback=self.makeDragDataCallback)
@@ -214,16 +217,80 @@ class FilesTab:
         )
 
         self.group.addButton = vanilla.Button(
-            (10, -60, 140, 20), "Add Fonts", callback=self.addFontsCallback
+            (10, -35, 140, 20), "Add Fonts", callback=self.addFontsCallback
         )
         self.group.removeButton = vanilla.Button(
-            (160, -60, 140, 20), "Remove Selected", callback=self.removeFontsCallback
+            (160, -35, 140, 20), "Remove Selected", callback=self.removeFontsCallback
         )
 
     def update_table(self):
         """Update the table with current font data."""
-        table_data = self.font_manager.get_table_data()
+        if not self.font_manager.fonts:
+            # If no fonts, show empty table with basic columns
+            self.group.tableView.set([])
+            self.current_axes = []
+            return
+
+        # Get table data with individual axis columns
+        table_data, all_axes = self.font_manager.get_table_data_with_individual_axes()
+
+        # Check if we need to recreate the table due to column changes
+        if not hasattr(self, "current_axes") or self.current_axes != all_axes:
+            # Need to recreate the table with new columns
+            self.recreate_table_with_axes(all_axes)
+
+        # Update table data
         self.group.tableView.set(table_data)
+
+        # Store current axes for later use
+        self.current_axes = all_axes
+
+    def recreate_table_with_axes(self, all_axes):
+        """Recreate the table view with dynamic axis columns."""
+        # Create dynamic column descriptions
+        columnDescriptions = self.base_column_descriptions.copy()
+
+        # Add columns for each axis
+        for axis in all_axes:
+            columnDescriptions.append(
+                {"identifier": axis, "title": axis, "width": 100, "editable": True}
+            )
+
+        # Get current table position and settings
+        current_pos = self.group.tableView.getPosSize()
+
+        # Remove old table
+        del self.group.tableView
+
+        # Drag settings for internal reordering
+        dragSettings = dict(makeDragDataCallback=self.makeDragDataCallback)
+
+        # Drop settings for both file drops and internal reordering
+        dropSettings = dict(
+            pasteboardTypes=["fileURL", "dev.drawbot.proof.fontListIndexes"],
+            dropCandidateCallback=self.dropCandidateCallback,
+            performDropCallback=self.performDropCallback,
+        )
+
+        # Create new table with updated columns
+        self.group.tableView = vanilla.List2(
+            current_pos,
+            items=[],
+            columnDescriptions=columnDescriptions,
+            allowsSelection=True,
+            allowsMultipleSelection=True,
+            allowsEmptySelection=True,
+            allowsSorting=False,  # Disable sorting to allow reordering
+            allowColumnReordering=False,
+            alternatingRowColors=True,
+            showColumnTitles=True,
+            drawFocusRing=True,
+            dragSettings=dragSettings,
+            dropSettings=dropSettings,
+            editCallback=self.axisEditCallback,
+            enableDelete=True,
+            deleteCallback=self.deleteFontCallback,
+        )
 
     def addFontsCallback(self, sender):
         """Handle the Add Fonts button click."""
@@ -269,7 +336,13 @@ class FilesTab:
     def axisEditCallback(self, sender):
         """Handle axis editing in the table."""
         table_data = sender.get()
-        self.font_manager.update_axis_values_from_table(table_data)
+        if hasattr(self, "current_axes"):
+            self.font_manager.update_axis_values_from_individual_axes_table(
+                table_data, self.current_axes
+            )
+        else:
+            # Fallback to old method if current_axes not available
+            self.font_manager.update_axis_values_from_table(table_data)
 
     def makeDragDataCallback(self, index):
         """Create drag data for internal reordering."""
@@ -466,12 +539,6 @@ class ControlsTab:
             # Preview area (right side)
             self.group.previewBox = vanilla.Box((350, 10, -10, -10))
 
-            # Proof Options List
-            self.group.proofOptionsLabel = vanilla.TextBox(
-                (controls_x, y, 150, 20), "Proof Options:"
-            )
-            y += 25
-
             # Define which proofs have settings (all proofs now have font size setting)
             proofs_with_settings = {
                 "Character Set Proof",
@@ -531,24 +598,24 @@ class ControlsTab:
             # Buttons arranged in a 2x2 grid at the bottom
             # First row: Generate Proof and Add Settings File
             self.group.generateButton = vanilla.Button(
-                (controls_x, -110, 140, 30),
+                (controls_x, -68, 140, 30),
                 "Generate Proof",
                 callback=self.parent_window.generateCallback,
             )
             self.group.addSettingsButton = vanilla.Button(
-                (controls_x + 150, -110, 140, 30),
+                (controls_x + 145, -68, 140, 30),
                 "Add Settings File",
                 callback=self.parent_window.addSettingsFileCallback,
             )
 
             # Second row: Close Window and Reset Settings
             self.group.closeButton = vanilla.Button(
-                (controls_x, -70, 140, 30),
+                (controls_x, -40, 140, 30),
                 "Close Window",
                 callback=self.parent_window.closeWindowCallback,
             )
             self.group.resetButton = vanilla.Button(
-                (controls_x + 150, -70, 140, 30),
+                (controls_x + 145, -40, 140, 30),
                 "Reset Settings",
                 callback=self.parent_window.resetSettingsCallback,
             )
@@ -737,12 +804,12 @@ class ProofWindow(object):
 
         # Create main window
         self.w = vanilla.Window(
-            (1000, 800), WINDOW_TITLE, minSize=(1000, 800), closable=False
+            (1000, 700), WINDOW_TITLE, minSize=(1000, 700), closable=False
         )
 
         # SegmentedButton for tab switching
         self.tabSwitcher = vanilla.SegmentedButton(
-            (10, 10, 400, 24),
+            (10, 10, 322, 24),
             segmentDescriptions=[
                 dict(title="Files"),
                 dict(title="Controls"),
