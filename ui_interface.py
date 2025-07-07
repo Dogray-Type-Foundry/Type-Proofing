@@ -389,19 +389,18 @@ class ControlsTab:
         self.create_ui()
 
     def create_ui(self):
-        """Create the Controls tab UI components with PDF preview."""
+        """Create the Controls tab UI components."""
         try:
-            print("Creating Controls tab UI with PDF preview...")
+            print("Creating Controls tab UI...")
             self.group = vanilla.Group((0, 0, -0, -0))
+            y = 10
 
-            # Create left panel for controls
-            self.leftPanel = vanilla.Group((0, 0, 320, -0))
-            
-            # Proof Options List
+            # Proof Options List (removed Font Size List)
             print("Creating proof options list...")
-            self.leftPanel.proofOptionsLabel = vanilla.TextBox(
-                (10, 10, 150, 20), "Proof Options:"
+            self.group.proofOptionsLabel = vanilla.TextBox(
+                (10, y, 150, 20), "Proof Options:"
             )
+            y += 25
 
             # Define which proofs have settings (all proofs now have font size setting)
             proofs_with_settings = {
@@ -510,22 +509,22 @@ class ControlsTab:
                 proof_options_items.append(item)
 
             print("Creating proof options List2...")
-            self.leftPanel.proofOptionsList = vanilla.List2(
-                (10, 40, 300, 400),  # Adjusted for left panel
+            self.group.proofOptionsList = vanilla.List2(
+                (10, y, 260, 450),  # Increased height since we removed font size list
                 proof_options_items,
                 columnDescriptions=[
                     {
                         "identifier": "Option",
                         "title": "Option",
                         "key": "Option",
-                        "width": 220,  # Make wider since we removed the Settings column
+                        "width": 190,  # Make wider since we removed the Settings column
                         "editable": False,
                     },
                     {
                         "identifier": "Enabled",
                         "title": "Enabled",
                         "key": "Enabled",
-                        "width": 60,
+                        "width": 16,
                         "editable": True,
                         "cellClass": vanilla.CheckBoxList2Cell,
                     },
@@ -534,65 +533,34 @@ class ControlsTab:
                 autohidesScrollers=True,
                 editCallback=self.proofOptionsEditCallback,
             )
+            y += 460  # Adjust button position
 
             print("Creating buttons...")
             # Buttons arranged in a 2x2 grid at the bottom
             # First row: Generate Proof and Add Settings File
-            self.leftPanel.generateButton = vanilla.Button(
+            self.group.generateButton = vanilla.Button(
                 (10, -110, 140, 30),
                 "Generate Proof",
                 callback=self.parent_window.generateCallback,
             )
-            self.leftPanel.addSettingsButton = vanilla.Button(
+            self.group.addSettingsButton = vanilla.Button(
                 (160, -110, 140, 30),
                 "Add Settings File",
                 callback=self.parent_window.addSettingsFileCallback,
             )
 
             # Second row: Close Window and Reset Settings
-            self.leftPanel.closeButton = vanilla.Button(
+            self.group.closeButton = vanilla.Button(
                 (10, -70, 140, 30),
                 "Close Window",
                 callback=self.parent_window.closeWindowCallback,
             )
-            self.leftPanel.resetButton = vanilla.Button(
+            self.group.resetButton = vanilla.Button(
                 (160, -70, 140, 30),
                 "Reset Settings",
                 callback=self.parent_window.resetSettingsCallback,
             )
-
-            # Create right panel for PDF preview
-            print("Creating PDF preview panel...")
-            self.rightPanel = vanilla.Group((330, 0, -0, -0))
-            
-            # PDF preview label
-            self.rightPanel.previewLabel = vanilla.TextBox(
-                (10, 10, -10, 20), "PDF Preview:"
-            )
-            
-            # PDF preview box
-            self.rightPanel.pdfBox = vanilla.Box((10, 40, -10, -10))
-
-            # Create PDF view
-            self.pdfView = PDFKit.PDFView.alloc().initWithFrame_(((0, 0), (100, 100)))
-            self.pdfView.setAutoresizingMask_(1 << 1 | 1 << 4)
-            self.pdfView.setAutoScales_(True)
-            self.pdfView.setDisplaysPageBreaks_(True)
-            self.pdfView.setDisplayMode_(1)
-            self.pdfView.setDisplayBox_(0)
-            self.rightPanel.pdfBox._nsObject.setContentView_(self.pdfView)
-
-            # Create split view with left panel (controls) and right panel (PDF preview)
-            self.group.splitView = vanilla.SplitView(
-                (0, 0, -0, -0),
-                [
-                    dict(view=self.leftPanel, identifier="controls", size=320),
-                    dict(view=self.rightPanel, identifier="preview", size=400),
-                ],
-                isVertical=True,
-            )
-
-            print("Controls tab UI with PDF preview created successfully!")
+            print("Controls tab UI created successfully!")
 
         except Exception as e:
             print(f"Error creating Controls tab UI: {e}")
@@ -605,16 +573,6 @@ class ControlsTab:
         """Update the table with current font data."""
         table_data = self.font_manager.get_table_data()
         self.group.tableView.set(table_data)
-
-    def display_pdf(self, pdf_path):
-        """Display a PDF in the preview panel."""
-        if pdf_path and os.path.exists(pdf_path):
-            pdfDoc = PDFKit.PDFDocument.alloc().initWithURL_(
-                AppKit.NSURL.fileURLWithPath_(pdf_path)
-            )
-            self.pdfView.setDocument_(pdfDoc)
-            return True
-        return False
 
     def proofOptionsEditCallback(self, sender):
         """Handle edits to proof options."""
@@ -721,7 +679,7 @@ class ControlsTab:
             self.parent_window.current_proof_key = proof_key
 
             # Get the relative rect for the selected row
-            relativeRect = self.leftPanel.proofOptionsList.getNSTableView().rectOfRow_(
+            relativeRect = self.group.proofOptionsList.getNSTableView().rectOfRow_(
                 row_index
             )
 
@@ -740,7 +698,7 @@ class ControlsTab:
 
             # Open popover positioned relative to the selected row
             self.parent_window.proof_settings_popover.open(
-                parentView=self.leftPanel.proofOptionsList.getNSTableView(),
+                parentView=self.group.proofOptionsList.getNSTableView(),
                 preferredEdge="right",
                 relativeRect=relativeRect,
             )
@@ -749,6 +707,37 @@ class ControlsTab:
         """Hide popover for the specified option."""
         if hasattr(self.parent_window, "proof_settings_popover"):
             self.parent_window.proof_settings_popover.close()
+
+
+class PreviewTab:
+    """Handles the Preview tab UI and functionality."""
+
+    def __init__(self, parent_window):
+        self.parent_window = parent_window
+        self.create_ui()
+
+    def create_ui(self):
+        """Create the Preview tab UI components."""
+        self.group = vanilla.Group((0, 0, -0, -0))
+        self.group.pdfBox = vanilla.Box((10, 10, -10, -10))
+
+        self.pdfView = PDFKit.PDFView.alloc().initWithFrame_(((0, 0), (100, 100)))
+        self.pdfView.setAutoresizingMask_(1 << 1 | 1 << 4)
+        self.pdfView.setAutoScales_(True)
+        self.pdfView.setDisplaysPageBreaks_(True)
+        self.pdfView.setDisplayMode_(1)
+        self.pdfView.setDisplayBox_(0)
+        self.group.pdfBox._nsObject.setContentView_(self.pdfView)
+
+    def display_pdf(self, pdf_path):
+        """Display a PDF in the preview."""
+        if pdf_path and os.path.exists(pdf_path):
+            pdfDoc = PDFKit.PDFDocument.alloc().initWithURL_(
+                AppKit.NSURL.fileURLWithPath_(pdf_path)
+            )
+            self.pdfView.setDocument_(pdfDoc)
+            return True
+        return False
 
 
 class ProofWindow(object):
@@ -797,6 +786,7 @@ class ProofWindow(object):
             segmentDescriptions=[
                 dict(title="Files"),
                 dict(title="Controls"),
+                dict(title="Preview"),
             ],
             callback=self.switchTab,
         )
@@ -804,13 +794,16 @@ class ProofWindow(object):
         # Create tab instances
         self.filesTab = FilesTab(self, self.font_manager)
         self.controlsTab = ControlsTab(self, self.settings)
+        self.previewTab = PreviewTab(self)
 
-        # --- Main Content Group (holds the two tab groups) ---
+        # --- Main Content Group (holds the three tab groups) ---
         self.mainContent = vanilla.Group((0, 44, -0, -0))
         self.mainContent.filesGroup = self.filesTab.group
         self.mainContent.controlsGroup = self.controlsTab.group
+        self.mainContent.previewGroup = self.previewTab.group
         self.filesTab.group.show(True)
         self.controlsTab.group.show(False)
+        self.previewTab.group.show(False)
 
         # --- Debug Text Editor ---
         self.debugTextEditor = vanilla.TextEditor(
@@ -847,6 +840,7 @@ class ProofWindow(object):
         idx = sender.get()
         self.filesTab.group.show(idx == 0)
         self.controlsTab.group.show(idx == 1)
+        self.previewTab.group.show(idx == 2)
 
     def get_proof_font_size(self, proof_key):
         """Get font size for a specific proof from its settings."""
@@ -874,7 +868,7 @@ class ProofWindow(object):
         """Save all current settings to the settings file."""
         try:
             # Save proof options
-            proof_options_items = self.controlsTab.leftPanel.proofOptionsList.get()
+            proof_options_items = self.controlsTab.group.proofOptionsList.get()
             for item in proof_options_items:
                 option = item.get(
                     "_original_option", item["Option"]
@@ -1000,7 +994,7 @@ class ProofWindow(object):
                 userAxesValues = {}
 
                 # Read proof options from list
-                proof_options_items = controls.leftPanel.proofOptionsList.get()
+                proof_options_items = controls.proofOptionsList.get()
                 proof_options = {}
                 self.showBaselines = False
 
@@ -1082,10 +1076,9 @@ class ProofWindow(object):
                     paras_by_proof=paras_by_proof,
                 )
 
-                # Display the generated PDF in the Controls tab preview
-                if self.controlsTab.display_pdf(output_path):
-                    # Switch to Controls tab to show the preview
-                    self.tabSwitcher.set(1)
+                # Display the generated PDF
+                if self.previewTab.display_pdf(output_path):
+                    self.tabSwitcher.set(2)  # Switch to Preview tab
                     self.switchTab(self.tabSwitcher)
 
             except Exception as e:
@@ -2096,7 +2089,7 @@ class ProofWindow(object):
                 }
                 proof_options_items.append(item)
 
-            self.controlsTab.leftPanel.proofOptionsList.set(proof_options_items)
+            self.controlsTab.group.proofOptionsList.set(proof_options_items)
 
         except Exception as e:
             print(f"Error refreshing controls tab: {e}")
