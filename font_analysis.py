@@ -501,12 +501,36 @@ class FontManager:
         return True
 
     def get_all_axes(self):
-        """Get all unique axes across all loaded fonts."""
-        all_axes = set()
+        """Get all unique axes across all loaded fonts in their original font order."""
+        all_axes = []
+        seen_axes = set()
+
         for font_path in self.fonts:
-            axes_dict = self.axis_values_by_font.get(font_path, {})
-            all_axes.update(axes_dict.keys())
-        return sorted(list(all_axes))
+            # Use TTFont to get axes in original order from fvar table
+            try:
+                f = get_ttfont(font_path)
+                if "fvar" in f:
+                    for axis in f["fvar"].axes:
+                        axis_tag = axis.axisTag
+                        if axis_tag not in seen_axes:
+                            all_axes.append(axis_tag)
+                            seen_axes.add(axis_tag)
+                else:
+                    # Fallback for non-variable fonts
+                    axes_dict = self.axis_values_by_font.get(font_path, {})
+                    for axis_tag in axes_dict.keys():
+                        if axis_tag not in seen_axes:
+                            all_axes.append(axis_tag)
+                            seen_axes.add(axis_tag)
+            except Exception:
+                # Fallback to existing method for this font
+                axes_dict = self.axis_values_by_font.get(font_path, {})
+                for axis_tag in axes_dict.keys():
+                    if axis_tag not in seen_axes:
+                        all_axes.append(axis_tag)
+                        seen_axes.add(axis_tag)
+
+        return all_axes
 
     def get_table_data_with_individual_axes(self):
         """Get formatted data for the file table display with individual axis columns."""
