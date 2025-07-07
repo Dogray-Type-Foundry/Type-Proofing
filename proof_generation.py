@@ -539,11 +539,14 @@ def generateSpacingString(characterSet):
     return spacingString
 
 
-def charsetProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=None):
+def charsetProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None):
     """Generate character set proof."""
     if not characterSet:
         print("Empty character set, skipping")
         return
+
+    # Use provided font size or fall back to global default
+    proof_font_size = fontSize if fontSize is not None else charsetFontSize
 
     sectionName = "Character set proof"
     try:
@@ -553,7 +556,7 @@ def charsetProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=N
                 axisDict = dict(axisData)
                 charsetString = stringMaker(
                     characterSet,
-                    charsetFontSize,
+                    proof_font_size,
                     indFont,
                     axesProduct,
                     pairedStaticStyles,
@@ -568,7 +571,7 @@ def charsetProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=N
         elif axesProduct == "":
             charsetString = stringMaker(
                 characterSet,
-                charsetFontSize,
+                proof_font_size,
                 indFont,
                 axesProduct,
                 pairedStaticStyles,
@@ -587,8 +590,11 @@ def charsetProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=N
         traceback.print_exc()
 
 
-def spacingProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=None):
+def spacingProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None):
     """Generate spacing proof."""
+    # Use provided font size or fall back to global default
+    proof_font_size = fontSize if fontSize is not None else spacingFontSize
+    
     sectionName = "Spacing proof"
     if axesProduct:
         axisDict = {}
@@ -597,7 +603,7 @@ def spacingProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=N
             spacingStringInput = generateSpacingString(characterSet)
             spacingString = stringMaker(
                 spacingStringInput,
-                spacingFontSize,
+                proof_font_size,
                 indFont,
                 axesProduct,
                 pairedStaticStyles,
@@ -610,7 +616,7 @@ def spacingProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=N
         spacingStringInput = generateSpacingString(characterSet)
         spacingString = stringMaker(
             spacingStringInput,
-            spacingFontSize,
+            proof_font_size,
             indFont,
             axesProduct,
             pairedStaticStyles,
@@ -852,9 +858,12 @@ def generateArabicContextualFormsProof(cat):
 
 
 def arabicContextualFormsProof(
-    cat, axesProduct, indFont, pairedStaticStyles, otFea=None
+    cat, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None
 ):
-    """Generate Arabic contextual forms proof pages using large character set font size."""
+    """Generate Arabic contextual forms proof pages using configurable font size."""
+    # Use provided font size or fall back to character set font size
+    proof_font_size = fontSize if fontSize is not None else charsetFontSize
+    
     contextualString = generateArabicContextualFormsProof(cat)
 
     if not contextualString:
@@ -869,7 +878,7 @@ def arabicContextualFormsProof(
                 axisDict = dict(axisData)
                 formattedString = stringMaker(
                     contextualString,
-                    charsetFontSize,  # Use character set font size (large)
+                    proof_font_size,
                     indFont,
                     axesProduct,
                     pairedStaticStyles,
@@ -888,7 +897,7 @@ def arabicContextualFormsProof(
         elif axesProduct == "":
             formattedString = stringMaker(
                 contextualString,
-                charsetFontSize,
+                proof_font_size,
                 indFont,
                 axesProduct,
                 pairedStaticStyles,

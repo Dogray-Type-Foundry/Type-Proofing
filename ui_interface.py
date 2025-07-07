@@ -847,7 +847,7 @@ class ProofWindow(object):
             "BigFarsiTextProof",
         ]:
             default_font_size = largeTextFontSize
-        elif proof_key == "CharacterSetProof":
+        elif proof_key in ["CharacterSetProof", "ArabicContextualFormsProof"]:
             default_font_size = charsetFontSize
         elif proof_key == "SpacingProof":
             default_font_size = spacingFontSize
@@ -1125,7 +1125,7 @@ class ProofWindow(object):
                 "BigFarsiTextProof",
             ]:
                 default_font_size = largeTextFontSize
-            elif proof_key == "CharacterSetProof":
+            elif proof_key in ["CharacterSetProof", "ArabicContextualFormsProof"]:
                 default_font_size = charsetFontSize
             elif proof_key == "SpacingProof":
                 default_font_size = spacingFontSize
@@ -1319,7 +1319,7 @@ class ProofWindow(object):
             "BigFarsiTextProof",
         ]:
             default_font_size = largeTextFontSize
-        elif proof_key == "CharacterSetProof":
+        elif proof_key in ["CharacterSetProof", "ArabicContextualFormsProof"]:
             default_font_size = charsetFontSize
         elif proof_key == "SpacingProof":
             default_font_size = spacingFontSize
@@ -1486,41 +1486,25 @@ class ProofWindow(object):
             # Explicit, in-order proof generation (matches checkbox/UI order)
             if proof_options.get("CharacterSetProof"):
                 charset_font_size = self.get_proof_font_size("CharacterSetProof")
-                # Note: charsetProof function needs to be updated to accept font size parameter
-                # For now, we'll temporarily set the global variable
-                global charsetFontSize
-                original_charset_size = charsetFontSize
-                charsetFontSize = charset_font_size
-
                 charsetProof(
                     fullCharacterSet,
                     axesProduct,
                     indFont,
                     pairedStaticStyles,
                     otfeatures_by_proof.get("CharacterSetProof", {}),
+                    charset_font_size,
                 )
-
-                # Restore original value
-                charsetFontSize = original_charset_size
 
             if proof_options.get("SpacingProof"):
                 spacing_font_size = self.get_proof_font_size("SpacingProof")
-                # Note: spacingProof function needs to be updated to accept font size parameter
-                # For now, we'll temporarily set the global variable
-                global spacingFontSize
-                original_spacing_size = spacingFontSize
-                spacingFontSize = spacing_font_size
-
                 spacingProof(
                     fullCharacterSet,
                     axesProduct,
                     indFont,
                     pairedStaticStyles,
                     otfeatures_by_proof.get("SpacingProof", {}),
+                    spacing_font_size,
                 )
-
-                # Restore original value
-                spacingFontSize = original_spacing_size
             if proof_options.get("BigParagraphProof"):
                 big_paragraph_font_size = self.get_proof_font_size("BigParagraphProof")
                 textProof(
@@ -1551,7 +1535,7 @@ class ProofWindow(object):
                     axesProduct,
                     indFont,
                     pairedStaticStyles,
-                    1,
+                    cols_by_proof.get("BigDiacriticsProof", 1),
                     3,
                     False,
                     big_diacritics_font_size,
@@ -1641,7 +1625,7 @@ class ProofWindow(object):
                     axesProduct,
                     indFont,
                     pairedStaticStyles,
-                    2,
+                    cols_by_proof.get("SmallDiacriticsProof", 2),
                     4,
                     False,
                     small_diacritics_font_size,
@@ -1682,14 +1666,16 @@ class ProofWindow(object):
                     fullCharacterSet,
                 )
 
-            # Arabic Contextual Forms Proof (no settings needed)
+            # Arabic Contextual Forms Proof
             if proof_options.get("ArabicContextualFormsProof"):
+                arabic_contextual_forms_font_size = self.get_proof_font_size("ArabicContextualFormsProof")
                 arabicContextualFormsProof(
                     cat,
                     axesProduct,
                     indFont,
                     pairedStaticStyles,
                     otfeatures_by_proof.get("ArabicContextualFormsProof", {}),
+                    arabic_contextual_forms_font_size,
                 )
 
             # Big Arabic Text Proof
