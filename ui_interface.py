@@ -448,15 +448,27 @@ class ControlsTab:
         except Exception as e:
             print(f"Error refreshing proof options list: {e}")
 
+    def integrate_preview_view(self, pdfView):
+        """Integrate the PDF view into the controls tab."""
+        if hasattr(self.group, "previewBox"):
+            self.group.previewBox._nsObject.setContentView_(pdfView)
+
     def create_ui(self):
         """Create the Controls tab UI components."""
         try:
             self.group = vanilla.Group((0, 0, -0, -0))
+
+            # Create a split layout: Controls on left, Preview on right
+            # Controls area (left side)
+            controls_x = 10
             y = 10
 
-            # Proof Options List (removed Font Size List)
+            # Preview area (right side)
+            self.group.previewBox = vanilla.Box((350, 10, -10, -10))
+
+            # Proof Options List
             self.group.proofOptionsLabel = vanilla.TextBox(
-                (10, y, 150, 20), "Proof Options:"
+                (controls_x, y, 150, 20), "Proof Options:"
             )
             y += 25
 
@@ -491,14 +503,14 @@ class ControlsTab:
                     self.popover_states[option] = False  # Track popover visibility
 
             self.group.proofOptionsList = vanilla.List2(
-                (10, y, 260, 450),  # Increased height since we removed font size list
+                (controls_x, y, 320, 450),  # Adjusted width for left side
                 proof_options_items,
                 columnDescriptions=[
                     {
                         "identifier": "Option",
                         "title": "Option",
                         "key": "Option",
-                        "width": 190,  # Make wider since we removed the Settings column
+                        "width": 240,  # Adjusted width
                         "editable": False,
                     },
                     {
@@ -519,27 +531,28 @@ class ControlsTab:
             # Buttons arranged in a 2x2 grid at the bottom
             # First row: Generate Proof and Add Settings File
             self.group.generateButton = vanilla.Button(
-                (10, -110, 140, 30),
+                (controls_x, -110, 140, 30),
                 "Generate Proof",
                 callback=self.parent_window.generateCallback,
             )
             self.group.addSettingsButton = vanilla.Button(
-                (160, -110, 140, 30),
+                (controls_x + 150, -110, 140, 30),
                 "Add Settings File",
                 callback=self.parent_window.addSettingsFileCallback,
             )
 
             # Second row: Close Window and Reset Settings
             self.group.closeButton = vanilla.Button(
-                (10, -70, 140, 30),
+                (controls_x, -70, 140, 30),
                 "Close Window",
                 callback=self.parent_window.closeWindowCallback,
             )
             self.group.resetButton = vanilla.Button(
-                (160, -70, 140, 30),
+                (controls_x + 150, -70, 140, 30),
                 "Reset Settings",
                 callback=self.parent_window.resetSettingsCallback,
             )
+
         except Exception as e:
             print(f"Error creating Controls tab UI: {e}")
             import traceback
@@ -687,37 +700,6 @@ class ControlsTab:
             self.parent_window.proof_settings_popover.close()
 
 
-class PreviewTab:
-    """Handles the Preview tab UI and functionality."""
-
-    def __init__(self, parent_window):
-        self.parent_window = parent_window
-        self.create_ui()
-
-    def create_ui(self):
-        """Create the Preview tab UI components."""
-        self.group = vanilla.Group((0, 0, -0, -0))
-        self.group.pdfBox = vanilla.Box((10, 10, -10, -10))
-
-        self.pdfView = PDFKit.PDFView.alloc().initWithFrame_(((0, 0), (100, 100)))
-        self.pdfView.setAutoresizingMask_(1 << 1 | 1 << 4)
-        self.pdfView.setAutoScales_(True)
-        self.pdfView.setDisplaysPageBreaks_(True)
-        self.pdfView.setDisplayMode_(1)
-        self.pdfView.setDisplayBox_(0)
-        self.group.pdfBox._nsObject.setContentView_(self.pdfView)
-
-    def display_pdf(self, pdf_path):
-        """Display a PDF in the preview."""
-        if pdf_path and os.path.exists(pdf_path):
-            pdfDoc = PDFKit.PDFDocument.alloc().initWithURL_(
-                AppKit.NSURL.fileURLWithPath_(pdf_path)
-            )
-            self.pdfView.setDocument_(pdfDoc)
-            return True
-        return False
-
-
 class ProofWindow(object):
     """Main application window and controller."""
 
@@ -764,7 +746,6 @@ class ProofWindow(object):
             segmentDescriptions=[
                 dict(title="Files"),
                 dict(title="Controls"),
-                dict(title="Preview"),
             ],
             callback=self.switchTab,
         )
@@ -772,20 +753,23 @@ class ProofWindow(object):
         # Create tab instances
         self.filesTab = FilesTab(self, self.font_manager)
         self.controlsTab = ControlsTab(self, self.settings)
-        self.previewTab = PreviewTab(self)
+
+        # Create preview components that will be integrated into Controls tab
+        self.preview_components = self.create_preview_components()
 
         # Refresh proof options list after tabs are created
         if hasattr(self, "controlsTab") and self.controlsTab:
             self.controlsTab.refresh_proof_options_list()
 
-        # --- Main Content Group (holds the three tab groups) ---
+        # --- Main Content Group (holds the two tab groups) ---
         self.mainContent = vanilla.Group((0, 44, -0, -0))
         self.mainContent.filesGroup = self.filesTab.group
         self.mainContent.controlsGroup = self.controlsTab.group
-        self.mainContent.previewGroup = self.previewTab.group
         self.filesTab.group.show(True)
         self.controlsTab.group.show(False)
-        self.previewTab.group.show(False)
+
+        # Integrate preview into controls tab
+        self.controlsTab.integrate_preview_view(self.preview_components["pdfView"])
 
         # --- Debug Text Editor ---
         self.debugTextEditor = vanilla.TextEditor(
@@ -822,7 +806,6 @@ class ProofWindow(object):
         idx = sender.get()
         self.filesTab.group.show(idx == 0)
         self.controlsTab.group.show(idx == 1)
-        self.previewTab.group.show(idx == 2)
 
     def get_proof_font_size(self, proof_key):
         """Get font size for a specific proof from its settings."""
@@ -1078,8 +1061,10 @@ class ProofWindow(object):
                 )
 
                 # Display the generated PDF
-                if self.previewTab.display_pdf(output_path):
-                    self.tabSwitcher.set(2)  # Switch to Preview tab
+                if self.display_pdf(output_path):
+                    self.tabSwitcher.set(
+                        1
+                    )  # Switch to Controls tab (which now has preview)
                     self.switchTab(self.tabSwitcher)
 
             except Exception as e:
@@ -1991,3 +1976,28 @@ class ProofWindow(object):
             import traceback
 
             traceback.print_exc()
+
+    def create_preview_components(self):
+        """Create preview components that will be integrated into Controls tab."""
+        components = {}
+
+        # Create PDFView for preview
+        pdfView = PDFKit.PDFView.alloc().initWithFrame_(((0, 0), (100, 100)))
+        pdfView.setAutoresizingMask_(1 << 1 | 1 << 4)
+        pdfView.setAutoScales_(True)
+        pdfView.setDisplaysPageBreaks_(True)
+        pdfView.setDisplayMode_(1)
+        pdfView.setDisplayBox_(0)
+
+        components["pdfView"] = pdfView
+        return components
+
+    def display_pdf(self, pdf_path):
+        """Display a PDF in the preview."""
+        if pdf_path and os.path.exists(pdf_path):
+            pdfDoc = PDFKit.PDFDocument.alloc().initWithURL_(
+                AppKit.NSURL.fileURLWithPath_(pdf_path)
+            )
+            self.preview_components["pdfView"].setDocument_(pdfDoc)
+            return True
+        return False
