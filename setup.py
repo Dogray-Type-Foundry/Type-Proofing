@@ -27,6 +27,13 @@ OPTIONS = {
         "vanilla",
     ],
     "iconfile": "TypeProofing.icns",
+    "compressed": True,
+    "excludes": [
+        "setuptools",
+        "pkg_resources",
+        "tkinter",
+        "turtle",
+    ],
     # Add descriptions for folder access permissions
     "plist": {
         "CFBundleName": NAME,

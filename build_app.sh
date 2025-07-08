@@ -7,7 +7,7 @@ echo "Building Type Proofing app..."
 rm -rf build/ dist/
 
 # Build the app with py2app
-python setup.py py2app --arch=universal2
+python setup.py py2app
 
 # Check if build was successful
 if [ ! -d "dist/Type Proofing.app" ]; then
