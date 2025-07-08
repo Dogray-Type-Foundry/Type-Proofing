@@ -7,6 +7,8 @@ Usage:
 
 from setuptools import setup
 
+NAME = "Type Proofing"
+VERSION = "1.0.0"
 APP = ["Type Proofing.py"]
 DATA_FILES = [
     "config.py",
@@ -27,9 +29,12 @@ OPTIONS = {
     "iconfile": "TypeProofing.icns",
     # Add descriptions for folder access permissions
     "plist": {
-        "CFBundleIdentifier": "com.dogray.typeproofing",
-        "CFBundleName": "Type Proofing",
-        "CFBundleDisplayName": "Type Proofing",
+        "CFBundleName": NAME,
+        "CFBundleShortVersionString": VERSION,
+        "CFBundleGetInfoString": " ".join([NAME, VERSION]),
+        "CFBundleExecutable": NAME,
+        "CFBundleIdentifier": "xyz.dogray.typeproofing",
+        "CFBundleDisplayName": NAME,
         "NSAppleEventsUsageDescription": "This app needs access to Apple Events for file operations.",
         "NSDocumentsFolderUsageDescription": "This app needs access to Documents folder to save proof files.",
         "NSDesktopFolderUsageDescription": "This app needs access to Desktop folder to save proof files.",

@@ -7,7 +7,7 @@ echo "Building Type Proofing app..."
 rm -rf build/ dist/
 
 # Build the app with py2app
-python setup.py py2app
+python setup.py py2app --arch=universal2
 
 # Check if build was successful
 if [ ! -d "dist/Type Proofing.app" ]; then
@@ -62,7 +62,6 @@ codesign --force --sign - --entitlements temp_entitlements.plist "dist/Type Proo
 # Check if codesign was successful
 if [ $? -eq 0 ]; then
     echo "Entitlements applied successfully!"
-    echo "Your app should now be able to access iCloud Drive folders."
 else
     echo "Warning: Could not apply entitlements. The app may still work but might have limited file access."
 fi
@@ -71,8 +70,3 @@ fi
 rm -f temp_entitlements.plist
 
 echo "Build complete! Your app is in: dist/Type Proofing.app"
-echo ""
-echo "To test iCloud Drive access:"
-echo "1. Open the app from dist/Type Proofing.app"
-echo "2. Try selecting an iCloud Drive folder with PathControl"
-echo "3. The path should now be visible in the UI"
