@@ -235,10 +235,13 @@ class FilesTab:
         # Get table data with individual axis columns
         table_data, all_axes = self.font_manager.get_table_data_with_individual_axes()
 
-        # Check if we need to recreate the table due to column changes
+        # Check if we need to update the table columns
         if not hasattr(self, "current_axes") or self.current_axes != all_axes:
-            # Need to recreate the table with new columns
-            self.recreate_table_with_axes(all_axes)
+            # Need to update the table with new columns
+            self.update_table_columns(all_axes)
+
+        # Reorder columns to match first font's axis order
+        self.reorder_columns_by_first_font()
 
         # Update table data
         self.group.tableView.set(table_data)
@@ -246,52 +249,103 @@ class FilesTab:
         # Store current axes for later use
         self.current_axes = all_axes
 
-    def recreate_table_with_axes(self, all_axes):
-        """Recreate the table view with dynamic axis columns."""
-        # Create dynamic column descriptions
-        columnDescriptions = self.base_column_descriptions.copy()
+    def update_table_columns(self, all_axes):
+        """Update the table columns dynamically using insertColumn instead of recreating."""
+        # Get current column identifiers
+        current_columns = self.group.tableView.getColumnIdentifiers()
 
-        # Add columns for each axis
-        for axis in all_axes:
-            columnDescriptions.append(
-                {"identifier": axis, "title": axis, "width": 100, "editable": True}
-            )
+        # Base columns that should always exist
+        base_column_ids = [desc["identifier"] for desc in self.base_column_descriptions]
 
-        # Get current table position and settings
-        current_pos = self.group.tableView.getPosSize()
+        # Calculate which columns need to be added
+        new_axes = [axis for axis in all_axes if axis not in current_columns]
 
-        # Remove old table
-        del self.group.tableView
+        # Add new axis columns
+        for axis in new_axes:
+            column_desc = {
+                "identifier": axis,
+                "title": axis,
+                "width": 100,
+                "editable": True,
+            }
+            # Insert at the end (after all existing columns)
+            self.group.tableView.appendColumn(column_desc)
 
-        # Drag settings for internal reordering
-        dragSettings = dict(makeDragDataCallback=self.makeDragDataCallback)
+        # Note: We could also remove columns that are no longer needed, but for
+        # simplicity and to avoid potential issues, we'll keep all existing columns.
+        # This means once an axis column is added, it stays even if no fonts use it.
+        # This is acceptable behavior and avoids complexity.
 
-        # Drop settings for both file drops and internal reordering
-        dropSettings = dict(
-            pasteboardTypes=["fileURL", "dev.drawbot.proof.fontListIndexes"],
-            dropCandidateCallback=self.dropCandidateCallback,
-            performDropCallback=self.performDropCallback,
-        )
+    def reorder_columns_by_first_font(self):
+        """Reorder axis columns to match the first font's axis order."""
+        if not self.font_manager.fonts:
+            return
 
-        # Create new table with updated columns
-        self.group.tableView = vanilla.List2(
-            current_pos,
-            items=[],
-            columnDescriptions=columnDescriptions,
-            allowsSelection=True,
-            allowsMultipleSelection=True,
-            allowsEmptySelection=True,
-            allowsSorting=False,  # Disable sorting to allow reordering
-            allowColumnReordering=False,
-            alternatingRowColors=True,
-            showColumnTitles=True,
-            drawFocusRing=True,
-            dragSettings=dragSettings,
-            dropSettings=dropSettings,
-            editCallback=self.axisEditCallback,
-            enableDelete=True,
-            deleteCallback=self.deleteFontCallback,
-        )
+        # Get the desired axis order from the first font
+        desired_axes_order = self.font_manager.get_all_axes()
+
+        # Get current column identifiers
+        current_columns = self.group.tableView.getColumnIdentifiers()
+
+        # Base columns that should always be first
+        base_column_ids = [desc["identifier"] for desc in self.base_column_descriptions]
+
+        # Find which axis columns currently exist
+        existing_axis_columns = [col for col in current_columns if col not in base_column_ids]
+
+        # Only reorder if we have axis columns and they're not already in the right order
+        if existing_axis_columns and existing_axis_columns != desired_axes_order:
+            # Build the new column order: base columns + axes in first font's order
+            new_column_order = base_column_ids[:]
+
+            # Add axes in the order they appear in the first font
+            for axis in desired_axes_order:
+                if axis in existing_axis_columns:
+                    new_column_order.append(axis)
+
+            # Add any remaining axis columns that aren't in the first font
+            for axis in existing_axis_columns:
+                if axis not in new_column_order:
+                    new_column_order.append(axis)
+
+            # Apply the new column order if it's different from current
+            if new_column_order != current_columns:
+                # Store current table data
+                current_data = self.group.tableView.get()
+
+                # Remove all axis columns
+                for axis in existing_axis_columns:
+                    self.group.tableView.removeColumn(axis)
+
+                # Re-add axis columns in the new order
+                for axis in new_column_order:
+                    if axis not in base_column_ids:  # Skip base columns
+                        column_desc = {
+                            "identifier": axis,
+                            "title": axis,
+                            "width": 100,
+                            "editable": True,
+                        }
+                        self.group.tableView.appendColumn(column_desc)
+
+                # Restore table data
+                self.group.tableView.set(current_data)
+
+    def reset_table_columns(self):
+        """Reset the table to only show base columns, removing all axis columns."""
+        # Get current column identifiers
+        current_columns = self.group.tableView.getColumnIdentifiers()
+
+        # Base columns that should always exist
+        base_column_ids = [desc["identifier"] for desc in self.base_column_descriptions]
+
+        # Remove all axis columns (any column that's not in base_column_ids)
+        for column_id in current_columns:
+            if column_id not in base_column_ids:
+                self.group.tableView.removeColumn(column_id)
+
+        # Reset current_axes to empty list
+        self.current_axes = []
 
     def addFontsCallback(self, sender):
         """Handle the Add Fonts button click."""
@@ -405,7 +459,15 @@ class FilesTab:
             new_font_paths = [row["_path"] for row in table_data if "_path" in row]
             if new_font_paths:
                 self.font_manager.fonts = tuple(new_font_paths)
-                self.font_manager.update_axis_values_from_table(table_data)
+                # Update axis values using the appropriate method
+                if hasattr(self, "current_axes"):
+                    self.font_manager.update_axis_values_from_individual_axes_table(
+                        table_data, self.current_axes
+                    )
+                else:
+                    self.font_manager.update_axis_values_from_table(table_data)
+                # Reorder columns to match new first font's axis order
+                self.reorder_columns_by_first_font()
                 self.parent_window.initialize_proof_settings()
 
             return True
@@ -994,6 +1056,9 @@ class ProofWindow(object):
                 self.font_manager.fonts = tuple()
                 self.font_manager.font_info = {}
                 self.font_manager.axis_values_by_font = {}
+
+                # Reset table columns to base columns only
+                self.filesTab.reset_table_columns()
 
                 # Refresh UI
                 self.filesTab.update_table()
