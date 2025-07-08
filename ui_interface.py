@@ -246,10 +246,18 @@ class FilesTab:
 
         self.group.pdfOutputBox.pathControl = vanilla.PathControl(
             (170, 18, -10, 22),
+            "",  # initial url/path (empty string for no initial path)
             callback=self.pdfPathControlCallback,
-            fileType="folder",
-            allowsMultipleSelection=False,
+            fileTypes=["folder"],
+            isEditable=True,
         )
+
+    def get_first_font_folder(self):
+        """Get the folder path of the first font in the list."""
+        if self.font_manager.fonts:
+            first_font_path = self.font_manager.fonts[0]
+            return os.path.dirname(first_font_path)
+        return ""
 
     def update_table(self):
         """Update the table with current font data."""
@@ -399,6 +407,8 @@ class FilesTab:
         if self.font_manager.add_fonts(paths):
             self.update_table()
             self.parent_window.initialize_proof_settings()
+            # Update PDF location UI to populate PathControl with first font's folder
+            self.update_pdf_location_ui()
         else:
             print("No new valid font paths found")
 
@@ -563,11 +573,11 @@ class FilesTab:
                     "use_custom_location": False,
                     "custom_location": "",
                 }
-            
+
             settings.data["pdf_output"]["custom_location"] = path
             settings.data["pdf_output"]["use_custom_location"] = True
             settings.save()
-            
+
             # Update UI - select custom location radio button
             self.group.pdfOutputBox.customLocationRadio.set(True)
             self.group.pdfOutputBox.defaultLocationRadio.set(False)
@@ -590,11 +600,16 @@ class FilesTab:
         self.group.pdfOutputBox.defaultLocationRadio.set(not use_custom)
         self.group.pdfOutputBox.customLocationRadio.set(use_custom)
 
-        # Update path control
+        # Update path control - populate with first font's folder if no custom location is set
         if custom_location:
             self.group.pdfOutputBox.pathControl.set(custom_location)
         else:
-            self.group.pdfOutputBox.pathControl.set("")
+            # Auto-populate with first font's folder to make PathControl visible and functional
+            first_font_folder = self.get_first_font_folder()
+            if first_font_folder:
+                self.group.pdfOutputBox.pathControl.set(first_font_folder)
+            else:
+                self.group.pdfOutputBox.pathControl.set("")
 
     def deleteFontCallback(self, sender):
         """Handle font deletion from the table."""
