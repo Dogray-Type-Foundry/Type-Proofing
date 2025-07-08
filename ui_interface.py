@@ -626,8 +626,10 @@ class FilesTab:
                 # Convert to proper file URL for PathControl
                 if not selected_path.startswith("file://"):
                     file_url = f"file://{selected_path}"
+                    print(f"PDF will be saved at: {file_url}")
                 else:
                     file_url = selected_path
+                    print(f"PDF will be saved at: {file_url}")
 
                 # Update the PathControl to display the selected path
                 self.group.pdfOutputBox.pathControl.set(file_url)
