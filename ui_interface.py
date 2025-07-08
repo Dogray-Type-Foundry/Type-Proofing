@@ -244,15 +244,11 @@ class FilesTab:
             sizeStyle="small",
         )
 
-        self.group.pdfOutputBox.browseButton = vanilla.Button(
-            (170, 19, 70, 22),
-            "Browse...",
-            callback=self.browsePdfLocationCallback,
-            sizeStyle="small",
-        )
-
-        self.group.pdfOutputBox.customLocationText = vanilla.TextBox(
-            (250, 22, -10, 18), "", sizeStyle="small"
+        self.group.pdfOutputBox.pathControl = vanilla.PathControl(
+            (170, 18, -10, 22),
+            callback=self.pdfPathControlCallback,
+            fileType="folder",
+            allowsMultipleSelection=False,
         )
 
     def update_table(self):
@@ -556,39 +552,25 @@ class FilesTab:
         # Update UI state
         self.update_pdf_location_ui()
 
-    def browsePdfLocationCallback(self, sender):
-        """Handle Browse button for custom PDF location."""
-        from vanilla.dialogs import getFolder
-
-        # Get current custom location as starting point
-        settings = self.parent_window.settings
-        if "pdf_output" not in settings.data:
-            settings.data["pdf_output"] = {
-                "use_custom_location": False,
-                "custom_location": "",
-            }
-
-        current_path = settings.data["pdf_output"].get("custom_location", "")
-        if current_path and os.path.exists(current_path):
-            initial_path = current_path
-        else:
-            initial_path = os.path.expanduser("~")
-
-        try:
-            folder_path = getFolder("Choose PDF Output Folder", initial_path)[0]
-            if folder_path:
-                # Update settings
-                settings.data["pdf_output"]["custom_location"] = folder_path
-                settings.data["pdf_output"]["use_custom_location"] = True
-                settings.save()
-
-                # Update UI
-                self.group.pdfOutputBox.customLocationRadio.set(True)
-                self.group.pdfOutputBox.defaultLocationRadio.set(False)
-                self.update_pdf_location_ui()
-        except:
-            # User cancelled or error occurred
-            pass
+    def pdfPathControlCallback(self, sender):
+        """Handle PathControl changes for PDF output location."""
+        path = sender.get()
+        if path:
+            # Update settings
+            settings = self.parent_window.settings
+            if "pdf_output" not in settings.data:
+                settings.data["pdf_output"] = {
+                    "use_custom_location": False,
+                    "custom_location": "",
+                }
+            
+            settings.data["pdf_output"]["custom_location"] = path
+            settings.data["pdf_output"]["use_custom_location"] = True
+            settings.save()
+            
+            # Update UI - select custom location radio button
+            self.group.pdfOutputBox.customLocationRadio.set(True)
+            self.group.pdfOutputBox.defaultLocationRadio.set(False)
 
     def update_pdf_location_ui(self):
         """Update the PDF location UI to reflect current settings."""
@@ -608,15 +590,11 @@ class FilesTab:
         self.group.pdfOutputBox.defaultLocationRadio.set(not use_custom)
         self.group.pdfOutputBox.customLocationRadio.set(use_custom)
 
-        # Update custom location text
-        if use_custom and custom_location:
-            # Show a shortened version of the path if it's too long
-            display_path = custom_location
-            if len(display_path) > 40:  # Shorter limit for smaller box
-                display_path = "..." + display_path[-37:]
-            self.group.pdfOutputBox.customLocationText.set(display_path)
+        # Update path control
+        if custom_location:
+            self.group.pdfOutputBox.pathControl.set(custom_location)
         else:
-            self.group.pdfOutputBox.customLocationText.set("")
+            self.group.pdfOutputBox.pathControl.set("")
 
     def deleteFontCallback(self, sender):
         """Handle font deletion from the table."""
