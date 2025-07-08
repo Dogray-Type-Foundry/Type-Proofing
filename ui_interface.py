@@ -227,7 +227,7 @@ class FilesTab:
         )
 
         # PDF Output Location section in a Box to the right of Remove Selected button
-        self.group.pdfOutputBox = vanilla.Box((10, -105, -10, 54))
+        self.group.pdfOutputBox = vanilla.Box((10, -125, -10, 74))
 
         self.group.pdfOutputBox.defaultLocationRadio = vanilla.RadioButton(
             (10, 0, 200, 18),
@@ -256,6 +256,13 @@ class FilesTab:
             (260, 21, -10, 22),
             "",  # initial url/path (empty string for no initial path)
             callback=self.pdfPathControlCallback,
+        )
+
+        # Add a backup text field to show path when PathControl fails (especially for iCloud Drive)
+        self.group.pdfOutputBox.pathBackupText = vanilla.TextBox(
+            (260, 45, -10, 17),
+            "",
+            sizeStyle="small",
         )
 
     def get_first_font_folder(self):
@@ -568,10 +575,97 @@ class FilesTab:
         # Update UI state
         self.update_pdf_location_ui()
 
+    def _set_path_control_with_refresh(self, path_control, url):
+        """
+        Set PathControl URL with enhanced compatibility for py2app bundles.
+        This addresses iCloud Drive path display issues in app bundles.
+        """
+        if not url:
+            path_control.set("")
+            # Clear backup text as well
+            if hasattr(self.group.pdfOutputBox, "pathBackupText"):
+                self.group.pdfOutputBox.pathBackupText.set("")
+            return
+
+        import os
+        import urllib.parse
+
+        # Convert file URL to path for processing
+        if url.startswith("file://"):
+            path = urllib.parse.unquote(url[7:])
+        else:
+            path = url
+
+        # Try to resolve iCloud Drive paths to their actual locations
+        original_path = path
+        try:
+            if "Mobile Documents" in path or "iCloud" in path:
+                # For iCloud Drive paths, try to resolve the real path
+                resolved_path = os.path.realpath(path)
+                if os.path.exists(resolved_path):
+                    path = resolved_path
+                    print(f"Resolved iCloud path: {path}")
+        except Exception as e:
+            print(f"Path resolution failed: {e}")
+
+        # Ensure proper URL encoding for app bundles
+        try:
+            # Re-encode the path properly
+            encoded_path = urllib.parse.quote(path, safe="/:")
+            final_url = f"file://{encoded_path}"
+
+            # Try multiple approaches to set the PathControl
+            # Approach 1: Direct set
+            path_control.set(final_url)
+
+            # Approach 2: Force refresh if direct set doesn't work
+            if not path_control.get():  # If PathControl is still empty
+                path_control.set("")  # Clear
+                path_control.set(final_url)  # Reset
+
+            # Approach 3: Try with unencoded URL as fallback
+            if not path_control.get():
+                simple_url = f"file://{path}"
+                path_control.set(simple_url)
+
+            print(f"PathControl set to: {path_control.get()}")
+
+            # Set backup text field with user-friendly path
+            if hasattr(self.group.pdfOutputBox, "pathBackupText"):
+                # Show a user-friendly version of the path
+                display_path = original_path
+                if "Mobile Documents/com~apple~CloudDocs" in display_path:
+                    # Make iCloud Drive paths more readable
+                    user_home = os.path.expanduser("~")
+                    icloud_base = (
+                        f"{user_home}/Library/Mobile Documents/com~apple~CloudDocs"
+                    )
+                    if display_path.startswith(icloud_base):
+                        relative_path = display_path[len(icloud_base) :].lstrip("/")
+                        display_path = (
+                            f"iCloud Drive/{relative_path}"
+                            if relative_path
+                            else "iCloud Drive"
+                        )
+
+                self.group.pdfOutputBox.pathBackupText.set(f"Selected: {display_path}")
+
+        except Exception as e:
+            print(f"PathControl setting failed: {e}")
+            # Last resort - try the original URL
+            path_control.set(url)
+
+            # Still set backup text
+            if hasattr(self.group.pdfOutputBox, "pathBackupText"):
+                self.group.pdfOutputBox.pathBackupText.set(f"Selected: {original_path}")
+
     def pdfPathControlCallback(self, sender):
         """Handle PathControl changes for PDF output location."""
         url = sender.get()
         if url:
+            # Use helper method to set PathControl with refresh for app bundle compatibility
+            self._set_path_control_with_refresh(sender, url)
+
             # Update settings
             settings = self.parent_window.settings
             if "pdf_output" not in settings.data:
@@ -632,7 +726,9 @@ class FilesTab:
                     print(f"PDF will be saved at: {file_url}")
 
                 # Update the PathControl to display the selected path
-                self.group.pdfOutputBox.pathControl.set(file_url)
+                self._set_path_control_with_refresh(
+                    self.group.pdfOutputBox.pathControl, file_url
+                )
 
                 # Update settings
                 settings = self.parent_window.settings
@@ -681,15 +777,21 @@ class FilesTab:
                 file_url = f"file://{custom_location}"
             else:
                 file_url = custom_location
-            self.group.pdfOutputBox.pathControl.set(file_url)
+            self._set_path_control_with_refresh(
+                self.group.pdfOutputBox.pathControl, file_url
+            )
         else:
             # Auto-populate with first font's folder to make PathControl visible and functional
             first_font_folder = self.get_first_font_folder()
             if first_font_folder:
                 file_url = f"file://{first_font_folder}"
-                self.group.pdfOutputBox.pathControl.set(file_url)
+                self._set_path_control_with_refresh(
+                    self.group.pdfOutputBox.pathControl, file_url
+                )
             else:
-                self.group.pdfOutputBox.pathControl.set("")
+                self._set_path_control_with_refresh(
+                    self.group.pdfOutputBox.pathControl, ""
+                )
 
     def deleteFontCallback(self, sender):
         """Handle font deletion from the table."""

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Allow access to user-selected files and directories -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    
+    <!-- Allow access to downloads folder (often needed for iCloud) -->
+    <key>com.apple.security.files.downloads.read-write</key>
+    <true/>
+    
+    <!-- Allow access to pictures folder -->
+    <key>com.apple.security.files.pictures.read-write</key>
+    <true/>
+    
+    <!-- Allow access to documents folder -->
+    <key>com.apple.security.files.documents.read-write</key>
+    <true/>
+    
+    <!-- Allow network access (sometimes needed for iCloud sync) -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    
+    <!-- Allow access to bookmark data (helps with persistent access to selected folders) -->
+    <key>com.apple.security.files.bookmarks.app-scope</key>
+    <true/>
+    
+    <!-- Disable sandbox completely (this is the key for accessing iCloud Drive) -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+</dict>
+</plist>

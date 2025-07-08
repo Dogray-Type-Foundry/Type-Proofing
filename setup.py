@@ -25,6 +25,16 @@ OPTIONS = {
         "vanilla",
     ],
     "iconfile": "TypeProofing.icns",
+    # Add descriptions for folder access permissions
+    "plist": {
+        "CFBundleIdentifier": "com.dogray.typeproofing",
+        "CFBundleName": "Type Proofing",
+        "CFBundleDisplayName": "Type Proofing",
+        "NSAppleEventsUsageDescription": "This app needs access to Apple Events for file operations.",
+        "NSDocumentsFolderUsageDescription": "This app needs access to Documents folder to save proof files.",
+        "NSDesktopFolderUsageDescription": "This app needs access to Desktop folder to save proof files.",
+        "NSDownloadsFolderUsageDescription": "This app needs access to Downloads folder to save proof files.",
+    },
 }
 
 setup(
