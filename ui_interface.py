@@ -227,7 +227,7 @@ class FilesTab:
         )
 
         # PDF Output Location section in a Box to the right of Remove Selected button
-        self.group.pdfOutputBox = vanilla.Box((10, -105, -10, 50))
+        self.group.pdfOutputBox = vanilla.Box((10, -105, -10, 54))
 
         self.group.pdfOutputBox.defaultLocationRadio = vanilla.RadioButton(
             (10, 0, 200, 18),
@@ -245,11 +245,12 @@ class FilesTab:
         )
 
         self.group.pdfOutputBox.pathControl = vanilla.PathControl(
-            (170, 18, -10, 22),
+            (170, 21, -10, 22),
             "",  # initial url/path (empty string for no initial path)
             callback=self.pdfPathControlCallback,
-            fileTypes=["folder"],
+            # fileTypes=["folder"],
             isEditable=True,
+            pathStyle="popUp",
         )
 
     def get_first_font_folder(self):
@@ -564,8 +565,8 @@ class FilesTab:
 
     def pdfPathControlCallback(self, sender):
         """Handle PathControl changes for PDF output location."""
-        path = sender.get()
-        if path:
+        url = sender.get()
+        if url:
             # Update settings
             settings = self.parent_window.settings
             if "pdf_output" not in settings.data:
@@ -574,7 +575,7 @@ class FilesTab:
                     "custom_location": "",
                 }
 
-            settings.data["pdf_output"]["custom_location"] = path
+            settings.data["pdf_output"]["custom_location"] = url
             settings.data["pdf_output"]["use_custom_location"] = True
             settings.save()
 
