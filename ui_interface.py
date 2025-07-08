@@ -173,6 +173,8 @@ class FilesTab:
         self.font_manager = font_manager
         self.current_axes = []  # Track current axes for editing
         self.create_ui()
+        # Update PDF location UI to reflect current settings
+        self.update_pdf_location_ui()
         # Update table with any fonts loaded from settings
         self.update_table()
 
@@ -199,7 +201,7 @@ class FilesTab:
         )
 
         self.group.tableView = vanilla.List2(
-            (0, 0, -0, -70),
+            (0, 0, -0, -120),
             items=[],
             columnDescriptions=columnDescriptions,
             allowsSelection=True,
@@ -222,6 +224,35 @@ class FilesTab:
         )
         self.group.removeButton = vanilla.Button(
             (160, -40, 140, 20), "Remove Selected", callback=self.removeFontsCallback
+        )
+
+        # PDF Output Location section in a Box to the right of Remove Selected button
+        self.group.pdfOutputBox = vanilla.Box((10, -105, -10, 50))
+
+        self.group.pdfOutputBox.defaultLocationRadio = vanilla.RadioButton(
+            (10, 0, 200, 18),
+            "Save to first font's folder",
+            callback=self.pdfLocationRadioCallback,
+            value=True,
+            sizeStyle="small",
+        )
+
+        self.group.pdfOutputBox.customLocationRadio = vanilla.RadioButton(
+            (10, 20, 150, 18),
+            "Save to custom location:",
+            callback=self.pdfLocationRadioCallback,
+            sizeStyle="small",
+        )
+
+        self.group.pdfOutputBox.browseButton = vanilla.Button(
+            (170, 19, 70, 22),
+            "Browse...",
+            callback=self.browsePdfLocationCallback,
+            sizeStyle="small",
+        )
+
+        self.group.pdfOutputBox.customLocationText = vanilla.TextBox(
+            (250, 22, -10, 18), "", sizeStyle="small"
         )
 
     def update_table(self):
@@ -291,7 +322,9 @@ class FilesTab:
         base_column_ids = [desc["identifier"] for desc in self.base_column_descriptions]
 
         # Find which axis columns currently exist
-        existing_axis_columns = [col for col in current_columns if col not in base_column_ids]
+        existing_axis_columns = [
+            col for col in current_columns if col not in base_column_ids
+        ]
 
         # Only reorder if we have axis columns and they're not already in the right order
         if existing_axis_columns and existing_axis_columns != desired_axes_order:
@@ -504,6 +537,86 @@ class FilesTab:
                     print(f"Error in fallback file drop: {e2}")
 
         return False
+
+    def pdfLocationRadioCallback(self, sender):
+        """Handle PDF location radio button changes."""
+        # Update the settings based on which radio button is selected
+        use_custom = self.group.pdfOutputBox.customLocationRadio.get()
+
+        # Update settings - ensure pdf_output key exists
+        settings = self.parent_window.settings
+        if "pdf_output" not in settings.data:
+            settings.data["pdf_output"] = {
+                "use_custom_location": False,
+                "custom_location": "",
+            }
+        settings.data["pdf_output"]["use_custom_location"] = use_custom
+        settings.save()
+
+        # Update UI state
+        self.update_pdf_location_ui()
+
+    def browsePdfLocationCallback(self, sender):
+        """Handle Browse button for custom PDF location."""
+        from vanilla.dialogs import getFolder
+
+        # Get current custom location as starting point
+        settings = self.parent_window.settings
+        if "pdf_output" not in settings.data:
+            settings.data["pdf_output"] = {
+                "use_custom_location": False,
+                "custom_location": "",
+            }
+
+        current_path = settings.data["pdf_output"].get("custom_location", "")
+        if current_path and os.path.exists(current_path):
+            initial_path = current_path
+        else:
+            initial_path = os.path.expanduser("~")
+
+        try:
+            folder_path = getFolder("Choose PDF Output Folder", initial_path)[0]
+            if folder_path:
+                # Update settings
+                settings.data["pdf_output"]["custom_location"] = folder_path
+                settings.data["pdf_output"]["use_custom_location"] = True
+                settings.save()
+
+                # Update UI
+                self.group.pdfOutputBox.customLocationRadio.set(True)
+                self.group.pdfOutputBox.defaultLocationRadio.set(False)
+                self.update_pdf_location_ui()
+        except:
+            # User cancelled or error occurred
+            pass
+
+    def update_pdf_location_ui(self):
+        """Update the PDF location UI to reflect current settings."""
+        settings = self.parent_window.settings
+
+        # Ensure pdf_output key exists with defaults
+        if "pdf_output" not in settings.data:
+            settings.data["pdf_output"] = {
+                "use_custom_location": False,
+                "custom_location": "",
+            }
+
+        use_custom = settings.data["pdf_output"].get("use_custom_location", False)
+        custom_location = settings.data["pdf_output"].get("custom_location", "")
+
+        # Update radio buttons
+        self.group.pdfOutputBox.defaultLocationRadio.set(not use_custom)
+        self.group.pdfOutputBox.customLocationRadio.set(use_custom)
+
+        # Update custom location text
+        if use_custom and custom_location:
+            # Show a shortened version of the path if it's too long
+            display_path = custom_location
+            if len(display_path) > 40:  # Shorter limit for smaller box
+                display_path = "..." + display_path[-37:]
+            self.group.pdfOutputBox.customLocationText.set(display_path)
+        else:
+            self.group.pdfOutputBox.customLocationText.set("")
 
     def deleteFontCallback(self, sender):
         """Handle font deletion from the table."""
@@ -1062,6 +1175,9 @@ class ProofWindow(object):
 
                 # Refresh UI
                 self.filesTab.update_table()
+
+                # Update PDF location UI to reflect reset settings
+                self.filesTab.update_pdf_location_ui()
 
                 # Refresh controls tab with default values
                 self.refresh_controls_tab()
@@ -2053,17 +2169,38 @@ class ProofWindow(object):
         try:
             if self.font_manager.fonts:
                 first_font_path = self.font_manager.fonts[0]
-                # Get the directory of the first font
-                font_directory = os.path.dirname(first_font_path)
                 family_name = os.path.splitext(os.path.basename(first_font_path))[
                     0
                 ].split("-")[0]
+
+                # Check if user wants to use custom PDF output location
+                # Ensure pdf_output key exists with defaults
+                if "pdf_output" not in self.settings.data:
+                    self.settings.data["pdf_output"] = {
+                        "use_custom_location": False,
+                        "custom_location": "",
+                    }
+
+                use_custom = self.settings.data["pdf_output"].get(
+                    "use_custom_location", False
+                )
+                custom_location = self.settings.data["pdf_output"].get(
+                    "custom_location", ""
+                )
+
+                if use_custom and custom_location and os.path.exists(custom_location):
+                    # Use custom location
+                    pdf_directory = custom_location
+                else:
+                    # Use default: first font's directory
+                    pdf_directory = os.path.dirname(first_font_path)
             else:
                 # Fallback to script directory if no fonts loaded
-                font_directory = SCRIPT_DIR
+                pdf_directory = SCRIPT_DIR
                 family_name = "proof"
+
             proofPath = os.path.join(
-                font_directory, f"{nowformat}_{family_name}-proof.pdf"
+                pdf_directory, f"{nowformat}_{family_name}-proof.pdf"
             )
             db.saveImage(proofPath)
             print(f"Proof PDF was saved: {proofPath}")

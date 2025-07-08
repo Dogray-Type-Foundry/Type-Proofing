@@ -250,6 +250,10 @@ class Settings:
                 "arabic_numbers_proof": False,
             },
             "proof_settings": {},
+            "pdf_output": {
+                "use_custom_location": False,
+                "custom_location": "",
+            },
         }
 
     def save(self):
@@ -451,6 +455,32 @@ class Settings:
         """Set all proof settings."""
         self.data["proof_settings"] = proof_settings
 
+    def get_pdf_output_use_custom(self):
+        """Get whether to use custom PDF output location."""
+        return self.data.get("pdf_output", {}).get("use_custom_location", False)
+
+    def set_pdf_output_use_custom(self, use_custom):
+        """Set whether to use custom PDF output location."""
+        if "pdf_output" not in self.data:
+            self.data["pdf_output"] = {
+                "use_custom_location": False,
+                "custom_location": "",
+            }
+        self.data["pdf_output"]["use_custom_location"] = use_custom
+
+    def get_pdf_output_custom_location(self):
+        """Get custom PDF output location."""
+        return self.data.get("pdf_output", {}).get("custom_location", "")
+
+    def set_pdf_output_custom_location(self, location):
+        """Set custom PDF output location."""
+        if "pdf_output" not in self.data:
+            self.data["pdf_output"] = {
+                "use_custom_location": False,
+                "custom_location": "",
+            }
+        self.data["pdf_output"]["custom_location"] = location
+
 
 # =============================================================================
 # SETTINGS DOCUMENTATION
@@ -528,6 +558,10 @@ SETTINGS FILE STRUCTURE:
         "otf_SmallParagraphProof_kern": true,
         "otf_SmallParagraphProof_liga": false,
         // ... (many more combinations possible)
+    },
+    "pdf_output": {
+        "use_custom_location": false,              // Whether to use custom PDF output location  
+        "custom_location": ""                      // Custom directory for PDF output (empty = use font folder)
     }
 }
 
@@ -657,6 +691,10 @@ EXAMPLE USER SETTINGS FILE:
         "otf_SmallParagraphProof_liga": false,
         "otf_ArabicContextualFormsProof_calt": true,
         "otf_ArabicContextualFormsProof_rlig": true
+    },
+    "pdf_output": {
+        "use_custom_location": false,              // Whether to use custom PDF output location
+        "custom_location": ""                      // Custom directory for PDF output
     }
 }
 """
