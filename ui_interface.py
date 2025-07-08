@@ -244,13 +244,18 @@ class FilesTab:
             sizeStyle="small",
         )
 
+        # Browse button to select custom folder location
+        self.group.pdfOutputBox.browseButton = vanilla.Button(
+            (170, 21, 80, 22),
+            "Browse...",
+            callback=self.browsePdfLocationCallback,
+            sizeStyle="small",
+        )
+
         self.group.pdfOutputBox.pathControl = vanilla.PathControl(
-            (170, 21, -10, 22),
+            (260, 21, -10, 22),
             "",  # initial url/path (empty string for no initial path)
             callback=self.pdfPathControlCallback,
-            # fileTypes=["folder"],
-            isEditable=True,
-            pathStyle="popUp",
         )
 
     def get_first_font_folder(self):
@@ -583,6 +588,72 @@ class FilesTab:
             self.group.pdfOutputBox.customLocationRadio.set(True)
             self.group.pdfOutputBox.defaultLocationRadio.set(False)
 
+    def browsePdfLocationCallback(self, sender):
+        """Handle the browse button click for PDF output location."""
+        try:
+            from vanilla.dialogs import getFolder
+
+            # Get current path as starting point
+            current_path = self.group.pdfOutputBox.pathControl.get()
+            if not current_path or not os.path.exists(current_path):
+                # Fall back to first font's folder if available
+                current_path = self.get_first_font_folder()
+
+            result = getFolder(messageText="Choose a folder for PDF output:")
+
+            if result:
+                # Handle the Objective-C array properly
+                selected_path = None
+                if hasattr(result, "__iter__") and hasattr(result, "__len__"):
+                    # It's an iterable with length, try to get the first item
+                    if len(result) > 0:
+                        selected_path = result[0]
+                        # If it's still an array-like object, convert to string
+                        if hasattr(selected_path, "__iter__") and not isinstance(
+                            selected_path, str
+                        ):
+                            selected_path = str(selected_path).strip('()"')
+                        else:
+                            selected_path = str(selected_path)
+                else:
+                    selected_path = str(result)
+
+                # Clean up the path string - remove any remaining array formatting
+                selected_path = selected_path.strip('()"').strip()
+                if selected_path.startswith('"') and selected_path.endswith('"'):
+                    selected_path = selected_path[1:-1]
+
+                # Convert to proper file URL for PathControl
+                if not selected_path.startswith("file://"):
+                    file_url = f"file://{selected_path}"
+                else:
+                    file_url = selected_path
+
+                # Update the PathControl to display the selected path
+                self.group.pdfOutputBox.pathControl.set(file_url)
+
+                # Update settings
+                settings = self.parent_window.settings
+                if "pdf_output" not in settings.data:
+                    settings.data["pdf_output"] = {
+                        "use_custom_location": False,
+                        "custom_location": "",
+                    }
+
+                settings.data["pdf_output"]["custom_location"] = selected_path
+                settings.data["pdf_output"]["use_custom_location"] = True
+                settings.save()
+
+                # Update UI to reflect the change
+                self.group.pdfOutputBox.customLocationRadio.set(True)
+                self.group.pdfOutputBox.defaultLocationRadio.set(False)
+
+        except Exception as e:
+            print(f"Error browsing for PDF location: {e}")
+            import traceback
+
+            traceback.print_exc()
+
     def update_pdf_location_ui(self):
         """Update the PDF location UI to reflect current settings."""
         settings = self.parent_window.settings
@@ -603,12 +674,18 @@ class FilesTab:
 
         # Update path control - populate with first font's folder if no custom location is set
         if custom_location:
-            self.group.pdfOutputBox.pathControl.set(custom_location)
+            # Ensure we use a proper file URL for PathControl
+            if not custom_location.startswith("file://"):
+                file_url = f"file://{custom_location}"
+            else:
+                file_url = custom_location
+            self.group.pdfOutputBox.pathControl.set(file_url)
         else:
             # Auto-populate with first font's folder to make PathControl visible and functional
             first_font_folder = self.get_first_font_folder()
             if first_font_folder:
-                self.group.pdfOutputBox.pathControl.set(first_font_folder)
+                file_url = f"file://{first_font_folder}"
+                self.group.pdfOutputBox.pathControl.set(file_url)
             else:
                 self.group.pdfOutputBox.pathControl.set("")
 
