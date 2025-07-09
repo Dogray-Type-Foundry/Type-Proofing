@@ -5,6 +5,7 @@
 .DS_Store
 .python-version
 .nova
+.eggs
 *.ttf
 *.otf
 *.pdf

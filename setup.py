@@ -7,9 +7,9 @@ Usage:
 
 from setuptools import setup
 
-NAME = "Type Proofing"
+NAME = "TypeProofing"
 VERSION = "1.0.0"
-APP = ["Type Proofing.py"]
+APP = ["TypeProofing.py"]
 DATA_FILES = [
     "config.py",
     "prooftexts.py",
@@ -46,6 +46,8 @@ OPTIONS = {
         "NSDocumentsFolderUsageDescription": "This app needs access to Documents folder to save proof files.",
         "NSDesktopFolderUsageDescription": "This app needs access to Desktop folder to save proof files.",
         "NSDownloadsFolderUsageDescription": "This app needs access to Downloads folder to save proof files.",
+        # Disable automatic state restoration to eliminate secure coding warning
+        "NSApplicationSupportsSecureRestorableState": False,
     },
 }
 
