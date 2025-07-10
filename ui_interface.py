@@ -1983,10 +1983,9 @@ class ProofWindow(object):
                     False,
                     big_paragraph_font_size,
                     "Big size proof",
-                    False,
-                    False,
-                    False,
-                    None,
+                    False,  # mixedStyles=False
+                    False,  # forceWordsiv
+                    None,   # injectText
                     otfeatures_by_proof.get("BigParagraphProof", {}),
                     0,
                     cat,
@@ -2006,10 +2005,9 @@ class ProofWindow(object):
                     False,
                     big_diacritics_font_size,
                     "Big size accented proof",
-                    False,
-                    False,
-                    False,
-                    None,
+                    False,  # mixedStyles=False
+                    False,  # forceWordsiv
+                    None,   # injectText
                     otfeatures_by_proof.get("BigDiacriticsProof", {}),
                     3,
                     cat,
@@ -2029,10 +2027,9 @@ class ProofWindow(object):
                     False,
                     small_paragraph_font_size,
                     "Small size proof",
-                    False,
-                    False,
-                    False,
-                    None,
+                    False,  # mixedStyles=False
+                    False,  # forceWordsiv
+                    None,   # injectText
                     otfeatures_by_proof.get("SmallParagraphProof", {}),
                     0,
                     cat,
@@ -2051,11 +2048,10 @@ class ProofWindow(object):
                     5,
                     False,
                     small_paired_styles_font_size,
-                    "Small size rg & bd proof",
-                    True,
-                    True,
-                    True,
-                    None,
+                    "Small size paired styles proof",
+                    True,  # mixedStyles=True for SmallPairedStylesProof
+                    True,  # forceWordsiv
+                    None,  # injectText
                     otfeatures_by_proof.get("SmallPairedStylesProof", {}),
                     0,
                     cat,
@@ -2073,10 +2069,9 @@ class ProofWindow(object):
                     False,
                     small_wordsiv_font_size,
                     "Small size proof mixed",
-                    False,
-                    False,
-                    True,
-                    None,
+                    False,  # mixedStyles=False
+                    True,   # forceWordsiv
+                    None,   # injectText
                     otfeatures_by_proof.get("SmallWordsivProof", {}),
                     0,
                     cat,
@@ -2096,10 +2091,9 @@ class ProofWindow(object):
                     False,
                     small_diacritics_font_size,
                     "Small size accented proof",
-                    False,
-                    False,
-                    False,
-                    None,
+                    False,  # mixedStyles=False
+                    False,  # forceWordsiv
+                    None,   # injectText
                     otfeatures_by_proof.get("SmallDiacriticsProof", {}),
                     4,
                     cat,
@@ -2119,10 +2113,9 @@ class ProofWindow(object):
                     False,
                     small_mixed_text_font_size,
                     "Small size misc proof",
-                    False,
-                    False,
-                    False,
-                    (
+                    False,  # mixedStyles=False
+                    False,  # forceWordsiv
+                    (       # injectText
                         pte.bigRandomNumbers if pte else "",
                         pte.additionalSmallText if pte else "",
                     ),
@@ -2161,10 +2154,9 @@ class ProofWindow(object):
                         False,
                         big_arabic_font_size,
                         "Big Arabic text proof",
-                        False,
-                        False,
-                        False,
-                        None,
+                        False,  # mixedStyles=False
+                        False,  # forceWordsiv
+                        None,   # injectText
                         otfeatures_by_proof.get("BigArabicTextProof", {}),
                         0,
                         cat,
@@ -2187,10 +2179,9 @@ class ProofWindow(object):
                         False,
                         big_farsi_font_size,
                         "Big Farsi text proof",
-                        False,
-                        False,
-                        False,
-                        None,
+                        False,  # mixedStyles=False
+                        False,  # forceWordsiv
+                        None,   # injectText
                         otfeatures_by_proof.get("BigFarsiTextProof", {}),
                         0,
                         cat,
@@ -2215,10 +2206,9 @@ class ProofWindow(object):
                         False,
                         small_arabic_font_size,
                         "Small Arabic text proof",
-                        False,
-                        False,
-                        False,
-                        None,
+                        False,  # mixedStyles=False
+                        False,  # forceWordsiv
+                        None,   # injectText
                         otfeatures_by_proof.get("SmallArabicTextProof", {}),
                         0,
                         cat,
@@ -2241,10 +2231,9 @@ class ProofWindow(object):
                         False,
                         small_farsi_font_size,
                         "Small Farsi text proof",
-                        False,
-                        False,
-                        False,
-                        None,
+                        False,  # mixedStyles=False
+                        False,  # forceWordsiv
+                        None,   # injectText
                         otfeatures_by_proof.get("SmallFarsiTextProof", {}),
                         0,
                         cat,
@@ -2269,10 +2258,9 @@ class ProofWindow(object):
                         False,
                         arabic_vocalization_font_size,
                         "Arabic vocalization proof",
-                        False,
-                        False,
-                        False,
-                        (arabicVocalization,),
+                        False,  # mixedStyles=False
+                        False,  # forceWordsiv
+                        (arabicVocalization,),  # injectText
                         otfeatures_by_proof.get("ArabicVocalizationProof", {}),
                         0,
                         cat,
@@ -2297,10 +2285,9 @@ class ProofWindow(object):
                         False,
                         arabic_latin_mixed_font_size,
                         "Arabic-Latin mixed proof",
-                        False,
-                        False,
-                        False,
-                        (arabicLatinMixed,),
+                        False,  # mixedStyles=False
+                        False,  # forceWordsiv
+                        (arabicLatinMixed,),  # injectText
                         otfeatures_by_proof.get("ArabicLatinMixedProof", {}),
                         0,
                         cat,
@@ -2325,10 +2312,9 @@ class ProofWindow(object):
                         False,
                         arabic_numbers_font_size,
                         "Arabic numbers proof",
-                        False,
-                        False,
-                        False,
-                        (arabicFarsiUrduNumbers,),
+                        False,  # mixedStyles=False
+                        False,  # forceWordsiv
+                        (arabicFarsiUrduNumbers,),  # injectText
                         otfeatures_by_proof.get("ArabicNumbersProof", {}),
                         0,
                         cat,
