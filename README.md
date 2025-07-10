@@ -22,6 +22,8 @@ Type Proofing is a macOS application that generates comprehensive proofing docum
 3. Move the TypeProofing.app bundle to your Applications folder
 4. Launch the application
 
+  **NOTE:** The built app is a universal2 bundle which means it should support computers with Intel and Apple Silicon processors
+
 ### First Launch
 When you first open the app, you'll see a two-tab interface:
 - **Files Tab**: For managing fonts, variable axes if available and output location
@@ -88,125 +90,65 @@ The left side shows available proof types. Each can be enabled/disabled individu
 #### Arabic/Persian Proof Types
 *These options appear automatically when Arabic-supporting fonts are loaded:*
 
-- **Arabic Contextual Forms**: Tests Arabic character contextual variations
-- **Big Arabic Text Proof**: Large Arabic text blocks
-- **Big Farsi Text Proof**: Large Persian/Farsi text blocks  
-- **Small Arabic Text Proof**: Small Arabic text testing
-- **Small Farsi Text Proof**: Small Persian text testing
-- **Arabic Vocalization Proof**: Tests Arabic diacritical marks
-- **Arabic-Latin Mixed Proof**: Mixed Arabic and Latin script testing
-- **Arabic Numbers Proof**: Arabic numerals and numbering systems
+- **Arabic Contextual Forms**: Shows arabic positional forms in big font size
+- **Big Arabic Text Proof**: Paragraphs of Arabic language text in large font size
+- **Big Farsi Text Proof**: Paragraphs of Persian language text in large font size
+- **Small Arabic Text Proof**: Paragraphs of Arabic language text in small font size
+- **Small Farsi Text Proof**: Paragraphs of Persian language text in small font size
+- **Arabic Vocalization Proof**: Shows Arabic vocalization marks in small font size
+- **Arabic-Latin Mixed Proof**: Shows Arabic and Latin script mixed in text
+- **Arabic Numbers Proof**: Numbers in different contexts
 
 ### Proof Settings
 
-Many proof types have configurable settings accessible via a settings button:
+Many proof types have configurable settings accessible when that proof's checkbox is first ticked on:
 
-#### Common Settings
+### Settings
 - **Font Size**: Adjustable size for the specific proof type
-- **OpenType Features**: Enable/disable specific OpenType features
-- **Text Content**: Custom text input for some proof types
-- **Layout Options**: Spacing, alignment, and formatting controls
+- **Columns**: Change the number of text columns on the page
+- **OpenType Features**: Enable/disable specific OpenType features. This list is populated automatically based on the Opentype features available in the first font on the Files list.
+- **Paragraphs**: Select the number of paragraphs to be generated in the Wordsiv proof
 
 ### Action Buttons
-
-#### Generate Proof
-- **Main Action**: Creates PDF with all enabled proof types
-- **Processing**: Shows progress and completion status
-- **Output**: Saves PDF to the location specified in Files tab
-
-#### Settings Management
+- **Generate Proof**: Creates PDF with all enabled proof types
 - **Add Settings File**: Load a previously saved settings configuration
-- **Remove Settings File**: Clear loaded settings and return to defaults
+- **Reset Settings**: Clear loaded settings and return to defaults
 
-#### PDF Preview
-- **Preview Window**: Shows real-time preview of the generated PDF
-- **Navigation**: Use preview controls to browse through pages
-- **Zoom**: Adjust preview size for detailed inspection
+### PDF Preview
+- **Preview Window**: Shows real-time preview of the generated PDF. You can scroll though the pages and zoom in. You can resize the app's window to enlarge the Preview space.
 
 ## Advanced Features
 
 ### Settings Files
 Settings files allow you to save and reuse specific configurations:
 
-1. **Creating Settings**: Configure your preferred proof options and settings
-2. **Saving**: Settings are automatically saved when you close the app
-3. **Loading Custom Settings**: Use "Add Settings File" to load specific configurations
-4. **Sharing**: Settings files can be shared between users or projects
-
-### Batch Processing
-Process multiple fonts efficiently:
-1. Add all fonts to the Files tab
-2. Configure desired proof types in Controls tab
-3. Click "Generate Proof" to process all fonts
-4. Each font generates a separate PDF with consistent settings
-
-### Variable Font Workflows
-For variable fonts:
-1. Load the variable font file
-2. Adjust axis values in the Files tab table
-3. Generate proofs with your specific axis settings
-4. Test multiple variations by adjusting axes and regenerating
+- **Auto-save**: Settings are automatically saved when you close the app. Settings are saved to `~/.type-proofing-prefs.json` (`~/` is the current user's Home folder)
+- **Auto-load**: When you open the app again, settings are automatically loaded from `~/.type-proofing-prefs.json`. If there are no settings in the file, default settings will be loaded. Note that every single setting in the app can be saved to the settings file, including fonts, export location and all the Controls page settings
+- **Creating Settings**: If you have settings that are useful for a given project, duplicate `~/.type-proofing-prefs.json`, rename it and save it elsewhere. You can load that settings file later so you don't have to set everything manually again
+- **Loading Custom Settings**: Use "Add Settings File" to load specific settings files
 
 ## Output and File Management
 
 ### PDF Structure
 Generated PDFs include:
-- **Header Information**: Font name, generation date, and proof type
+- **Footer Information**: Date, Font name, proof type and style used in that page
 - **Page Numbers**: Sequential page numbering
-- **Organized Sections**: Each proof type on dedicated pages
-- **Footer Details**: Font family, date, and page information
 
 ### File Naming
 PDFs are automatically named with:
+- Timestamp including date and time
 - Font family name
-- Generation timestamp
-- Descriptive suffix based on proof types included
-
-### Quality Settings
-All PDFs are generated at print quality with:
-- High-resolution output suitable for printing
-- Embedded fonts for accurate display
-- Optimized file sizes for sharing
 
 ## Troubleshooting
 
 ### Common Issues
 
-#### iCloud Drive Paths
-- **Issue**: Path picker appears empty for iCloud Drive
-- **Solution**: Check the backup text field - the path is correctly selected
-- **Result**: PDFs will save properly despite display issue
-
 #### Arabic Proofs Not Showing
 - **Issue**: Arabic proof options don't appear
 - **Solution**: Ensure at least one loaded font supports Arabic script
-- **Detection**: App automatically detects script support
+- **Explanation**: App automatically detects script support
 
 #### Missing Characters
 - **Issue**: Some characters don't appear in proofs
 - **Solution**: Check if the font actually contains those characters
-- **Alternative**: App will use fallback font for missing characters
-
-## Tips for Best Results
-
-### Font Testing Strategy
-1. **Start Simple**: Begin with basic character set and spacing proofs
-2. **Add Complexity**: Gradually enable more proof types as needed
-3. **Script-Specific**: Use appropriate script proofs for your font's target languages
-4. **Comparative**: Test multiple weights/styles together for consistency
-
-### Professional Workflows
-1. **Systematic Testing**: Develop consistent proof configurations for projects
-2. **Version Control**: Keep proof PDFs with font development versions
-3. **Client Review**: Use generated PDFs for client presentations and approvals
-4. **Quality Assurance**: Regular proofing catches design issues early
-
-### Optimization
-1. **Batch Processing**: Process related fonts together for efficiency
-2. **Settings Reuse**: Save settings files for repeated use
-3. **Selective Proofing**: Enable only relevant proof types for faster generation
-4. **Organization**: Maintain clear folder structures for fonts and proofs
-
----
-
-*This application is designed to streamline professional font proofing workflows. For additional support or feature requests, refer to the application documentation or contact the development team.*
+- **Explanation**: App will use emtpy fallback font for missing characters. This can affect line height on lines where the empty fallback font is used
