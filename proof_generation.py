@@ -99,8 +99,7 @@ def stringMaker(
     trackingInput=0,
     OTFeaInput=None,
     VFAxisInput=None,
-    upit=False,
-    rgbd=False,
+    mixedStyles=False,
 ):
     """Function to create a formatted string to feed into textBox."""
     try:
@@ -116,7 +115,7 @@ def stringMaker(
         )
 
         # Handle mixed styles if requested
-        if upit or rgbd:
+        if mixedStyles:
             return _handle_mixed_styles(
                 textString,
                 textInput,
@@ -124,8 +123,7 @@ def stringMaker(
                 axesProduct,
                 pairedStaticStyles,
                 VFAxisInput,
-                upit,
-                rgbd,
+                mixedStyles,
             )
         else:
             textString.append(txt=textInput)
@@ -144,15 +142,18 @@ def _handle_mixed_styles(
     axesProduct,
     pairedStaticStyles,
     VFAxisInput,
-    upit,
-    rgbd,
+    mixedStyles,
 ):
     """Handle mixed upright/italic and regular/bold styles."""
+    if not mixedStyles:
+        textString.append(txt=textInput)
+        return textString
+    
     random.seed(a=dualStyleSeed)
     f = get_ttfont(indFont)
 
     # Static font upright/italic mixing
-    if upit and pairedStaticStyles[0] and f["OS/2"].fsSelection & FsSelection.ITALIC:
+    if pairedStaticStyles[0] and f["OS/2"].fsSelection & FsSelection.ITALIC:
         upFont, itFont = pairedStaticStyles[0][f["OS/2"].usWeightClass]
         print("UI", f["name"].getBestSubFamilyName())
         _apply_alternating_fonts(textString, textInput, [upFont, itFont])
@@ -160,7 +161,6 @@ def _handle_mixed_styles(
     # Variable font italic axis mixing
     elif (
         axesProduct
-        and upit
         and VFAxisInput
         and "ital" in VFAxisInput
         and VFAxisInput["ital"] != 0
@@ -171,8 +171,7 @@ def _handle_mixed_styles(
 
     # Static font regular/bold mixing
     elif (
-        rgbd
-        and pairedStaticStyles[1]
+        pairedStaticStyles[1]
         and (
             f["name"].getBestSubFamilyName() == "Regular"
             or f["name"].getBestSubFamilyName() == "Italic"
@@ -185,7 +184,6 @@ def _handle_mixed_styles(
     # Variable font weight axis mixing
     elif (
         axesProduct
-        and rgbd
         and VFAxisInput
         and "wght" in VFAxisInput
         and VFAxisInput["wght"] == 700
@@ -195,7 +193,8 @@ def _handle_mixed_styles(
         )
 
     else:
-        textString.append(txt=textInput)
+        # No valid pairing found - return None to indicate this font should be skipped
+        return None
 
     return textString
 
@@ -575,6 +574,7 @@ def charsetProof(
                     24,
                     otFea,
                     axisDict,
+                    mixedStyles=False,
                 )
                 drawContent(
                     charsetString, sectionName + " - " + str(axisData), 1, indFont
@@ -589,6 +589,7 @@ def charsetProof(
                 "center",
                 24,
                 otFea,
+                mixedStyles=False,
             )
             drawContent(
                 charsetString,
@@ -631,6 +632,7 @@ def spacingProof(
                 pairedStaticStyles,
                 OTFeaInput=dict(liga=False, kern=False) if otFea is None else otFea,
                 VFAxisInput=axisDict,
+                mixedStyles=False,
             )
             drawContent(
                 spacingString,
@@ -648,6 +650,7 @@ def spacingProof(
             axesProduct,
             pairedStaticStyles,
             OTFeaInput=dict(liga=False, kern=False) if otFea is None else otFea,
+            mixedStyles=False,
         )
         drawContent(
             spacingString,
@@ -667,8 +670,7 @@ def textProof(
     casing=False,
     textSize=smallTextFontSize,
     sectionName="Text Proof",
-    upit=False,
-    rgbd=False,
+    mixedStyles=False,
     forceWordsiv=False,
     injectText=None,
     otFea=None,
@@ -737,9 +739,11 @@ def textProof(
                 alignInput=text_align,
                 OTFeaInput=otFea,
                 VFAxisInput=axisDict,
-                upit=upit,
-                rgbd=rgbd,
+                mixedStyles=mixedStyles,
             )
+            # Skip this font if no valid pairing found for mixed styles
+            if mixedStyles and textString is None:
+                continue
             drawContent(
                 textString,
                 sectionName + " - " + str(axisData),
@@ -760,9 +764,11 @@ def textProof(
             pairedStaticStyles,
             alignInput=text_align,
             OTFeaInput=otFea,
-            upit=upit,
-            rgbd=rgbd,
+            mixedStyles=mixedStyles,
         )
+        # Skip this font if no valid pairing found for mixed styles
+        if mixedStyles and textString is None:
+            return
         drawContent(
             textString,
             sectionName + " - " + db.font(indFont).split("-")[1],
@@ -825,6 +831,7 @@ def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=N
                     0,  # No tracking for contextual forms
                     otFea,
                     axisDict,
+                    mixedStyles=False,
                 )
                 drawContent(
                     formattedString,
@@ -843,6 +850,7 @@ def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=N
                 "center",
                 0,
                 otFea,
+                mixedStyles=False,
             )
             drawContent(
                 formattedString,
@@ -913,6 +921,7 @@ def arabicContextualFormsProof(
                     0,  # No tracking for contextual forms
                     otFea,
                     axisDict,
+                    mixedStyles=False,
                 )
                 drawContent(
                     formattedString,
@@ -931,6 +940,7 @@ def arabicContextualFormsProof(
                 "center",
                 0,
                 otFea,
+                mixedStyles=False,
             )
             drawContent(
                 formattedString,
