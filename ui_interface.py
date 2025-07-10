@@ -1985,7 +1985,7 @@ class ProofWindow(object):
                     "Big size proof",
                     False,  # mixedStyles=False
                     False,  # forceWordsiv
-                    None,   # injectText
+                    None,  # injectText
                     otfeatures_by_proof.get("BigParagraphProof", {}),
                     0,
                     cat,
@@ -1996,7 +1996,7 @@ class ProofWindow(object):
                     "BigDiacriticsProof"
                 )
                 textProof(
-                    cat["accented"],
+                    cat["accented_plus"],
                     axesProduct,
                     indFont,
                     None,  # pairedStaticStyles
@@ -2007,7 +2007,7 @@ class ProofWindow(object):
                     "Big size accented proof",
                     False,  # mixedStyles=False
                     False,  # forceWordsiv
-                    None,   # injectText
+                    None,  # injectText
                     otfeatures_by_proof.get("BigDiacriticsProof", {}),
                     3,
                     cat,
@@ -2029,7 +2029,7 @@ class ProofWindow(object):
                     "Small size proof",
                     False,  # mixedStyles=False
                     False,  # forceWordsiv
-                    None,   # injectText
+                    None,  # injectText
                     otfeatures_by_proof.get("SmallParagraphProof", {}),
                     0,
                     cat,
@@ -2070,8 +2070,8 @@ class ProofWindow(object):
                     small_wordsiv_font_size,
                     "Small size proof mixed",
                     False,  # mixedStyles=False
-                    True,   # forceWordsiv
-                    None,   # injectText
+                    True,  # forceWordsiv
+                    None,  # injectText
                     otfeatures_by_proof.get("SmallWordsivProof", {}),
                     0,
                     cat,
@@ -2082,7 +2082,7 @@ class ProofWindow(object):
                     "SmallDiacriticsProof"
                 )
                 textProof(
-                    cat["accented"],
+                    cat["accented_plus"],
                     axesProduct,
                     indFont,
                     None,  # pairedStaticStyles
@@ -2093,7 +2093,7 @@ class ProofWindow(object):
                     "Small size accented proof",
                     False,  # mixedStyles=False
                     False,  # forceWordsiv
-                    None,   # injectText
+                    None,  # injectText
                     otfeatures_by_proof.get("SmallDiacriticsProof", {}),
                     4,
                     cat,
@@ -2115,7 +2115,7 @@ class ProofWindow(object):
                     "Small size misc proof",
                     False,  # mixedStyles=False
                     False,  # forceWordsiv
-                    (       # injectText
+                    (  # injectText
                         pte.bigRandomNumbers if pte else "",
                         pte.additionalSmallText if pte else "",
                     ),
@@ -2156,7 +2156,7 @@ class ProofWindow(object):
                         "Big Arabic text proof",
                         False,  # mixedStyles=False
                         False,  # forceWordsiv
-                        None,   # injectText
+                        None,  # injectText
                         otfeatures_by_proof.get("BigArabicTextProof", {}),
                         0,
                         cat,
@@ -2181,7 +2181,7 @@ class ProofWindow(object):
                         "Big Farsi text proof",
                         False,  # mixedStyles=False
                         False,  # forceWordsiv
-                        None,   # injectText
+                        None,  # injectText
                         otfeatures_by_proof.get("BigFarsiTextProof", {}),
                         0,
                         cat,
@@ -2208,7 +2208,7 @@ class ProofWindow(object):
                         "Small Arabic text proof",
                         False,  # mixedStyles=False
                         False,  # forceWordsiv
-                        None,   # injectText
+                        None,  # injectText
                         otfeatures_by_proof.get("SmallArabicTextProof", {}),
                         0,
                         cat,
@@ -2233,7 +2233,7 @@ class ProofWindow(object):
                         "Small Farsi text proof",
                         False,  # mixedStyles=False
                         False,  # forceWordsiv
-                        None,   # injectText
+                        None,  # injectText
                         otfeatures_by_proof.get("SmallFarsiTextProof", {}),
                         0,
                         cat,

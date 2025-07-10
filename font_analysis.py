@@ -93,6 +93,7 @@ def categorize(charset):
             "uniLlBase": [],
             "uniLuBase": [],
             "accented": [],
+            "accented_plus": [],  # Expanded accented category
             "latn": [],
             "arab": [],
             "fa": [],
@@ -139,6 +140,20 @@ def categorize(charset):
 
     # Convert to strings and add boolean flags
     result_str = {k: "".join(v) for k, v in result.items()}
+
+    # Create expanded accented category (accented + other uppercase/lowercase not in basic templates)
+    uc_lc = result_str["uniLu"] + result_str["uniLl"]
+    other = ""
+    for char in uc_lc:
+        if (
+            char not in result_str["accented"]
+            and char not in lowerTemplate
+            and char not in upperTemplate
+        ):
+            other += char
+
+    result_str["accented_plus"] = result_str["accented"] + other
+
     result_str.update(
         {
             "uppercaseOnly": result_str["uniLl"] == "",
