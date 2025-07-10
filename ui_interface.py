@@ -1954,7 +1954,7 @@ class ProofWindow(object):
                     fullCharacterSet,
                     axesProduct,
                     indFont,
-                    pairedStaticStyles,
+                    None,  # pairedStaticStyles
                     otfeatures_by_proof.get("CharacterSetProof", {}),
                     charset_font_size,
                 )
@@ -1966,7 +1966,7 @@ class ProofWindow(object):
                     fullCharacterSet,
                     axesProduct,
                     indFont,
-                    pairedStaticStyles,
+                    None,  # pairedStaticStyles
                     otfeatures_by_proof.get("SpacingProof", {}),
                     spacing_font_size,
                     spacing_columns,
@@ -1977,7 +1977,7 @@ class ProofWindow(object):
                     cat["uniLu"] + cat["uniLl"],
                     axesProduct,
                     indFont,
-                    pairedStaticStyles,
+                    None,  # pairedStaticStyles
                     cols_by_proof.get("BigParagraphProof", 1),
                     2,
                     False,
@@ -2000,7 +2000,7 @@ class ProofWindow(object):
                     cat["accented"],
                     axesProduct,
                     indFont,
-                    pairedStaticStyles,
+                    None,  # pairedStaticStyles
                     cols_by_proof.get("BigDiacriticsProof", 1),
                     3,
                     False,
@@ -2023,7 +2023,7 @@ class ProofWindow(object):
                     cat["uniLu"] + cat["uniLl"],
                     axesProduct,
                     indFont,
-                    pairedStaticStyles,
+                    None,  # pairedStaticStyles
                     cols_by_proof.get("SmallParagraphProof", 2),
                     5,
                     False,
@@ -2052,7 +2052,7 @@ class ProofWindow(object):
                     False,
                     small_paired_styles_font_size,
                     "Small size rg & bd proof",
-                    False,
+                    True,
                     True,
                     True,
                     None,
@@ -2067,7 +2067,7 @@ class ProofWindow(object):
                     cat["uniLu"] + cat["uniLl"],
                     axesProduct,
                     indFont,
-                    pairedStaticStyles,
+                    None,  # pairedStaticStyles
                     cols_by_proof.get("SmallWordsivProof", 2),
                     paras_by_proof.get("SmallWordsivProof", 5),
                     False,
@@ -2090,7 +2090,7 @@ class ProofWindow(object):
                     cat["accented"],
                     axesProduct,
                     indFont,
-                    pairedStaticStyles,
+                    None,  # pairedStaticStyles
                     cols_by_proof.get("SmallDiacriticsProof", 2),
                     4,
                     False,
@@ -2113,7 +2113,7 @@ class ProofWindow(object):
                     cat["uniLu"] + cat["uniLl"],
                     axesProduct,
                     indFont,
-                    pairedStaticStyles,
+                    None,  # pairedStaticStyles
                     cols_by_proof.get("SmallMixedTextProof", 2),
                     5,
                     False,
@@ -2141,7 +2141,7 @@ class ProofWindow(object):
                     cat,
                     axesProduct,
                     indFont,
-                    pairedStaticStyles,
+                    None,  # pairedStaticStyles
                     otfeatures_by_proof.get("ArabicContextualFormsProof", {}),
                     arabic_contextual_forms_font_size,
                 )
@@ -2155,7 +2155,7 @@ class ProofWindow(object):
                         arabic_chars,
                         axesProduct,
                         indFont,
-                        pairedStaticStyles,
+                        None,  # pairedStaticStyles
                         cols_by_proof.get("BigArabicTextProof", 1),
                         2,  # Fixed paragraph count for big text
                         False,
@@ -2181,7 +2181,7 @@ class ProofWindow(object):
                         farsi_chars,
                         axesProduct,
                         indFont,
-                        pairedStaticStyles,
+                        None,  # pairedStaticStyles
                         cols_by_proof.get("BigFarsiTextProof", 1),
                         2,  # Fixed paragraph count for big text
                         False,
@@ -2209,7 +2209,7 @@ class ProofWindow(object):
                         arabic_chars,
                         axesProduct,
                         indFont,
-                        pairedStaticStyles,
+                        None,  # pairedStaticStyles
                         cols_by_proof.get("SmallArabicTextProof", 2),
                         5,  # Fixed paragraph count for small text
                         False,
@@ -2235,7 +2235,7 @@ class ProofWindow(object):
                         farsi_chars,
                         axesProduct,
                         indFont,
-                        pairedStaticStyles,
+                        None,  # pairedStaticStyles
                         cols_by_proof.get("SmallFarsiTextProof", 2),
                         5,  # Fixed paragraph count for small text
                         False,
@@ -2263,7 +2263,7 @@ class ProofWindow(object):
                         arabic_chars,
                         axesProduct,
                         indFont,
-                        pairedStaticStyles,
+                        None,  # pairedStaticStyles
                         cols_by_proof.get("ArabicVocalizationProof", 2),
                         5,
                         False,
@@ -2291,7 +2291,7 @@ class ProofWindow(object):
                         arabic_chars,
                         axesProduct,
                         indFont,
-                        pairedStaticStyles,
+                        None,  # pairedStaticStyles
                         cols_by_proof.get("ArabicLatinMixedProof", 2),
                         5,
                         False,
@@ -2319,7 +2319,7 @@ class ProofWindow(object):
                         arabic_chars,
                         axesProduct,
                         indFont,
-                        pairedStaticStyles,
+                        None,  # pairedStaticStyles
                         cols_by_proof.get("ArabicNumbersProof", 2),
                         5,
                         False,

@@ -186,53 +186,49 @@ def variableFont(inputFont):
 
 def pairStaticStyles(fonts):
     """Pair upright/italic and regular/bold fonts by weight class and family."""
-    font_data = {}
+    staticUpItPairs = dict()
+    staticRgBdPairs = dict()
+    uprights = []
+    italics = []
+    regulars = []
+    bolds = []
 
-    # Collect font data in single pass
-    for font_path in fonts:
-        f = get_ttfont(font_path)
-        os2 = f["OS/2"]
-        name = f["name"]
+    for i in fonts:
+        f = get_ttfont(i)
+        if f["OS/2"].fsSelection & FsSelection.ITALIC:
+            italics.append(i)
+        else:
+            uprights.append(i)
 
-        font_data[font_path] = {
-            "is_italic": bool(os2.fsSelection & FsSelection.ITALIC),
-            "weight_class": os2.usWeightClass,
-            "family_name": name.getBestFamilyName(),
-            "subfamily_name": name.getBestSubFamilyName(),
-            "is_main_family": str(name.names[0]) == name.getBestFamilyName(),
-        }
+        if str(f["name"].names[1]) == f["name"].getBestFamilyName():
+            if f["OS/2"].usWeightClass == 400:
+                regulars.append(i)
+            if f["OS/2"].usWeightClass == 700:
+                bolds.append(i)
 
-    # Build pairs
-    up_it_pairs = {}
-    rg_bd_pairs = {}
+    for u in uprights:
+        upfont = get_ttfont(u)
+        for i in italics:
+            itfont = get_ttfont(i)
+            if upfont["OS/2"].usWeightClass == itfont["OS/2"].usWeightClass:
+                staticUpItPairs[upfont["OS/2"].usWeightClass] = (u, i)
+    for r in regulars:
+        rgfont = get_ttfont(r)
+        for b in bolds:
+            bdfont = get_ttfont(b)
+            if rgfont["name"].getBestFamilyName() == bdfont["name"].getBestFamilyName():
+                if (
+                    rgfont["name"].getBestSubFamilyName() == "Regular"
+                    and bdfont["name"].getBestSubFamilyName() == "Bold"
+                ):
+                    staticRgBdPairs[rgfont["name"].getBestSubFamilyName()] = (r, b)
+                elif (
+                    rgfont["name"].getBestSubFamilyName() == "Italic"
+                    and bdfont["name"].getBestSubFamilyName() == "Bold Italic"
+                ):
+                    staticRgBdPairs[rgfont["name"].getBestSubFamilyName()] = (r, b)
 
-    for font1, data1 in font_data.items():
-        for font2, data2 in font_data.items():
-            if font1 >= font2:  # Avoid duplicate pairs
-                continue
-
-            # Upright/Italic pairs by weight class
-            if (
-                data1["weight_class"] == data2["weight_class"]
-                and data1["is_italic"] != data2["is_italic"]
-            ):
-                upright = font1 if not data1["is_italic"] else font2
-                italic = font2 if data1["is_italic"] else font1
-                up_it_pairs[data1["weight_class"]] = (upright, italic)
-
-            # Regular/Bold pairs by family
-            if (
-                data1["family_name"] == data2["family_name"]
-                and data1["is_main_family"]
-                and data2["is_main_family"]
-                and {data1["subfamily_name"], data2["subfamily_name"]}
-                == {"Regular", "Bold"}
-            ):
-                regular = font1 if data1["subfamily_name"] == "Regular" else font2
-                bold = font2 if data1["subfamily_name"] == "Bold" else font1
-                rg_bd_pairs[data1["family_name"]] = (regular, bold)
-
-    return dict(sorted(up_it_pairs.items())), dict(sorted(rg_bd_pairs.items()))
+    return dict(sorted(staticUpItPairs.items())), dict(sorted(staticRgBdPairs.items()))
 
 
 class FontManager:

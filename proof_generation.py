@@ -154,6 +154,7 @@ def _handle_mixed_styles(
     # Static font upright/italic mixing
     if upit and pairedStaticStyles[0] and f["OS/2"].fsSelection & FsSelection.ITALIC:
         upFont, itFont = pairedStaticStyles[0][f["OS/2"].usWeightClass]
+        print("UI", f["name"].getBestSubFamilyName())
         _apply_alternating_fonts(textString, textInput, [upFont, itFont])
 
     # Variable font italic axis mixing
@@ -169,8 +170,16 @@ def _handle_mixed_styles(
         )
 
     # Static font regular/bold mixing
-    elif rgbd and pairedStaticStyles[1] and f["name"].getBestSubFamilyName() == "Bold":
-        rgFont, bdFont = pairedStaticStyles[1][f["name"].getBestFamilyName()]
+    elif (
+        rgbd
+        and pairedStaticStyles[1]
+        and (
+            f["name"].getBestSubFamilyName() == "Regular"
+            or f["name"].getBestSubFamilyName() == "Italic"
+        )
+    ):
+        rgFont, bdFont = pairedStaticStyles[1][f["name"].getBestSubFamilyName()]
+        print("RB", f["name"].getBestSubFamilyName())
         _apply_alternating_fonts(textString, textInput, [rgFont, bdFont])
 
     # Variable font weight axis mixing
@@ -539,7 +548,9 @@ def generateSpacingString(characterSet):
     return spacingString
 
 
-def charsetProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None):
+def charsetProof(
+    characterSet, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None
+):
     """Generate character set proof."""
     if not characterSet:
         print("Empty character set, skipping")
@@ -590,14 +601,22 @@ def charsetProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=N
         traceback.print_exc()
 
 
-def spacingProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None, columns=None):
+def spacingProof(
+    characterSet,
+    axesProduct,
+    indFont,
+    pairedStaticStyles,
+    otFea=None,
+    fontSize=None,
+    columns=None,
+):
     """Generate spacing proof."""
     # Use provided font size or fall back to global default
     proof_font_size = fontSize if fontSize is not None else spacingFontSize
-    
+
     # Use provided columns or fall back to default spacing proof columns (2)
     proof_columns = columns if columns is not None else 2
-    
+
     sectionName = "Spacing proof"
     if axesProduct:
         axisDict = {}
@@ -613,7 +632,12 @@ def spacingProof(characterSet, axesProduct, indFont, pairedStaticStyles, otFea=N
                 OTFeaInput=dict(liga=False, kern=False) if otFea is None else otFea,
                 VFAxisInput=axisDict,
             )
-            drawContent(spacingString, sectionName + " - " + str(axisData), proof_columns, indFont)
+            drawContent(
+                spacingString,
+                sectionName + " - " + str(axisData),
+                proof_columns,
+                indFont,
+            )
 
     elif axesProduct == "":
         spacingStringInput = generateSpacingString(characterSet)
@@ -866,7 +890,7 @@ def arabicContextualFormsProof(
     """Generate Arabic contextual forms proof pages using configurable font size."""
     # Use provided font size or fall back to character set font size
     proof_font_size = fontSize if fontSize is not None else charsetFontSize
-    
+
     contextualString = generateArabicContextualFormsProof(cat)
 
     if not contextualString:
