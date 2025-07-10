@@ -1,10 +1,13 @@
 /build
 /dist
 /__pycache__
+_releases
+build_app_local.sh
 *.pyc
 .DS_Store
 .python-version
 .nova
+.eggs
 *.ttf
 *.otf
 *.pdf

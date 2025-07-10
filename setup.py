@@ -7,7 +7,9 @@ Usage:
 
 from setuptools import setup
 
-APP = ["Type Proofing.py"]
+NAME = "TypeProofing"
+VERSION = "1.0.0"
+APP = ["TypeProofing.py"]
 DATA_FILES = [
     "config.py",
     "prooftexts.py",
@@ -25,15 +27,27 @@ OPTIONS = {
         "vanilla",
     ],
     "iconfile": "TypeProofing.icns",
+    "compressed": True,
+    "excludes": [
+        "setuptools",
+        "pkg_resources",
+        "tkinter",
+        "turtle",
+    ],
     # Add descriptions for folder access permissions
     "plist": {
-        "CFBundleIdentifier": "com.dogray.typeproofing",
-        "CFBundleName": "Type Proofing",
-        "CFBundleDisplayName": "Type Proofing",
+        "CFBundleName": NAME,
+        "CFBundleShortVersionString": VERSION,
+        "CFBundleGetInfoString": " ".join([NAME, VERSION]),
+        "CFBundleExecutable": NAME,
+        "CFBundleIdentifier": "xyz.dogray.typeproofing",
+        "CFBundleDisplayName": NAME,
         "NSAppleEventsUsageDescription": "This app needs access to Apple Events for file operations.",
         "NSDocumentsFolderUsageDescription": "This app needs access to Documents folder to save proof files.",
         "NSDesktopFolderUsageDescription": "This app needs access to Desktop folder to save proof files.",
         "NSDownloadsFolderUsageDescription": "This app needs access to Downloads folder to save proof files.",
+        # Disable automatic state restoration to eliminate secure coding warning
+        "NSApplicationSupportsSecureRestorableState": False,
     },
 }
 

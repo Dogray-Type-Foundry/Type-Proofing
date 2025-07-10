@@ -227,7 +227,7 @@ class FilesTab:
         )
 
         # PDF Output Location section in a Box to the right of Remove Selected button
-        self.group.pdfOutputBox = vanilla.Box((10, -125, -10, 74))
+        self.group.pdfOutputBox = vanilla.Box((10, -105, -10, 52))
 
         self.group.pdfOutputBox.defaultLocationRadio = vanilla.RadioButton(
             (10, 0, 200, 18),
@@ -246,14 +246,14 @@ class FilesTab:
 
         # Browse button to select custom folder location
         self.group.pdfOutputBox.browseButton = vanilla.Button(
-            (170, 21, 80, 22),
+            (170, 19, 80, 22),
             "Browse...",
             callback=self.browsePdfLocationCallback,
             sizeStyle="small",
         )
 
         self.group.pdfOutputBox.pathControl = vanilla.PathControl(
-            (260, 21, -10, 22),
+            (260, 19, -10, 22),
             "",  # initial url/path (empty string for no initial path)
             callback=self.pdfPathControlCallback,
         )
@@ -604,7 +604,6 @@ class FilesTab:
                 resolved_path = os.path.realpath(path)
                 if os.path.exists(resolved_path):
                     path = resolved_path
-                    print(f"Resolved iCloud path: {path}")
         except Exception as e:
             print(f"Path resolution failed: {e}")
 
@@ -628,8 +627,6 @@ class FilesTab:
                 simple_url = f"file://{path}"
                 path_control.set(simple_url)
 
-            print(f"PathControl set to: {path_control.get()}")
-
             # Set backup text field with user-friendly path
             if hasattr(self.group.pdfOutputBox, "pathBackupText"):
                 # Show a user-friendly version of the path
@@ -648,7 +645,7 @@ class FilesTab:
                             else "iCloud Drive"
                         )
 
-                self.group.pdfOutputBox.pathBackupText.set(f"Selected: {display_path}")
+                # self.group.pdfOutputBox.pathBackupText.set(f"Selected: {display_path}")
 
         except Exception as e:
             print(f"PathControl setting failed: {e}")
