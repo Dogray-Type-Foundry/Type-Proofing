@@ -986,13 +986,10 @@ class ControlsTab:
 
             # Buttons arranged in a 2x2 grid at the bottom
             # First row: Generate Proof and Add Settings File
-            self.group.generateButton = vanilla.GradientButton(
-                (controls_x, -70, 140, 55),
+            self.group.generateButton = vanilla.Button(
+                (controls_x, -40, 140, 20),
                 title="Generate Proof",
                 callback=self.parent_window.generateCallback,
-            )
-            self.group.generateButton._nsObject.setBezelStyle_(
-                NSBezelStyleRegularSquare
             )
             self.group.generateButton._nsObject.setKeyEquivalent_("\r")
 
