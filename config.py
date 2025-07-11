@@ -250,6 +250,26 @@ class Settings:
                 "arabic_numbers_proof": False,
             },
             "proof_settings": {},
+            "proof_order": [
+                "Show Baselines/Grid",
+                "Character Set Proof",
+                "Spacing Proof",
+                "Big Paragraph Proof",
+                "Big Diacritics Proof",
+                "Small Paragraph Proof",
+                "Small Paired Styles Proof",
+                "Small Wordsiv Proof",
+                "Small Diacritics Proof",
+                "Small Mixed Text Proof",
+                "Arabic Contextual Forms",
+                "Big Arabic Text Proof",
+                "Big Farsi Text Proof",
+                "Small Arabic Text Proof",
+                "Small Farsi Text Proof",
+                "Arabic Vocalization Proof",
+                "Arabic-Latin Mixed Proof",
+                "Arabic Numbers Proof",
+            ],
             "pdf_output": {
                 "use_custom_location": False,
                 "custom_location": "",
@@ -480,6 +500,36 @@ class Settings:
                 "custom_location": "",
             }
         self.data["pdf_output"]["custom_location"] = location
+
+    def get_proof_order(self):
+        """Get the current proof order."""
+        return self.data.get(
+            "proof_order",
+            [
+                "Show Baselines/Grid",
+                "Character Set Proof",
+                "Spacing Proof",
+                "Big Paragraph Proof",
+                "Big Diacritics Proof",
+                "Small Paragraph Proof",
+                "Small Paired Styles Proof",
+                "Small Wordsiv Proof",
+                "Small Diacritics Proof",
+                "Small Mixed Text Proof",
+                "Arabic Contextual Forms",
+                "Big Arabic Text Proof",
+                "Big Farsi Text Proof",
+                "Small Arabic Text Proof",
+                "Small Farsi Text Proof",
+                "Arabic Vocalization Proof",
+                "Arabic-Latin Mixed Proof",
+                "Arabic Numbers Proof",
+            ],
+        )
+
+    def set_proof_order(self, proof_order):
+        """Set the proof order."""
+        self.data["proof_order"] = proof_order[:]  # Create a copy
 
 
 # =============================================================================
