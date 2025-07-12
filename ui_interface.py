@@ -956,7 +956,7 @@ class ControlsTab:
             )
 
             self.group.proofOptionsList = vanilla.List2(
-                (controls_x, y, 320, 420),  # Adjusted width for left side
+                (controls_x, y, 320, 400),  # Adjusted width for left side
                 proof_options_items,
                 columnDescriptions=[
                     {
@@ -990,6 +990,31 @@ class ControlsTab:
                 editCallback=self.proofOptionsEditCallback,
             )
             y += 460  # Adjust button position
+
+            # Page format selection
+            self.group.pageFormatLabel = vanilla.TextBox(
+                (controls_x + 4, -124, 100, 20), "Page Format:"
+            )
+
+            # Import PAGE_FORMAT_OPTIONS from config
+            from config import PAGE_FORMAT_OPTIONS
+
+            self.group.pageFormatPopUp = vanilla.PopUpButton(
+                (controls_x + 165, -124, 155, 20),
+                PAGE_FORMAT_OPTIONS,
+                callback=self.pageFormatCallback,
+            )
+
+            # Set current value
+            current_format = self.settings.get_page_format()
+            if current_format in PAGE_FORMAT_OPTIONS:
+                self.group.pageFormatPopUp.set(
+                    PAGE_FORMAT_OPTIONS.index(current_format)
+                )
+            else:
+                self.group.pageFormatPopUp.set(PAGE_FORMAT_OPTIONS.index("A4Landscape"))
+
+            y += 30  # Space for the page format control
 
             # Standalone "Show Baselines/Grid" checkbox
             self.group.showBaselinesCheckbox = vanilla.CheckBox(
@@ -1104,6 +1129,19 @@ class ControlsTab:
             # For unique proof names, use a sanitized version as the key
             unique_key = proof_name.replace(" ", "_").replace("/", "_")
             self.settings.set_proof_option(unique_key, enabled)
+
+    def pageFormatCallback(self, sender):
+        """Handle page format selection changes."""
+        try:
+            from config import PAGE_FORMAT_OPTIONS
+
+            selected_index = sender.get()
+            if 0 <= selected_index < len(PAGE_FORMAT_OPTIONS):
+                selected_format = PAGE_FORMAT_OPTIONS[selected_index]
+                self.settings.set_page_format(selected_format)
+                print(f"Page format changed to: {selected_format}")
+        except Exception as e:
+            print(f"Error changing page format: {e}")
 
     def showBaselinesCallback(self, sender):
         """Handle the Show Baselines/Grid standalone checkbox."""
@@ -2333,6 +2371,11 @@ class ProofWindow(object):
         paras_by_proof=None,
     ):
         """Run the proof generation process."""
+        # Update the global pageDimensions variable with user setting
+        import config
+
+        config.pageDimensions = self.settings.get_page_format()
+
         db.newDrawing()
         pairedStaticStyles = pairStaticStyles(self.font_manager.fonts)
         if otfeatures_by_proof is None:
@@ -3091,6 +3134,16 @@ class ProofWindow(object):
         try:
             # Use the dynamic proof options list
             self.controlsTab.refresh_proof_options_list()
+
+            # Update page format selection
+            if hasattr(self.controlsTab.group, "pageFormatPopUp"):
+                from config import PAGE_FORMAT_OPTIONS
+
+                current_format = self.settings.get_page_format()
+                if current_format in PAGE_FORMAT_OPTIONS:
+                    self.controlsTab.group.pageFormatPopUp.set(
+                        PAGE_FORMAT_OPTIONS.index(current_format)
+                    )
 
         except Exception as e:
             print(f"Error refreshing controls tab: {e}")
