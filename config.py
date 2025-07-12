@@ -92,6 +92,8 @@ class Settings:
         self.settings_path = settings_path
         self.user_settings_file = None  # Path to user-loaded settings file
         self.data = self.load()
+        # Migrate old settings format to new format
+        self._migrate_old_settings()
 
     def load(self):
         """Load settings from file."""
@@ -394,9 +396,27 @@ class Settings:
 
     def get_proof_option(self, proof_name):
         """Get proof option by name."""
-        # Convert from old format to new format
+        # Convert from old format to new format with compatibility for both
         option_map = {
             "showBaselines": "show_baselines",
+            "Character_Set_Proof": "character_set_proof",
+            "Spacing_Proof": "spacing_proof",
+            "Big_Paragraph_Proof": "big_paragraph_proof",
+            "Big_Diacritics_Proof": "big_diacritics_proof",
+            "Small_Paragraph_Proof": "small_paragraph_proof",
+            "Small_Paired_Styles_Proof": "small_paired_styles_proof",
+            "Small_Wordsiv_Proof": "small_wordsiv_proof",
+            "Small_Diacritics_Proof": "small_diacritics_proof",
+            "Small_Mixed_Text_Proof": "small_mixed_text_proof",
+            "Arabic_Contextual_Forms_Proof": "arabic_contextual_forms_proof",
+            "Big_Arabic_Text_Proof": "big_arabic_text_proof",
+            "Big_Farsi_Text_Proof": "big_farsi_text_proof",
+            "Small_Arabic_Text_Proof": "small_arabic_text_proof",
+            "Small_Farsi_Text_Proof": "small_farsi_text_proof",
+            "Arabic_Vocalization_Proof": "arabic_vocalization_proof",
+            "Arabic_Latin_Mixed_Proof": "arabic_latin_mixed_proof",
+            "Arabic_Numbers_Proof": "arabic_numbers_proof",
+            # Keep compatibility with old format during transition
             "CharacterSetProof": "character_set_proof",
             "SpacingProof": "spacing_proof",
             "BigParagraphProof": "big_paragraph_proof",
@@ -422,6 +442,24 @@ class Settings:
         """Set proof option by name."""
         option_map = {
             "showBaselines": "show_baselines",
+            "Character_Set_Proof": "character_set_proof",
+            "Spacing_Proof": "spacing_proof", 
+            "Big_Paragraph_Proof": "big_paragraph_proof",
+            "Big_Diacritics_Proof": "big_diacritics_proof",
+            "Small_Paragraph_Proof": "small_paragraph_proof",
+            "Small_Paired_Styles_Proof": "small_paired_styles_proof",
+            "Small_Wordsiv_Proof": "small_wordsiv_proof",
+            "Small_Diacritics_Proof": "small_diacritics_proof",
+            "Small_Mixed_Text_Proof": "small_mixed_text_proof",
+            "Arabic_Contextual_Forms_Proof": "arabic_contextual_forms_proof",
+            "Big_Arabic_Text_Proof": "big_arabic_text_proof",
+            "Big_Farsi_Text_Proof": "big_farsi_text_proof",
+            "Small_Arabic_Text_Proof": "small_arabic_text_proof",
+            "Small_Farsi_Text_Proof": "small_farsi_text_proof",
+            "Arabic_Vocalization_Proof": "arabic_vocalization_proof",
+            "Arabic_Latin_Mixed_Proof": "arabic_latin_mixed_proof",
+            "Arabic_Numbers_Proof": "arabic_numbers_proof",
+            # Keep compatibility with old format during transition
             "CharacterSetProof": "character_set_proof",
             "SpacingProof": "spacing_proof",
             "BigParagraphProof": "big_paragraph_proof",
@@ -530,6 +568,82 @@ class Settings:
     def set_proof_order(self, proof_order):
         """Set the proof order."""
         self.data["proof_order"] = proof_order[:]  # Create a copy
+
+    def _migrate_old_settings(self):
+        """Migrate old proof settings naming convention to new standardized format."""
+        proof_settings = self.data.get("proof_settings", {})
+
+        # Mapping from old hardcoded format to new standardized format
+        old_to_new_mapping = {
+            "CharacterSetProof": "Character_Set_Proof",
+            "SpacingProof": "Spacing_Proof",
+            "BigParagraphProof": "Big_Paragraph_Proof",
+            "BigDiacriticsProof": "Big_Diacritics_Proof",
+            "SmallParagraphProof": "Small_Paragraph_Proof",
+            "SmallPairedStylesProof": "Small_Paired_Styles_Proof",
+            "SmallWordsivProof": "Small_Wordsiv_Proof",
+            "SmallDiacriticsProof": "Small_Diacritics_Proof",
+            "SmallMixedTextProof": "Small_Mixed_Text_Proof",
+            "ArabicContextualFormsProof": "Arabic_Contextual_Forms_Proof",
+            "BigArabicTextProof": "Big_Arabic_Text_Proof",
+            "BigFarsiTextProof": "Big_Farsi_Text_Proof",
+            "SmallArabicTextProof": "Small_Arabic_Text_Proof",
+            "SmallFarsiTextProof": "Small_Farsi_Text_Proof",
+            "ArabicVocalizationProof": "Arabic_Vocalization_Proof",
+            "ArabicLatinMixedProof": "Arabic_Latin_Mixed_Proof",
+            "ArabicNumbersProof": "Arabic_Numbers_Proof",
+        }
+
+        keys_to_remove = []
+        new_settings = {}
+
+        # Migrate all settings using old naming convention
+        for old_key, value in proof_settings.items():
+            migrated = False
+
+            # Check for old format settings and migrate them
+            for old_proof_key, new_proof_key in old_to_new_mapping.items():
+                # Handle regular settings (fontSize, cols, tracking, align, para)
+                for setting_type in ["_fontSize", "_cols", "_tracking", "_align", "_para"]:
+                    old_setting_key = f"{old_proof_key}{setting_type}"
+                    if old_key == old_setting_key:
+                        new_setting_key = f"{new_proof_key}{setting_type}"
+                        # Only migrate if new key doesn't already exist (prefer existing new format)
+                        if new_setting_key not in proof_settings:
+                            new_settings[new_setting_key] = value
+                        keys_to_remove.append(old_key)
+                        migrated = True
+                        break
+
+                # Handle OpenType feature settings
+                if old_key.startswith(f"otf_{old_proof_key}_"):
+                    feature_name = old_key.replace(f"otf_{old_proof_key}_", "")
+                    new_otf_key = f"otf_{new_proof_key}_{feature_name}"
+                    # Only migrate if new key doesn't already exist
+                    if new_otf_key not in proof_settings:
+                        new_settings[new_otf_key] = value
+                    keys_to_remove.append(old_key)
+                    migrated = True
+                    break
+
+                if migrated:
+                    break
+
+        # Apply the migrations
+        if new_settings or keys_to_remove:
+            print(f"Migrating {len(new_settings)} old settings to new format and removing {len(keys_to_remove)} duplicate entries...")
+
+            # Add new settings
+            proof_settings.update(new_settings)
+
+            # Remove old settings
+            for key in keys_to_remove:
+                proof_settings.pop(key, None)
+
+            # Update the data
+            self.data["proof_settings"] = proof_settings
+
+            print("Settings migration completed.")
 
 
 # =============================================================================
