@@ -1265,7 +1265,7 @@ class ControlsTab:
 
     def create_add_proof_popover(self):
         """Create the add proof popover."""
-        self.add_proof_popover = vanilla.Popover((300, 120))
+        self.add_proof_popover = vanilla.Popover((300, 100))
         popover = self.add_proof_popover
 
         # Title
