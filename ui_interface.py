@@ -220,10 +220,10 @@ class FilesTab:
         )
 
         self.group.addButton = vanilla.Button(
-            (10, -40, 140, 20), "Add Fonts", callback=self.addFontsCallback
+            (10, -40, 155, 20), "Add Fonts", callback=self.addFontsCallback
         )
         self.group.removeButton = vanilla.Button(
-            (160, -40, 140, 20), "Remove Selected", callback=self.removeFontsCallback
+            (175, -40, 155, 20), "Remove Selected", callback=self.removeFontsCallback
         )
 
         # PDF Output Location section in a Box to the right of Remove Selected button
@@ -999,8 +999,6 @@ class ControlsTab:
                 callback=self.showBaselinesCallback,
             )
 
-            # Buttons arranged in a 3x2 grid at the bottom
-            # First row: Add Proof and Generate Proof
             self.group.addProofButton = vanilla.Button(
                 (controls_x + 165, -96, 155, 20),
                 title="Add Proof",
