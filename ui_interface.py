@@ -8,7 +8,7 @@ import traceback
 
 # Third-party imports
 import AppKit
-from AppKit import NSBezelStyleRegularSquare
+from AppKit import NSBezelStyleRegularSquare, NSTextAlignmentCenter
 import drawBot as db
 import objc
 import Quartz.PDFKit as PDFKit
@@ -955,8 +955,51 @@ class ControlsTab:
                 performDropCallback=self.performProofDropCallback,
             )
 
+            # Page format selection
+            # self.group.pageFormatLabel = vanilla.TextBox(
+            #     (controls_x + 165, -96, 100, 20), "Page Format:"
+            # )
+
+            # Import PAGE_FORMAT_OPTIONS from config
+            from config import PAGE_FORMAT_OPTIONS
+
+            self.group.pageFormatPopUp = vanilla.PopUpButton(
+                (controls_x + 2, y, 153, 20),
+                PAGE_FORMAT_OPTIONS,
+                callback=self.pageFormatCallback,
+            )
+            self.group.pageFormatPopUp._nsObject.setAlignment_(NSTextAlignmentCenter)
+
+            # Set current value
+            current_format = self.settings.get_page_format()
+            if current_format in PAGE_FORMAT_OPTIONS:
+                self.group.pageFormatPopUp.set(
+                    PAGE_FORMAT_OPTIONS.index(current_format)
+                )
+            else:
+                self.group.pageFormatPopUp.set(PAGE_FORMAT_OPTIONS.index("A4Landscape"))
+
+            self.group.showBaselinesCheckbox = vanilla.CheckBox(
+                (controls_x + 165, y, 100, 20),
+                "Show Grid",
+                value=self.settings.get_proof_option("showBaselines"),
+                callback=self.showBaselinesCallback,
+            )
+
+            self.group.addSettingsButton = vanilla.Button(
+                (controls_x, y + 26, 155, 20),
+                "Add Settings File",
+                callback=self.parent_window.addSettingsFileCallback,
+            )
+
+            self.group.resetButton = vanilla.Button(
+                (controls_x + 165, y + 26, 155, 20),
+                "Reset Settings",
+                callback=self.parent_window.resetSettingsCallback,
+            )
+
             self.group.proofOptionsList = vanilla.List2(
-                (controls_x, y, 320, 400),  # Adjusted width for left side
+                (controls_x, y + 59, 320, 401),  # Adjusted width for left side
                 proof_options_items,
                 columnDescriptions=[
                     {
@@ -991,43 +1034,18 @@ class ControlsTab:
             )
             y += 460  # Adjust button position
 
-            # Page format selection
-            self.group.pageFormatLabel = vanilla.TextBox(
-                (controls_x + 4, -124, 100, 20), "Page Format:"
-            )
-
-            # Import PAGE_FORMAT_OPTIONS from config
-            from config import PAGE_FORMAT_OPTIONS
-
-            self.group.pageFormatPopUp = vanilla.PopUpButton(
-                (controls_x + 165, -124, 155, 20),
-                PAGE_FORMAT_OPTIONS,
-                callback=self.pageFormatCallback,
-            )
-
-            # Set current value
-            current_format = self.settings.get_page_format()
-            if current_format in PAGE_FORMAT_OPTIONS:
-                self.group.pageFormatPopUp.set(
-                    PAGE_FORMAT_OPTIONS.index(current_format)
-                )
-            else:
-                self.group.pageFormatPopUp.set(PAGE_FORMAT_OPTIONS.index("A4Landscape"))
-
             y += 30  # Space for the page format control
 
-            # Standalone "Show Baselines/Grid" checkbox
-            self.group.showBaselinesCheckbox = vanilla.CheckBox(
-                (controls_x + 4, -96, 100, 20),
-                "Show Grid",
-                value=self.settings.get_proof_option("showBaselines"),
-                callback=self.showBaselinesCallback,
-            )
-
             self.group.addProofButton = vanilla.Button(
-                (controls_x + 165, -96, 155, 20),
+                (controls_x + 165, -68, 155, 20),
                 title="Add Proof",
                 callback=self.addProofCallback,
+            )
+
+            self.group.removeProofButton = vanilla.Button(
+                (controls_x + 165, -40, 155, 20),
+                title="Remove Proof",
+                # callback=self.removeProofCallback,
             )
 
             self.group.generateButton = vanilla.GradientButton(
@@ -1039,19 +1057,6 @@ class ControlsTab:
                 NSBezelStyleRegularSquare
             )
             self.group.generateButton._nsObject.setKeyEquivalent_("\r")
-
-            # Second row: Add Settings File and Reset Settings
-            self.group.addSettingsButton = vanilla.Button(
-                (controls_x + 165, -68, 155, 20),
-                "Add Settings File",
-                callback=self.parent_window.addSettingsFileCallback,
-            )
-
-            self.group.resetButton = vanilla.Button(
-                (controls_x + 165, -40, 155, 20),
-                "Reset Settings",
-                callback=self.parent_window.resetSettingsCallback,
-            )
 
         except Exception as e:
             print(f"Error creating Controls tab UI: {e}")
