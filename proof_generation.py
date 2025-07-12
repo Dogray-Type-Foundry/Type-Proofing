@@ -148,7 +148,7 @@ def _handle_mixed_styles(
     if not mixedStyles:
         textString.append(txt=textInput)
         return textString
-    
+
     random.seed(a=dualStyleSeed)
     f = get_ttfont(indFont)
 
@@ -170,12 +170,9 @@ def _handle_mixed_styles(
         )
 
     # Static font regular/bold mixing
-    elif (
-        pairedStaticStyles[1]
-        and (
-            f["name"].getBestSubFamilyName() == "Regular"
-            or f["name"].getBestSubFamilyName() == "Italic"
-        )
+    elif pairedStaticStyles[1] and (
+        f["name"].getBestSubFamilyName() == "Regular"
+        or f["name"].getBestSubFamilyName() == "Italic"
     ):
         rgFont, bdFont = pairedStaticStyles[1][f["name"].getBestSubFamilyName()]
         print("RB", f["name"].getBestSubFamilyName())
@@ -678,6 +675,8 @@ def textProof(
     cat=None,
     fullCharacterSet=None,
     lang=None,
+    tracking=0,
+    align="left",
 ):
     """Generate text proof with various options."""
     textStringInput = ""
@@ -726,8 +725,11 @@ def textProof(
         axisDict = {}
         for axisData in axesProduct:
             axisDict = dict(axisData)
-            # Use right alignment for Arabic/Farsi text
-            text_align = "right" if lang in ["ar", "fa"] else "left"
+            # Use provided align parameter, but fallback to language-based logic if align is "left" and language is Arabic/Farsi
+            if align == "left" and lang in ["ar", "fa"]:
+                text_align = "right"
+            else:
+                text_align = align
             # Use rtl direction for Arabic/Farsi text
             text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
             textString = stringMaker(
@@ -737,6 +739,7 @@ def textProof(
                 axesProduct,
                 pairedStaticStyles,
                 alignInput=text_align,
+                trackingInput=tracking,
                 OTFeaInput=otFea,
                 VFAxisInput=axisDict,
                 mixedStyles=mixedStyles,
@@ -752,8 +755,11 @@ def textProof(
                 direction=text_direction,
             )
     elif axesProduct == "":
-        # Use right alignment for Arabic/Farsi text
-        text_align = "right" if lang in ["ar", "fa"] else "left"
+        # Use provided align parameter, but fallback to language-based logic if align is "left" and language is Arabic/Farsi
+        if align == "left" and lang in ["ar", "fa"]:
+            text_align = "right"
+        else:
+            text_align = align
         # Use rtl direction for Arabic/Farsi text
         text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
         textString = stringMaker(
@@ -763,6 +769,7 @@ def textProof(
             axesProduct,
             pairedStaticStyles,
             alignInput=text_align,
+            trackingInput=tracking,
             OTFeaInput=otFea,
             mixedStyles=mixedStyles,
         )
