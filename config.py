@@ -42,6 +42,17 @@ pageDimensions = "A4Landscape"
 marginVertical = 50
 marginHorizontal = 40
 
+# Available page format options
+PAGE_FORMAT_OPTIONS = [
+    "A3Landscape",
+    "A4Landscape",
+    "A4SmallLandscape",
+    "A5Landscape",
+    "LegalLandscape",
+    "LetterLandscape",
+    "LetterSmallLandscape",
+]
+
 # Font sizes
 charsetFontSize = 56
 spacingFontSize = 10
@@ -274,6 +285,7 @@ class Settings:
                 "use_custom_location": False,
                 "custom_location": "",
             },
+            "page_format": "A4Landscape",
         }
 
     def save(self):
@@ -531,6 +543,14 @@ class Settings:
         """Set the proof order."""
         self.data["proof_order"] = proof_order[:]  # Create a copy
 
+    def get_page_format(self):
+        """Get the current page format."""
+        return self.data.get("page_format", "A4Landscape")
+
+    def set_page_format(self, page_format):
+        """Set the page format."""
+        self.data["page_format"] = page_format
+
 
 # =============================================================================
 # SETTINGS DOCUMENTATION
@@ -612,8 +632,23 @@ SETTINGS FILE STRUCTURE:
     "pdf_output": {
         "use_custom_location": false,              // Whether to use custom PDF output location  
         "custom_location": ""                      // Custom directory for PDF output (empty = use font folder)
-    }
+    },
+    "page_format": "A4Landscape"                   // Page format for generated proofs
 }
+}
+
+PAGE FORMAT OPTIONS:
+Available page format values for the "page_format" setting:
+- A3Landscape: A3 paper in landscape orientation
+- A4Landscape: A4 paper in landscape orientation (default)
+- A4SmallLandscape: A4 small paper in landscape orientation
+- A5Landscape: A5 paper in landscape orientation
+- LegalLandscape: Legal paper in landscape orientation
+- LetterLandscape: Letter paper in landscape orientation
+- LetterSmallLandscape: Letter small paper in landscape orientation
+
+The page format setting controls the paper size and orientation for generated proof PDFs.
+This setting is saved automatically when changed through the GUI.
 
 OPENTYPE FEATURE TAGS REFERENCE:
 Common OpenType features that can be enabled/disabled per proof type:
@@ -745,6 +780,8 @@ EXAMPLE USER SETTINGS FILE:
     "pdf_output": {
         "use_custom_location": false,              // Whether to use custom PDF output location
         "custom_location": ""                      // Custom directory for PDF output
-    }
+    },
+    "page_format": "A4Landscape"                   // Page format for generated proofs
+}
 }
 """
