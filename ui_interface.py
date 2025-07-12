@@ -1928,6 +1928,35 @@ class ProofWindow(object):
                 if para_key not in self.proof_settings:
                     self.proof_settings[para_key] = 5
 
+            # Text formatting settings for supported proof types
+            supported_formatting_proofs = {
+                "BigParagraphProof",
+                "BigDiacriticsProof",
+                "SmallParagraphProof",
+                "SmallPairedStylesProof",
+                "SmallWordsivProof",
+                "SmallDiacriticsProof",
+                "SmallMixedTextProof",
+                "BigArabicTextProof",
+                "BigFarsiTextProof",
+                "SmallArabicTextProof",
+                "SmallFarsiTextProof",
+                "ArabicVocalizationProof",
+                "ArabicLatinMixedProof",
+                "ArabicNumbersProof",
+            }
+
+            if proof_key in supported_formatting_proofs:
+                # Tracking setting (default 0)
+                tracking_key = f"{proof_key}_tracking"
+                if tracking_key not in self.proof_settings:
+                    self.proof_settings[tracking_key] = 0
+
+                # Align setting (default "left")
+                align_key = f"{proof_key}_align"
+                if align_key not in self.proof_settings:
+                    self.proof_settings[align_key] = "left"
+
             # OpenType features
             if self.font_manager.fonts:
                 try:
@@ -2014,7 +2043,7 @@ class ProofWindow(object):
 
     def create_proof_settings_popover(self):
         """Create the proof settings popover."""
-        self.proof_settings_popover = vanilla.Popover((400, 460))
+        self.proof_settings_popover = vanilla.Popover((400, 550))
         popover = self.proof_settings_popover
 
         # Proof type selector
@@ -2029,9 +2058,9 @@ class ProofWindow(object):
         )
 
         # Numeric settings list
-        popover.numericLabel = vanilla.TextBox((10, 10, -10, 20), "Numeric Settings:")
+        popover.numericLabel = vanilla.TextBox((10, 70, -10, 20), "Numeric Settings:")
         popover.numericList = vanilla.List2(
-            (10, 35, -10, 120),
+            (10, 95, -10, 120),
             [],
             columnDescriptions=[
                 {
@@ -2052,12 +2081,31 @@ class ProofWindow(object):
             editCallback=self.numericSettingsEditCallback,
         )
 
+        # Text formatting settings
+        popover.formatLabel = vanilla.TextBox((10, 225, -10, 20), "Text Formatting:")
+
+        # Tracking control
+        popover.trackingLabel = vanilla.TextBox((10, 250, 100, 20), "Tracking:")
+        popover.trackingEditText = vanilla.EditText(
+            (120, 250, 100, 20),
+            text="0",
+            callback=self.trackingEditCallback,
+        )
+
+        # Align control
+        popover.alignLabel = vanilla.TextBox((10, 280, 100, 20), "Alignment:")
+        popover.alignPopUp = vanilla.PopUpButton(
+            (120, 280, 100, 20),
+            ["left", "center", "right"],
+            callback=self.alignPopUpCallback,
+        )
+
         # OpenType features list
         popover.featuresLabel = vanilla.TextBox(
-            (10, 165, -10, 20), "OpenType Features:"
+            (10, 315, -10, 20), "OpenType Features:"
         )
         popover.featuresList = vanilla.List2(
-            (10, 190, -10, -10),
+            (10, 340, -10, -10),
             [],
             columnDescriptions=[
                 {
@@ -2126,6 +2174,7 @@ class ProofWindow(object):
         if proof_key not in ["CharacterSetProof", "ArabicContextualFormsProof"]:
             cols_key = f"{proof_key}_cols"
             # Big proofs, Big Arabic/Farsi proofs, and Big Diacritics default to 1 column
+
             if proof_key in [
                 "BigParagraphProof",
                 "BigDiacriticsProof",
@@ -2185,6 +2234,77 @@ class ProofWindow(object):
                 )
 
         popover.featuresList.set(feature_items)
+
+        # Update text formatting controls for supported proof types
+        supported_formatting_proofs = {
+            "BigParagraphProof",
+            "BigDiacriticsProof",
+            "SmallParagraphProof",
+            "SmallPairedStylesProof",
+            "SmallWordsivProof",
+            "SmallDiacriticsProof",
+            "SmallMixedTextProof",
+            "BigArabicTextProof",
+            "BigFarsiTextProof",
+            "SmallArabicTextProof",
+            "SmallFarsiTextProof",
+            "ArabicVocalizationProof",
+            "ArabicLatinMixedProof",
+            "ArabicNumbersProof",
+        }
+
+        if proof_key in supported_formatting_proofs:
+            # Update tracking control
+            tracking_key = f"{proof_key}_tracking"
+            tracking_value = self.proof_settings.get(tracking_key, 0)
+            popover.trackingEditText.set(str(tracking_value))
+
+            # Update align control
+            align_key = f"{proof_key}_align"
+            align_value = self.proof_settings.get(align_key, "left")
+            align_options = ["left", "center", "right"]
+            if align_value in align_options:
+                popover.alignPopUp.set(align_options.index(align_value))
+            else:
+                popover.alignPopUp.set(0)  # Default to "left"
+
+            # Show text formatting controls
+            popover.formatLabel.show(True)
+            popover.trackingLabel.show(True)
+            popover.trackingEditText.show(True)
+            popover.alignLabel.show(True)
+            popover.alignPopUp.show(True)
+        else:
+            # Hide text formatting controls for unsupported proof types
+            popover.formatLabel.show(False)
+            popover.trackingLabel.show(False)
+            popover.trackingEditText.show(False)
+            popover.alignLabel.show(False)
+            popover.alignPopUp.show(False)
+
+    def trackingEditCallback(self, sender):
+        """Handle tracking value changes."""
+        if not hasattr(self, "current_proof_key"):
+            return
+
+        try:
+            tracking_value = float(sender.get())
+            tracking_key = f"{self.current_proof_key}_tracking"
+            self.proof_settings[tracking_key] = tracking_value
+        except (ValueError, TypeError):
+            print(f"Invalid tracking value: {sender.get()}")
+
+    def alignPopUpCallback(self, sender):
+        """Handle alignment selection changes."""
+        if not hasattr(self, "current_proof_key"):
+            return
+
+        selected_idx = sender.get()
+        align_options = ["left", "center", "right"]
+        if 0 <= selected_idx < len(align_options):
+            align_value = align_options[selected_idx]
+            align_key = f"{self.current_proof_key}_align"
+            self.proof_settings[align_key] = align_value
 
     def numericSettingsEditCallback(self, sender):
         """Handle edits to numeric settings in popover."""
@@ -2317,6 +2437,18 @@ class ProofWindow(object):
                     elif base_proof_type == "Big Paragraph Proof":
                         big_paragraph_font_size = self.get_proof_font_size(proof_name)
                         big_paragraph_columns = cols_by_proof.get(proof_name, 1)
+
+                        # Get text formatting settings
+                        unique_proof_key = proof_name.replace(" ", "_").replace(
+                            "/", "_"
+                        )
+                        tracking_value = self.proof_settings.get(
+                            f"{unique_proof_key}_tracking", 0
+                        )
+                        align_value = self.proof_settings.get(
+                            f"{unique_proof_key}_align", "left"
+                        )
+
                         textProof(
                             cat["uniLu"] + cat["uniLl"],
                             axesProduct,
@@ -2334,9 +2466,24 @@ class ProofWindow(object):
                             0,
                             cat,
                             fullCharacterSet,
+                            None,  # lang
+                            tracking_value,
+                            align_value,
                         )
                     elif base_proof_type == "Big Diacritics Proof":
                         big_diacritics_font_size = self.get_proof_font_size(proof_name)
+
+                        # Get text formatting settings
+                        unique_proof_key = proof_name.replace(" ", "_").replace(
+                            "/", "_"
+                        )
+                        tracking_value = self.proof_settings.get(
+                            f"{unique_proof_key}_tracking", 0
+                        )
+                        align_value = self.proof_settings.get(
+                            f"{unique_proof_key}_align", "left"
+                        )
+
                         textProof(
                             cat["accented_plus"],
                             axesProduct,
@@ -2354,9 +2501,24 @@ class ProofWindow(object):
                             3,
                             cat,
                             fullCharacterSet,
+                            None,  # lang
+                            tracking_value,
+                            align_value,
                         )
                     elif base_proof_type == "Small Paragraph Proof":
                         small_paragraph_font_size = self.get_proof_font_size(proof_name)
+
+                        # Get text formatting settings
+                        unique_proof_key = proof_name.replace(" ", "_").replace(
+                            "/", "_"
+                        )
+                        tracking_value = self.proof_settings.get(
+                            f"{unique_proof_key}_tracking", 0
+                        )
+                        align_value = self.proof_settings.get(
+                            f"{unique_proof_key}_align", "left"
+                        )
+
                         textProof(
                             cat["uniLu"] + cat["uniLl"],
                             axesProduct,
@@ -2374,11 +2536,26 @@ class ProofWindow(object):
                             0,
                             cat,
                             fullCharacterSet,
+                            None,  # lang
+                            tracking_value,
+                            align_value,
                         )
                     elif base_proof_type == "Small Paired Styles Proof":
                         small_paired_styles_font_size = self.get_proof_font_size(
                             proof_name
                         )
+
+                        # Get text formatting settings
+                        unique_proof_key = proof_name.replace(" ", "_").replace(
+                            "/", "_"
+                        )
+                        tracking_value = self.proof_settings.get(
+                            f"{unique_proof_key}_tracking", 0
+                        )
+                        align_value = self.proof_settings.get(
+                            f"{unique_proof_key}_align", "left"
+                        )
+
                         textProof(
                             cat["uniLu"] + cat["uniLl"],
                             axesProduct,
@@ -2396,9 +2573,24 @@ class ProofWindow(object):
                             0,
                             cat,
                             fullCharacterSet,
+                            None,  # lang
+                            tracking_value,
+                            align_value,
                         )
                     elif base_proof_type == "Small Wordsiv Proof":
                         small_wordsiv_font_size = self.get_proof_font_size(proof_name)
+
+                        # Get text formatting settings
+                        unique_proof_key = proof_name.replace(" ", "_").replace(
+                            "/", "_"
+                        )
+                        tracking_value = self.proof_settings.get(
+                            f"{unique_proof_key}_tracking", 0
+                        )
+                        align_value = self.proof_settings.get(
+                            f"{unique_proof_key}_align", "left"
+                        )
+
                         textProof(
                             cat["uniLu"] + cat["uniLl"],
                             axesProduct,
@@ -2416,11 +2608,26 @@ class ProofWindow(object):
                             0,
                             cat,
                             fullCharacterSet,
+                            None,  # lang
+                            tracking_value,
+                            align_value,
                         )
                     elif base_proof_type == "Small Diacritics Proof":
                         small_diacritics_font_size = self.get_proof_font_size(
                             proof_name
                         )
+
+                        # Get text formatting settings
+                        unique_proof_key = proof_name.replace(" ", "_").replace(
+                            "/", "_"
+                        )
+                        tracking_value = self.proof_settings.get(
+                            f"{unique_proof_key}_tracking", 0
+                        )
+                        align_value = self.proof_settings.get(
+                            f"{unique_proof_key}_align", "left"
+                        )
+
                         textProof(
                             cat["accented_plus"],
                             axesProduct,
@@ -2438,11 +2645,26 @@ class ProofWindow(object):
                             4,
                             cat,
                             fullCharacterSet,
+                            None,  # lang
+                            tracking_value,
+                            align_value,
                         )
                     elif base_proof_type == "Small Mixed Text Proof":
                         small_mixed_text_font_size = self.get_proof_font_size(
                             proof_name
                         )
+
+                        # Get text formatting settings
+                        unique_proof_key = proof_name.replace(" ", "_").replace(
+                            "/", "_"
+                        )
+                        tracking_value = self.proof_settings.get(
+                            f"{unique_proof_key}_tracking", 0
+                        )
+                        align_value = self.proof_settings.get(
+                            f"{unique_proof_key}_align", "left"
+                        )
+
                         textProof(
                             cat["uniLu"] + cat["uniLl"],
                             axesProduct,
@@ -2463,6 +2685,9 @@ class ProofWindow(object):
                             0,
                             cat,
                             fullCharacterSet,
+                            None,  # lang
+                            tracking_value,
+                            align_value,
                         )
                     elif base_proof_type == "Arabic Contextual Forms":
                         arabic_contextual_forms_font_size = self.get_proof_font_size(
@@ -2477,179 +2702,256 @@ class ProofWindow(object):
                             arabic_contextual_forms_font_size,
                         )
                     elif base_proof_type == "Big Arabic Text Proof":
-                        big_arabic_font_size = self.get_proof_font_size(
-                            "BigArabicTextProof"
-                        )
+                        big_arabic_font_size = self.get_proof_font_size(proof_name)
                         arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                         if arabic_chars:
+                            # Get text formatting settings
+                            unique_proof_key = proof_name.replace(" ", "_").replace(
+                                "/", "_"
+                            )
+                            tracking_value = self.proof_settings.get(
+                                f"{unique_proof_key}_tracking", 0
+                            )
+                            align_value = self.proof_settings.get(
+                                f"{unique_proof_key}_align", "left"
+                            )
+
                             textProof(
                                 arabic_chars,
                                 axesProduct,
                                 indFont,
                                 None,  # pairedStaticStyles
-                                cols_by_proof.get("BigArabicTextProof", 1),
+                                cols_by_proof.get(proof_name, 1),
                                 2,  # Fixed paragraph count for big text
                                 False,
                                 big_arabic_font_size,
-                                "Big Arabic text proof",
+                                f"Big Arabic text proof - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
-                                otfeatures_by_proof.get("BigArabicTextProof", {}),
+                                otfeatures_by_proof.get(proof_name, {}),
                                 0,
                                 cat,
                                 fullCharacterSet,
                                 "ar",
+                                tracking_value,
+                                align_value,
                             )
                     elif base_proof_type == "Big Farsi Text Proof":
-                        big_farsi_font_size = self.get_proof_font_size(
-                            "BigFarsiTextProof"
-                        )
+                        big_farsi_font_size = self.get_proof_font_size(proof_name)
                         farsi_chars = cat.get("fa", "") or cat.get("arab", "")
                         if farsi_chars:
+                            # Get text formatting settings
+                            unique_proof_key = proof_name.replace(" ", "_").replace(
+                                "/", "_"
+                            )
+                            tracking_value = self.proof_settings.get(
+                                f"{unique_proof_key}_tracking", 0
+                            )
+                            align_value = self.proof_settings.get(
+                                f"{unique_proof_key}_align", "left"
+                            )
+
                             textProof(
                                 farsi_chars,
                                 axesProduct,
                                 indFont,
                                 None,  # pairedStaticStyles
-                                cols_by_proof.get("BigFarsiTextProof", 1),
+                                cols_by_proof.get(proof_name, 1),
                                 2,  # Fixed paragraph count for big text
                                 False,
                                 big_farsi_font_size,
-                                "Big Farsi text proof",
+                                f"Big Farsi text proof - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
-                                otfeatures_by_proof.get("BigFarsiTextProof", {}),
+                                otfeatures_by_proof.get(proof_name, {}),
                                 0,
                                 cat,
                                 fullCharacterSet,
                                 "fa",
+                                tracking_value,
+                                align_value,
                             )
                     elif base_proof_type == "Small Arabic Text Proof":
-                        small_arabic_font_size = self.get_proof_font_size(
-                            "SmallArabicTextProof"
-                        )
+                        small_arabic_font_size = self.get_proof_font_size(proof_name)
                         arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                         if arabic_chars:
+                            # Get text formatting settings
+                            unique_proof_key = proof_name.replace(" ", "_").replace(
+                                "/", "_"
+                            )
+                            tracking_value = self.proof_settings.get(
+                                f"{unique_proof_key}_tracking", 0
+                            )
+                            align_value = self.proof_settings.get(
+                                f"{unique_proof_key}_align", "left"
+                            )
+
                             textProof(
                                 arabic_chars,
                                 axesProduct,
                                 indFont,
                                 None,  # pairedStaticStyles
-                                cols_by_proof.get("SmallArabicTextProof", 2),
+                                cols_by_proof.get(proof_name, 2),
                                 5,  # Standard paragraph count for small text
                                 False,
                                 small_arabic_font_size,
-                                "Small Arabic text proof",
+                                f"Small Arabic text proof - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
-                                otfeatures_by_proof.get("SmallArabicTextProof", {}),
+                                otfeatures_by_proof.get(proof_name, {}),
                                 0,
                                 cat,
                                 fullCharacterSet,
                                 "ar",
+                                tracking_value,
+                                align_value,
                             )
                     elif base_proof_type == "Small Farsi Text Proof":
-                        small_farsi_font_size = self.get_proof_font_size(
-                            "SmallFarsiTextProof"
-                        )
+                        small_farsi_font_size = self.get_proof_font_size(proof_name)
                         farsi_chars = cat.get("fa", "") or cat.get("arab", "")
                         if farsi_chars:
+                            # Get text formatting settings
+                            unique_proof_key = proof_name.replace(" ", "_").replace(
+                                "/", "_"
+                            )
+                            tracking_value = self.proof_settings.get(
+                                f"{unique_proof_key}_tracking", 0
+                            )
+                            align_value = self.proof_settings.get(
+                                f"{unique_proof_key}_align", "left"
+                            )
+
                             textProof(
                                 farsi_chars,
                                 axesProduct,
                                 indFont,
                                 None,  # pairedStaticStyles
-                                cols_by_proof.get("SmallFarsiTextProof", 2),
+                                cols_by_proof.get(proof_name, 2),
                                 5,  # Standard paragraph count for small text
                                 False,
                                 small_farsi_font_size,
-                                "Small Farsi text proof",
+                                f"Small Farsi text proof - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
-                                otfeatures_by_proof.get("SmallFarsiTextProof", {}),
+                                otfeatures_by_proof.get(proof_name, {}),
                                 0,
                                 cat,
                                 fullCharacterSet,
                                 "fa",
+                                tracking_value,
+                                align_value,
                             )
                     elif base_proof_type == "Arabic Vocalization Proof":
-                        arabic_vocab_font_size = self.get_proof_font_size(
-                            "ArabicVocalizationProof"
-                        )
+                        arabic_vocab_font_size = self.get_proof_font_size(proof_name)
                         arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                         if arabic_chars:
+                            # Get text formatting settings
+                            unique_proof_key = proof_name.replace(" ", "_").replace(
+                                "/", "_"
+                            )
+                            tracking_value = self.proof_settings.get(
+                                f"{unique_proof_key}_tracking", 0
+                            )
+                            align_value = self.proof_settings.get(
+                                f"{unique_proof_key}_align", "left"
+                            )
+
                             textProof(
                                 arabic_chars,
                                 axesProduct,
                                 indFont,
                                 None,  # pairedStaticStyles
-                                cols_by_proof.get("ArabicVocalizationProof", 2),
+                                cols_by_proof.get(proof_name, 2),
                                 3,  # Specific paragraph count for vocalization
                                 False,
                                 arabic_vocab_font_size,
-                                "Arabic vocalization proof",
+                                f"Arabic vocalization proof - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 (arabicVocalization,),  # injectText
-                                otfeatures_by_proof.get("ArabicVocalizationProof", {}),
+                                otfeatures_by_proof.get(proof_name, {}),
                                 0,
                                 cat,
                                 fullCharacterSet,
                                 "ar",
+                                tracking_value,
+                                align_value,
                             )
                     elif base_proof_type == "Arabic-Latin Mixed Proof":
-                        arabic_latin_font_size = self.get_proof_font_size(
-                            "ArabicLatinMixedProof"
-                        )
+                        arabic_latin_font_size = self.get_proof_font_size(proof_name)
                         arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                         if arabic_chars:
+                            # Get text formatting settings
+                            unique_proof_key = proof_name.replace(" ", "_").replace(
+                                "/", "_"
+                            )
+                            tracking_value = self.proof_settings.get(
+                                f"{unique_proof_key}_tracking", 0
+                            )
+                            align_value = self.proof_settings.get(
+                                f"{unique_proof_key}_align", "left"
+                            )
+
                             textProof(
                                 arabic_chars,
                                 axesProduct,
                                 indFont,
                                 None,  # pairedStaticStyles
-                                cols_by_proof.get("ArabicLatinMixedProof", 2),
+                                cols_by_proof.get(proof_name, 2),
                                 3,  # Specific paragraph count for mixed text
                                 False,
                                 arabic_latin_font_size,
-                                "Arabic-Latin mixed proof",
+                                f"Arabic-Latin mixed proof - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 (arabicLatinMixed,),  # injectText
-                                otfeatures_by_proof.get("ArabicLatinMixedProof", {}),
+                                otfeatures_by_proof.get(proof_name, {}),
                                 0,
                                 cat,
                                 fullCharacterSet,
                                 "ar",
+                                tracking_value,
+                                align_value,
                             )
                     elif base_proof_type == "Arabic Numbers Proof":
-                        arabic_numbers_font_size = self.get_proof_font_size(
-                            "ArabicNumbersProof"
-                        )
+                        arabic_numbers_font_size = self.get_proof_font_size(proof_name)
                         arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                         if arabic_chars:
+                            # Get text formatting settings
+                            unique_proof_key = proof_name.replace(" ", "_").replace(
+                                "/", "_"
+                            )
+                            tracking_value = self.proof_settings.get(
+                                f"{unique_proof_key}_tracking", 0
+                            )
+                            align_value = self.proof_settings.get(
+                                f"{unique_proof_key}_align", "left"
+                            )
+
                             textProof(
                                 arabic_chars,
                                 axesProduct,
                                 indFont,
                                 None,  # pairedStaticStyles
-                                cols_by_proof.get("ArabicNumbersProof", 2),
+                                cols_by_proof.get(proof_name, 2),
                                 3,  # Specific paragraph count for numbers
                                 False,
                                 arabic_numbers_font_size,
-                                "Arabic numbers proof",
+                                f"Arabic numbers proof - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 (arabicFarsiUrduNumbers,),  # injectText
-                                otfeatures_by_proof.get("ArabicNumbersProof", {}),
+                                otfeatures_by_proof.get(proof_name, {}),
                                 0,
                                 cat,
                                 fullCharacterSet,
                                 "ar",
+                                tracking_value,
+                                align_value,
                             )
             else:
                 # Fallback to old hardcoded order if UI list is not available
@@ -2916,6 +3218,33 @@ class ProofWindow(object):
                 para_key = f"{unique_key}_para"
                 self.proof_settings[para_key] = 5
 
+            # Text formatting settings for supported proof types
+            supported_formatting_proofs = {
+                "BigParagraphProof",
+                "BigDiacriticsProof",
+                "SmallParagraphProof",
+                "SmallPairedStylesProof",
+                "SmallWordsivProof",
+                "SmallDiacriticsProof",
+                "SmallMixedTextProof",
+                "BigArabicTextProof",
+                "BigFarsiTextProof",
+                "SmallArabicTextProof",
+                "SmallFarsiTextProof",
+                "ArabicVocalizationProof",
+                "ArabicLatinMixedProof",
+                "ArabicNumbersProof",
+            }
+
+            if base_proof_key in supported_formatting_proofs:
+                # Tracking setting (default 0)
+                tracking_key = f"{unique_key}_tracking"
+                self.proof_settings[tracking_key] = 0
+
+                # Align setting (default "left")
+                align_key = f"{unique_key}_align"
+                self.proof_settings[align_key] = "left"
+
             # OpenType features
             if self.font_manager.fonts:
                 try:
@@ -3063,6 +3392,53 @@ class ProofWindow(object):
                     )
 
             popover.featuresList.set(feature_items)
+
+            # Update text formatting controls for supported proof types
+            supported_formatting_proofs = {
+                "BigParagraphProof",
+                "BigDiacriticsProof",
+                "SmallParagraphProof",
+                "SmallPairedStylesProof",
+                "SmallWordsivProof",
+                "SmallDiacriticsProof",
+                "SmallMixedTextProof",
+                "BigArabicTextProof",
+                "BigFarsiTextProof",
+                "SmallArabicTextProof",
+                "SmallFarsiTextProof",
+                "ArabicVocalizationProof",
+                "ArabicLatinMixedProof",
+                "ArabicNumbersProof",
+            }
+
+            if base_proof_key in supported_formatting_proofs:
+                # Update tracking control
+                tracking_key = f"{unique_proof_key}_tracking"
+                tracking_value = self.proof_settings.get(tracking_key, 0)
+                popover.trackingEditText.set(str(tracking_value))
+
+                # Update align control
+                align_key = f"{unique_proof_key}_align"
+                align_value = self.proof_settings.get(align_key, "left")
+                align_options = ["left", "center", "right"]
+                if align_value in align_options:
+                    popover.alignPopUp.set(align_options.index(align_value))
+                else:
+                    popover.alignPopUp.set(0)  # Default to "left"
+
+                # Show text formatting controls
+                popover.formatLabel.show(True)
+                popover.trackingLabel.show(True)
+                popover.trackingEditText.show(True)
+                popover.alignLabel.show(True)
+                popover.alignPopUp.show(True)
+            else:
+                # Hide text formatting controls for unsupported proof types
+                popover.formatLabel.show(False)
+                popover.trackingLabel.show(False)
+                popover.trackingEditText.show(False)
+                popover.alignLabel.show(False)
+                popover.alignPopUp.show(False)
 
         except Exception as e:
             print(f"Error updating proof settings popover: {e}")
