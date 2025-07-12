@@ -811,29 +811,29 @@ class ControlsTab:
 
     def get_proof_options_list(self):
         """Generate dynamic proof options list based on font capabilities."""
-        # Base proof options (always shown)
+        # Base proof options (always shown) - updated to use standardized underscore format
         base_options = [
-            ("Character Set Proof", "CharacterSetProof"),
-            ("Spacing Proof", "SpacingProof"),
-            ("Big Paragraph Proof", "BigParagraphProof"),
-            ("Big Diacritics Proof", "BigDiacriticsProof"),
-            ("Small Paragraph Proof", "SmallParagraphProof"),
-            ("Small Paired Styles Proof", "SmallPairedStylesProof"),
-            ("Small Wordsiv Proof", "SmallWordsivProof"),
-            ("Small Diacritics Proof", "SmallDiacriticsProof"),
-            ("Small Mixed Text Proof", "SmallMixedTextProof"),
+            ("Character Set Proof", "Character_Set_Proof"),
+            ("Spacing Proof", "Spacing_Proof"),
+            ("Big Paragraph Proof", "Big_Paragraph_Proof"),
+            ("Big Diacritics Proof", "Big_Diacritics_Proof"),
+            ("Small Paragraph Proof", "Small_Paragraph_Proof"),
+            ("Small Paired Styles Proof", "Small_Paired_Styles_Proof"),
+            ("Small Wordsiv Proof", "Small_Wordsiv_Proof"),
+            ("Small Diacritics Proof", "Small_Diacritics_Proof"),
+            ("Small Mixed Text Proof", "Small_Mixed_Text_Proof"),
         ]
 
-        # Arabic/Persian proof options (shown only if fonts support Arabic)
+        # Arabic/Persian proof options (shown only if fonts support Arabic) - updated to use standardized underscore format
         arabic_options = [
-            ("Arabic Contextual Forms", "ArabicContextualFormsProof"),
-            ("Big Arabic Text Proof", "BigArabicTextProof"),
-            ("Big Farsi Text Proof", "BigFarsiTextProof"),
-            ("Small Arabic Text Proof", "SmallArabicTextProof"),
-            ("Small Farsi Text Proof", "SmallFarsiTextProof"),
-            ("Arabic Vocalization Proof", "ArabicVocalizationProof"),
-            ("Arabic-Latin Mixed Proof", "ArabicLatinMixedProof"),
-            ("Arabic Numbers Proof", "ArabicNumbersProof"),
+            ("Arabic Contextual Forms", "Arabic_Contextual_Forms_Proof"),
+            ("Big Arabic Text Proof", "Big_Arabic_Text_Proof"),
+            ("Big Farsi Text Proof", "Big_Farsi_Text_Proof"),
+            ("Small Arabic Text Proof", "Small_Arabic_Text_Proof"),
+            ("Small Farsi Text Proof", "Small_Farsi_Text_Proof"),
+            ("Arabic Vocalization Proof", "Arabic_Vocalization_Proof"),
+            ("Arabic-Latin Mixed Proof", "Arabic_Latin_Mixed_Proof"),
+            ("Arabic Numbers Proof", "Arabic_Numbers_Proof"),
         ]
 
         # Check if any loaded font supports Arabic
@@ -1546,21 +1546,21 @@ class ProofWindow(object):
 
             # Fallback if no match found
             if not proof_key:
-                proof_key = "SmallParagraphProof"
+                proof_key = "Small_Paragraph_Proof"
                 unique_key = proof_identifier.replace(" ", "_").replace("/", "_")
                 font_size_key = f"{unique_key}_fontSize"
 
         # Set default font size based on proof type
         if proof_key in [
-            "BigParagraphProof",
-            "BigDiacriticsProof",
-            "BigArabicTextProof",
-            "BigFarsiTextProof",
+            "Big_Paragraph_Proof",
+            "Big_Diacritics_Proof",
+            "Big_Arabic_Text_Proof",
+            "Big_Farsi_Text_Proof",
         ]:
             default_font_size = largeTextFontSize
-        elif proof_key in ["CharacterSetProof", "ArabicContextualFormsProof"]:
+        elif proof_key in ["Character_Set_Proof", "Arabic_Contextual_Forms_Proof"]:
             default_font_size = charsetFontSize
-        elif proof_key == "SpacingProof":
+        elif proof_key == "Spacing_Proof":
             default_font_size = spacingFontSize
         else:
             # Small proofs and other proofs
@@ -1775,10 +1775,10 @@ class ProofWindow(object):
                 cols_by_proof = {}
                 paras_by_proof = {}
 
-                # Map display names to their corresponding settings keys - use standardized underscore format  
+                # Map display names to their corresponding settings keys - use standardized underscore format
                 display_name_to_settings_key = {
                     "Character Set Proof": "Character_Set_Proof",
-                    "Spacing Proof": "Spacing_Proof", 
+                    "Spacing Proof": "Spacing_Proof",
                     "Big Paragraph Proof": "Big_Paragraph_Proof",
                     "Big Diacritics Proof": "Big_Diacritics_Proof",
                     "Small Paragraph Proof": "Small_Paragraph_Proof",
@@ -1886,7 +1886,10 @@ class ProofWindow(object):
             # Column settings - set proper defaults for each proof type
             cols_key = f"{proof_key}_cols"
             # Character Set and Arabic Contextual Forms don't use columns
-            if proof_key not in ["Character_Set_Proof", "Arabic_Contextual_Forms_Proof"]:
+            if proof_key not in [
+                "Character_Set_Proof",
+                "Arabic_Contextual_Forms_Proof",
+            ]:
                 # Big proofs, Big Diacritics, and Big Arabic/Farsi proofs use 1 column
                 if proof_key in [
                     "Big_Paragraph_Proof",
@@ -1992,25 +1995,25 @@ class ProofWindow(object):
         selected_item = items[selected_idx]
         proof_name = selected_item.get("Option", "")
 
-        # Map proof names to keys for proof types that have settings
+        # Map proof names to keys for proof types that have settings - updated to use standardized underscore format
         proof_name_to_key = {
-            "Character Set Proof": "CharacterSetProof",
-            "Spacing Proof": "SpacingProof",
-            "Big Paragraph Proof": "BigParagraphProof",
-            "Big Diacritics Proof": "BigDiacriticsProof",
-            "Small Paragraph Proof": "SmallParagraphProof",
-            "Small Paired Styles Proof": "SmallPairedStylesProof",
-            "Small Wordsiv Proof": "SmallWordsivProof",
-            "Small Diacritics Proof": "SmallDiacriticsProof",
-            "Small Mixed Text Proof": "SmallMixedTextProof",
-            "Arabic Contextual Forms": "ArabicContextualFormsProof",
-            "Big Arabic Text Proof": "BigArabicTextProof",
-            "Big Farsi Text Proof": "BigFarsiTextProof",
-            "Small Arabic Text Proof": "SmallArabicTextProof",
-            "Small Farsi Text Proof": "SmallFarsiTextProof",
-            "Arabic Vocalization Proof": "ArabicVocalizationProof",
-            "Arabic-Latin Mixed Proof": "ArabicLatinMixedProof",
-            "Arabic Numbers Proof": "ArabicNumbersProof",
+            "Character Set Proof": "Character_Set_Proof",
+            "Spacing Proof": "Spacing_Proof",
+            "Big Paragraph Proof": "Big_Paragraph_Proof",
+            "Big Diacritics Proof": "Big_Diacritics_Proof",
+            "Small Paragraph Proof": "Small_Paragraph_Proof",
+            "Small Paired Styles Proof": "Small_Paired_Styles_Proof",
+            "Small Wordsiv Proof": "Small_Wordsiv_Proof",
+            "Small Diacritics Proof": "Small_Diacritics_Proof",
+            "Small Mixed Text Proof": "Small_Mixed_Text_Proof",
+            "Arabic Contextual Forms": "Arabic_Contextual_Forms_Proof",
+            "Big Arabic Text Proof": "Big_Arabic_Text_Proof",
+            "Big Farsi Text Proof": "Big_Farsi_Text_Proof",
+            "Small Arabic Text Proof": "Small_Arabic_Text_Proof",
+            "Small Farsi Text Proof": "Small_Farsi_Text_Proof",
+            "Arabic Vocalization Proof": "Arabic_Vocalization_Proof",
+            "Arabic-Latin Mixed Proof": "Arabic_Latin_Mixed_Proof",
+            "Arabic Numbers Proof": "Arabic_Numbers_Proof",
         }
 
         # Only show popover for proofs that have settings
@@ -2140,15 +2143,15 @@ class ProofWindow(object):
         font_size_key = f"{proof_key}_fontSize"
         # Set default font size based on proof type
         if proof_key in [
-            "BigParagraphProof",
-            "BigDiacriticsProof",
-            "BigArabicTextProof",
-            "BigFarsiTextProof",
+            "Big_Paragraph_Proof",
+            "Big_Diacritics_Proof",
+            "Big_Arabic_Text_Proof",
+            "Big_Farsi_Text_Proof",
         ]:
             default_font_size = largeTextFontSize
-        elif proof_key in ["CharacterSetProof", "ArabicContextualFormsProof"]:
+        elif proof_key in ["Character_Set_Proof", "Arabic_Contextual_Forms_Proof"]:
             default_font_size = charsetFontSize
-        elif proof_key == "SpacingProof":
+        elif proof_key == "Spacing_Proof":
             default_font_size = spacingFontSize
         else:
             # Small proofs and other proofs
@@ -2160,15 +2163,15 @@ class ProofWindow(object):
         )
 
         # Columns setting with appropriate defaults (skip for certain proofs)
-        if proof_key not in ["CharacterSetProof", "ArabicContextualFormsProof"]:
+        if proof_key not in ["Character_Set_Proof", "Arabic_Contextual_Forms_Proof"]:
             cols_key = f"{proof_key}_cols"
             # Big proofs, Big Arabic/Farsi proofs, and Big Diacritics default to 1 column
 
             if proof_key in [
-                "BigParagraphProof",
-                "BigDiacriticsProof",
-                "BigArabicTextProof",
-                "BigFarsiTextProof",
+                "Big_Paragraph_Proof",
+                "Big_Diacritics_Proof",
+                "Big_Arabic_Text_Proof",
+                "Big_Farsi_Text_Proof",
             ]:
                 default_cols = 1
             else:
@@ -2179,8 +2182,8 @@ class ProofWindow(object):
                 {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
             )
 
-        # Paragraphs setting (only for SmallWordsivProof)
-        if proof_key == "SmallWordsivProof":
+        # Paragraphs setting (only for Small_Wordsiv_Proof)
+        if proof_key == "Small_Wordsiv_Proof":
             para_key = f"{proof_key}_para"
             para_value = self.proof_settings.get(para_key, 5)
             numeric_items.append(
@@ -2189,20 +2192,20 @@ class ProofWindow(object):
 
         # Add tracking for supported proof types
         supported_formatting_proofs = {
-            "BigParagraphProof",
-            "BigDiacriticsProof",
-            "SmallParagraphProof",
-            "SmallPairedStylesProof",
-            "SmallWordsivProof",
-            "SmallDiacriticsProof",
-            "SmallMixedTextProof",
-            "BigArabicTextProof",
-            "BigFarsiTextProof",
-            "SmallArabicTextProof",
-            "SmallFarsiTextProof",
-            "ArabicVocalizationProof",
-            "ArabicLatinMixedProof",
-            "ArabicNumbersProof",
+            "Big_Paragraph_Proof",
+            "Big_Diacritics_Proof",
+            "Small_Paragraph_Proof",
+            "Small_Paired_Styles_Proof",
+            "Small_Wordsiv_Proof",
+            "Small_Diacritics_Proof",
+            "Small_Mixed_Text_Proof",
+            "Big_Arabic_Text_Proof",
+            "Big_Farsi_Text_Proof",
+            "Small_Arabic_Text_Proof",
+            "Small_Farsi_Text_Proof",
+            "Arabic_Vocalization_Proof",
+            "Arabic_Latin_Mixed_Proof",
+            "Arabic_Numbers_Proof",
         }
 
         if proof_key in supported_formatting_proofs:
@@ -2228,8 +2231,8 @@ class ProofWindow(object):
         for tag in feature_tags:
             feature_key = f"otf_{proof_key}_{tag}"
 
-            # Special handling for SpacingProof kern feature
-            if proof_key == "SpacingProof" and tag == "kern":
+            # Special handling for Spacing_Proof kern feature
+            if proof_key == "Spacing_Proof" and tag == "kern":
                 feature_value = False
                 self.proof_settings[feature_key] = False
                 feature_items.append(
@@ -3166,7 +3169,10 @@ class ProofWindow(object):
                 "Big_Farsi_Text_Proof",
             ]:
                 default_font_size = largeTextFontSize
-            elif base_proof_key in ["Character_Set_Proof", "Arabic_Contextual_Forms_Proof"]:
+            elif base_proof_key in [
+                "Character_Set_Proof",
+                "Arabic_Contextual_Forms_Proof",
+            ]:
                 default_font_size = charsetFontSize
             elif base_proof_key == "Spacing_Proof":
                 default_font_size = spacingFontSize
@@ -3247,25 +3253,25 @@ class ProofWindow(object):
     ):
         """Update the proof settings popover for a specific proof instance."""
         try:
-            # Map base proof types to internal keys
+            # Map base proof types to internal keys - updated to use standardized underscore format
             proof_name_to_key = {
-                "Character Set Proof": "CharacterSetProof",
-                "Spacing Proof": "SpacingProof",
-                "Big Paragraph Proof": "BigParagraphProof",
-                "Big Diacritics Proof": "BigDiacriticsProof",
-                "Small Paragraph Proof": "SmallParagraphProof",
-                "Small Paired Styles Proof": "SmallPairedStylesProof",
-                "Small Wordsiv Proof": "SmallWordsivProof",
-                "Small Diacritics Proof": "SmallDiacriticsProof",
-                "Small Mixed Text Proof": "SmallMixedTextProof",
-                "Arabic Contextual Forms": "ArabicContextualFormsProof",
-                "Big Arabic Text Proof": "BigArabicTextProof",
-                "Big Farsi Text Proof": "BigFarsiTextProof",
-                "Small Arabic Text Proof": "SmallArabicTextProof",
-                "Small Farsi Text Proof": "SmallFarsiTextProof",
-                "Arabic Vocalization Proof": "ArabicVocalizationProof",
-                "Arabic-Latin Mixed Proof": "ArabicLatinMixedProof",
-                "Arabic Numbers Proof": "ArabicNumbersProof",
+                "Character Set Proof": "Character_Set_Proof",
+                "Spacing Proof": "Spacing_Proof",
+                "Big Paragraph Proof": "Big_Paragraph_Proof",
+                "Big Diacritics Proof": "Big_Diacritics_Proof",
+                "Small Paragraph Proof": "Small_Paragraph_Proof",
+                "Small Paired Styles Proof": "Small_Paired_Styles_Proof",
+                "Small Wordsiv Proof": "Small_Wordsiv_Proof",
+                "Small Diacritics Proof": "Small_Diacritics_Proof",
+                "Small Mixed Text Proof": "Small_Mixed_Text_Proof",
+                "Arabic Contextual Forms": "Arabic_Contextual_Forms_Proof",
+                "Big Arabic Text Proof": "Big_Arabic_Text_Proof",
+                "Big Farsi Text Proof": "Big_Farsi_Text_Proof",
+                "Small Arabic Text Proof": "Small_Arabic_Text_Proof",
+                "Small Farsi Text Proof": "Small_Farsi_Text_Proof",
+                "Arabic Vocalization Proof": "Arabic_Vocalization_Proof",
+                "Arabic-Latin Mixed Proof": "Arabic_Latin_Mixed_Proof",
+                "Arabic Numbers Proof": "Arabic_Numbers_Proof",
             }
 
             base_proof_key = proof_name_to_key.get(base_proof_type)
@@ -3286,15 +3292,18 @@ class ProofWindow(object):
             # Font size setting
             font_size_key = f"{unique_proof_key}_fontSize"
             if base_proof_key in [
-                "BigParagraphProof",
-                "BigDiacriticsProof",
-                "BigArabicTextProof",
-                "BigFarsiTextProof",
+                "Big_Paragraph_Proof",
+                "Big_Diacritics_Proof",
+                "Big_Arabic_Text_Proof",
+                "Big_Farsi_Text_Proof",
             ]:
                 default_font_size = largeTextFontSize
-            elif base_proof_key in ["CharacterSetProof", "ArabicContextualFormsProof"]:
+            elif base_proof_key in [
+                "Character_Set_Proof",
+                "Arabic_Contextual_Forms_Proof",
+            ]:
                 default_font_size = charsetFontSize
-            elif base_proof_key == "SpacingProof":
+            elif base_proof_key == "Spacing_Proof":
                 default_font_size = spacingFontSize
             else:
                 default_font_size = smallTextFontSize
@@ -3310,15 +3319,15 @@ class ProofWindow(object):
 
             # Columns setting (if applicable)
             if base_proof_key not in [
-                "CharacterSetProof",
-                "ArabicContextualFormsProof",
+                "Character_Set_Proof",
+                "Arabic_Contextual_Forms_Proof",
             ]:
                 cols_key = f"{unique_proof_key}_cols"
                 if base_proof_key in [
-                    "BigParagraphProof",
-                    "BigDiacriticsProof",
-                    "BigArabicTextProof",
-                    "BigFarsiTextProof",
+                    "Big_Paragraph_Proof",
+                    "Big_Diacritics_Proof",
+                    "Big_Arabic_Text_Proof",
+                    "Big_Farsi_Text_Proof",
                 ]:
                     default_cols = 1
                 else:
@@ -3328,8 +3337,8 @@ class ProofWindow(object):
                     {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
                 )
 
-            # Paragraphs setting (only for SmallWordsivProof)
-            if base_proof_key == "SmallWordsivProof":
+            # Paragraphs setting (only for Small_Wordsiv_Proof)
+            if base_proof_key == "Small_Wordsiv_Proof":
                 para_key = f"{unique_proof_key}_para"
                 para_value = self.proof_settings.get(para_key, 5)
                 numeric_items.append(
@@ -3338,27 +3347,31 @@ class ProofWindow(object):
 
             # Add tracking for supported proof types
             supported_formatting_proofs = {
-                "BigParagraphProof",
-                "BigDiacriticsProof",
-                "SmallParagraphProof",
-                "SmallPairedStylesProof",
-                "SmallWordsivProof",
-                "SmallDiacriticsProof",
-                "SmallMixedTextProof",
-                "BigArabicTextProof",
-                "BigFarsiTextProof",
-                "SmallArabicTextProof",
-                "SmallFarsiTextProof",
-                "ArabicVocalizationProof",
-                "ArabicLatinMixedProof",
-                "ArabicNumbersProof",
+                "Big_Paragraph_Proof",
+                "Big_Diacritics_Proof",
+                "Small_Paragraph_Proof",
+                "Small_Paired_Styles_Proof",
+                "Small_Wordsiv_Proof",
+                "Small_Diacritics_Proof",
+                "Small_Mixed_Text_Proof",
+                "Big_Arabic_Text_Proof",
+                "Big_Farsi_Text_Proof",
+                "Small_Arabic_Text_Proof",
+                "Small_Farsi_Text_Proof",
+                "Arabic_Vocalization_Proof",
+                "Arabic_Latin_Mixed_Proof",
+                "Arabic_Numbers_Proof",
             }
 
             if base_proof_key in supported_formatting_proofs:
                 tracking_key = f"{unique_proof_key}_tracking"
                 tracking_value = self.proof_settings.get(tracking_key, 0)
                 numeric_items.append(
-                    {"Setting": "Tracking", "Value": tracking_value, "_key": tracking_key}
+                    {
+                        "Setting": "Tracking",
+                        "Value": tracking_value,
+                        "_key": tracking_key,
+                    }
                 )
 
             popover.numericList.set(numeric_items)

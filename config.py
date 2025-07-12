@@ -423,7 +423,7 @@ class Settings:
         option_map = {
             "showBaselines": "show_baselines",
             "Character_Set_Proof": "character_set_proof",
-            "Spacing_Proof": "spacing_proof", 
+            "Spacing_Proof": "spacing_proof",
             "Big_Paragraph_Proof": "big_paragraph_proof",
             "Big_Diacritics_Proof": "big_diacritics_proof",
             "Small_Paragraph_Proof": "small_paragraph_proof",
