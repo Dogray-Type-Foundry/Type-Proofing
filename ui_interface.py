@@ -2031,9 +2031,9 @@ class ProofWindow(object):
         )
 
         # Numeric settings list
-        popover.numericLabel = vanilla.TextBox((10, 70, -10, 20), "Numeric Settings:")
+        popover.numericLabel = vanilla.TextBox((10, 10, -10, 20), "Numeric Settings:")
         popover.numericList = vanilla.List2(
-            (10, 95, -10, 120),
+            (10, 35, -10, 120),
             [],
             columnDescriptions=[
                 {
@@ -2056,10 +2056,10 @@ class ProofWindow(object):
 
         # OpenType features list
         popover.featuresLabel = vanilla.TextBox(
-            (10, 225, -10, 20), "OpenType Features:"
+            (10, 165, -10, 20), "OpenType Features:"
         )
         popover.featuresList = vanilla.List2(
-            (10, 250, -10, -10),
+            (10, 190, -10, -10),
             [],
             columnDescriptions=[
                 {
