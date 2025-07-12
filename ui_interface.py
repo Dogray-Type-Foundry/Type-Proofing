@@ -813,7 +813,6 @@ class ControlsTab:
         """Generate dynamic proof options list based on font capabilities."""
         # Base proof options (always shown)
         base_options = [
-            ("Show Baselines/Grid", "showBaselines"),
             ("Character Set Proof", "CharacterSetProof"),
             ("Spacing Proof", "SpacingProof"),
             ("Big Paragraph Proof", "BigParagraphProof"),
@@ -888,6 +887,12 @@ class ControlsTab:
 
             # Update the list
             self.group.proofOptionsList.set(proof_options_items)
+
+            # Update the standalone checkbox
+            if hasattr(self.group, "showBaselinesCheckbox"):
+                self.group.showBaselinesCheckbox.set(
+                    self.settings.get_proof_option("showBaselines")
+                )
         except Exception as e:
             print(f"Error refreshing proof options list: {e}")
 
@@ -951,7 +956,7 @@ class ControlsTab:
             )
 
             self.group.proofOptionsList = vanilla.List2(
-                (controls_x, y, 320, 450),  # Adjusted width for left side
+                (controls_x, y, 320, 420),  # Adjusted width for left side
                 proof_options_items,
                 columnDescriptions=[
                     {
@@ -977,6 +982,7 @@ class ControlsTab:
                 allowsSorting=False,  # Disable sorting to allow reordering
                 allowColumnReordering=False,
                 alternatingRowColors=True,
+                enableDelete=True,
                 drawFocusRing=True,
                 dragSettings=dragSettings,
                 dropSettings=dropSettings,
@@ -985,30 +991,41 @@ class ControlsTab:
             )
             y += 460  # Adjust button position
 
+            # Standalone "Show Baselines/Grid" checkbox
+            self.group.showBaselinesCheckbox = vanilla.CheckBox(
+                (controls_x + 4, -96, 100, 20),
+                "Show Grid",
+                value=self.settings.get_proof_option("showBaselines"),
+                callback=self.showBaselinesCallback,
+            )
+
             # Buttons arranged in a 3x2 grid at the bottom
             # First row: Add Proof and Generate Proof
             self.group.addProofButton = vanilla.Button(
-                (controls_x, -68, 140, 20),
+                (controls_x + 165, -96, 155, 20),
                 title="Add Proof",
                 callback=self.addProofCallback,
             )
 
-            self.group.generateButton = vanilla.Button(
-                (controls_x, -40, 140, 20),
+            self.group.generateButton = vanilla.GradientButton(
+                (controls_x, -70, 155, 55),
                 title="Generate Proof",
                 callback=self.parent_window.generateCallback,
+            )
+            self.group.generateButton._nsObject.setBezelStyle_(
+                NSBezelStyleRegularSquare
             )
             self.group.generateButton._nsObject.setKeyEquivalent_("\r")
 
             # Second row: Add Settings File and Reset Settings
             self.group.addSettingsButton = vanilla.Button(
-                (controls_x + 150, -68, 140, 20),
+                (controls_x + 165, -68, 155, 20),
                 "Add Settings File",
                 callback=self.parent_window.addSettingsFileCallback,
             )
 
             self.group.resetButton = vanilla.Button(
-                (controls_x + 150, -40, 140, 20),
+                (controls_x + 165, -40, 155, 20),
                 "Reset Settings",
                 callback=self.parent_window.resetSettingsCallback,
             )
@@ -1086,12 +1103,14 @@ class ControlsTab:
             base_option = item.get("_original_option", proof_name)  # Get base type
             enabled = item["Enabled"]
 
-            if base_option == "Show Baselines/Grid":
-                self.settings.set_proof_option("showBaselines", enabled)
-            else:
-                # For unique proof names, use a sanitized version as the key
-                unique_key = proof_name.replace(" ", "_").replace("/", "_")
-                self.settings.set_proof_option(unique_key, enabled)
+            # For unique proof names, use a sanitized version as the key
+            unique_key = proof_name.replace(" ", "_").replace("/", "_")
+            self.settings.set_proof_option(unique_key, enabled)
+
+    def showBaselinesCallback(self, sender):
+        """Handle the Show Baselines/Grid standalone checkbox."""
+        enabled = sender.get()
+        self.settings.set_proof_option("showBaselines", enabled)
 
     def makeProofDragDataCallback(self, index):
         """Create drag data for internal proof options reordering."""
@@ -1258,7 +1277,6 @@ class ControlsTab:
 
         # Proof type selector - get available proof types
         proof_type_options = [
-            "Show Baselines/Grid",
             "Character Set Proof",
             "Spacing Proof",
             "Big Paragraph Proof",
@@ -1739,7 +1757,10 @@ class ProofWindow(object):
                 # Read proof options from list
                 proof_options_items = controls.proofOptionsList.get()
                 proof_options = {}
-                self.showBaselines = False
+
+                # Read showBaselines from the standalone checkbox
+                self.showBaselines = controls.showBaselinesCheckbox.get()
+                db.showBaselines = self.showBaselines
 
                 for item in proof_options_items:
                     option = item.get(
@@ -1747,13 +1768,9 @@ class ProofWindow(object):
                     )  # Get original option name
                     enabled = bool(item["Enabled"])
 
-                    if option == "Show Baselines/Grid":
-                        self.showBaselines = enabled
-                        db.showBaselines = self.showBaselines
-                    else:
-                        # For other proofs, use the actual option name as the key
-                        # This handles both original proofs and numbered duplicates
-                        proof_options[item["Option"]] = enabled
+                    # For all proofs, use the actual option name as the key
+                    # This handles both original proofs and numbered duplicates
+                    proof_options[item["Option"]] = enabled
 
                 # Build otfeatures dict from proof_settings
                 otfeatures_by_proof = {}
@@ -2140,6 +2157,7 @@ class ProofWindow(object):
         if self.font_manager.fonts:
             try:
                 feature_tags = db.listOpenTypeFeatures(self.font_manager.fonts[0])
+
             except Exception:
                 feature_tags = []
         else:
@@ -2151,11 +2169,8 @@ class ProofWindow(object):
 
             # Special handling for SpacingProof kern feature
             if proof_key == "SpacingProof" and tag == "kern":
-                # Kern should always be disabled for spacing proof and not editable
                 feature_value = False
-                self.proof_settings[feature_key] = (
-                    False  # Ensure it's saved as disabled
-                )
+                self.proof_settings[feature_key] = False
                 feature_items.append(
                     {
                         "Feature": f"{tag} (always off)",
