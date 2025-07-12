@@ -2043,7 +2043,7 @@ class ProofWindow(object):
 
     def create_proof_settings_popover(self):
         """Create the proof settings popover."""
-        self.proof_settings_popover = vanilla.Popover((400, 550))
+        self.proof_settings_popover = vanilla.Popover((400, 520))
         popover = self.proof_settings_popover
 
         # Proof type selector
@@ -2057,10 +2057,10 @@ class ProofWindow(object):
             callback=self.proofTypeSelectionCallback,
         )
 
-        # Numeric settings list
-        popover.numericLabel = vanilla.TextBox((10, 70, -10, 20), "Numeric Settings:")
+        # Numeric settings list (now includes tracking)
+        popover.numericLabel = vanilla.TextBox((10, 70, -10, 20), "Settings:")
         popover.numericList = vanilla.List2(
-            (10, 95, -10, 120),
+            (10, 95, -10, 140),
             [],
             columnDescriptions=[
                 {
@@ -2081,31 +2081,20 @@ class ProofWindow(object):
             editCallback=self.numericSettingsEditCallback,
         )
 
-        # Text formatting settings
-        popover.formatLabel = vanilla.TextBox((10, 225, -10, 20), "Text Formatting:")
-
-        # Tracking control
-        popover.trackingLabel = vanilla.TextBox((10, 250, 100, 20), "Tracking:")
-        popover.trackingEditText = vanilla.EditText(
-            (120, 250, 100, 20),
-            text="0",
-            callback=self.trackingEditCallback,
-        )
-
-        # Align control
-        popover.alignLabel = vanilla.TextBox((10, 280, 100, 20), "Alignment:")
+        # Align control (standalone)
+        popover.alignLabel = vanilla.TextBox((10, 245, 100, 20), "Alignment:")
         popover.alignPopUp = vanilla.PopUpButton(
-            (120, 280, 100, 20),
+            (120, 245, 100, 20),
             ["left", "center", "right"],
             callback=self.alignPopUpCallback,
         )
 
         # OpenType features list
         popover.featuresLabel = vanilla.TextBox(
-            (10, 315, -10, 20), "OpenType Features:"
+            (10, 275, -10, 20), "OpenType Features:"
         )
         popover.featuresList = vanilla.List2(
-            (10, 340, -10, -10),
+            (10, 300, -10, -10),
             [],
             columnDescriptions=[
                 {
@@ -2198,6 +2187,31 @@ class ProofWindow(object):
                 {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
             )
 
+        # Add tracking for supported proof types
+        supported_formatting_proofs = {
+            "BigParagraphProof",
+            "BigDiacriticsProof",
+            "SmallParagraphProof",
+            "SmallPairedStylesProof",
+            "SmallWordsivProof",
+            "SmallDiacriticsProof",
+            "SmallMixedTextProof",
+            "BigArabicTextProof",
+            "BigFarsiTextProof",
+            "SmallArabicTextProof",
+            "SmallFarsiTextProof",
+            "ArabicVocalizationProof",
+            "ArabicLatinMixedProof",
+            "ArabicNumbersProof",
+        }
+
+        if proof_key in supported_formatting_proofs:
+            tracking_key = f"{proof_key}_tracking"
+            tracking_value = self.proof_settings.get(tracking_key, 0)
+            numeric_items.append(
+                {"Setting": "Tracking", "Value": tracking_value, "_key": tracking_key}
+            )
+
         popover.numericList.set(numeric_items)
 
         # Update features settings
@@ -2235,30 +2249,8 @@ class ProofWindow(object):
 
         popover.featuresList.set(feature_items)
 
-        # Update text formatting controls for supported proof types
-        supported_formatting_proofs = {
-            "BigParagraphProof",
-            "BigDiacriticsProof",
-            "SmallParagraphProof",
-            "SmallPairedStylesProof",
-            "SmallWordsivProof",
-            "SmallDiacriticsProof",
-            "SmallMixedTextProof",
-            "BigArabicTextProof",
-            "BigFarsiTextProof",
-            "SmallArabicTextProof",
-            "SmallFarsiTextProof",
-            "ArabicVocalizationProof",
-            "ArabicLatinMixedProof",
-            "ArabicNumbersProof",
-        }
-
+        # Update alignment control for supported proof types
         if proof_key in supported_formatting_proofs:
-            # Update tracking control
-            tracking_key = f"{proof_key}_tracking"
-            tracking_value = self.proof_settings.get(tracking_key, 0)
-            popover.trackingEditText.set(str(tracking_value))
-
             # Update align control
             align_key = f"{proof_key}_align"
             align_value = self.proof_settings.get(align_key, "left")
@@ -2268,31 +2260,13 @@ class ProofWindow(object):
             else:
                 popover.alignPopUp.set(0)  # Default to "left"
 
-            # Show text formatting controls
-            popover.formatLabel.show(True)
-            popover.trackingLabel.show(True)
-            popover.trackingEditText.show(True)
+            # Show alignment control
             popover.alignLabel.show(True)
             popover.alignPopUp.show(True)
         else:
-            # Hide text formatting controls for unsupported proof types
-            popover.formatLabel.show(False)
-            popover.trackingLabel.show(False)
-            popover.trackingEditText.show(False)
+            # Hide alignment control for unsupported proof types
             popover.alignLabel.show(False)
             popover.alignPopUp.show(False)
-
-    def trackingEditCallback(self, sender):
-        """Handle tracking value changes."""
-        if not hasattr(self, "current_proof_key"):
-            return
-
-        try:
-            tracking_value = float(sender.get())
-            tracking_key = f"{self.current_proof_key}_tracking"
-            self.proof_settings[tracking_key] = tracking_value
-        except (ValueError, TypeError):
-            print(f"Invalid tracking value: {sender.get()}")
 
     def alignPopUpCallback(self, sender):
         """Handle alignment selection changes."""
@@ -2314,11 +2288,16 @@ class ProofWindow(object):
                 key = item["_key"]
                 value = item["Value"]
                 try:
-                    value = int(value)
-                    if value <= 0:
-                        print(f"Invalid value for {item['Setting']}: must be > 0")
-                        continue
-                    self.proof_settings[key] = value
+                    # Handle tracking values (can be float) vs other settings (must be positive int)
+                    if "_tracking" in key:
+                        value = float(value)
+                        self.proof_settings[key] = value
+                    else:
+                        value = int(value)
+                        if value <= 0:
+                            print(f"Invalid value for {item['Setting']}: must be > 0")
+                            continue
+                        self.proof_settings[key] = value
                 except (ValueError, TypeError):
                     print(f"Invalid value for {item['Setting']}: {value}")
 
@@ -3357,6 +3336,31 @@ class ProofWindow(object):
                     {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
                 )
 
+            # Add tracking for supported proof types
+            supported_formatting_proofs = {
+                "BigParagraphProof",
+                "BigDiacriticsProof",
+                "SmallParagraphProof",
+                "SmallPairedStylesProof",
+                "SmallWordsivProof",
+                "SmallDiacriticsProof",
+                "SmallMixedTextProof",
+                "BigArabicTextProof",
+                "BigFarsiTextProof",
+                "SmallArabicTextProof",
+                "SmallFarsiTextProof",
+                "ArabicVocalizationProof",
+                "ArabicLatinMixedProof",
+                "ArabicNumbersProof",
+            }
+
+            if base_proof_key in supported_formatting_proofs:
+                tracking_key = f"{unique_proof_key}_tracking"
+                tracking_value = self.proof_settings.get(tracking_key, 0)
+                numeric_items.append(
+                    {"Setting": "Tracking", "Value": tracking_value, "_key": tracking_key}
+                )
+
             popover.numericList.set(numeric_items)
 
             # Update OpenType features for this specific instance
@@ -3393,30 +3397,8 @@ class ProofWindow(object):
 
             popover.featuresList.set(feature_items)
 
-            # Update text formatting controls for supported proof types
-            supported_formatting_proofs = {
-                "BigParagraphProof",
-                "BigDiacriticsProof",
-                "SmallParagraphProof",
-                "SmallPairedStylesProof",
-                "SmallWordsivProof",
-                "SmallDiacriticsProof",
-                "SmallMixedTextProof",
-                "BigArabicTextProof",
-                "BigFarsiTextProof",
-                "SmallArabicTextProof",
-                "SmallFarsiTextProof",
-                "ArabicVocalizationProof",
-                "ArabicLatinMixedProof",
-                "ArabicNumbersProof",
-            }
-
+            # Update alignment control for supported proof types
             if base_proof_key in supported_formatting_proofs:
-                # Update tracking control
-                tracking_key = f"{unique_proof_key}_tracking"
-                tracking_value = self.proof_settings.get(tracking_key, 0)
-                popover.trackingEditText.set(str(tracking_value))
-
                 # Update align control
                 align_key = f"{unique_proof_key}_align"
                 align_value = self.proof_settings.get(align_key, "left")
@@ -3426,17 +3408,11 @@ class ProofWindow(object):
                 else:
                     popover.alignPopUp.set(0)  # Default to "left"
 
-                # Show text formatting controls
-                popover.formatLabel.show(True)
-                popover.trackingLabel.show(True)
-                popover.trackingEditText.show(True)
+                # Show alignment control
                 popover.alignLabel.show(True)
                 popover.alignPopUp.show(True)
             else:
-                # Hide text formatting controls for unsupported proof types
-                popover.formatLabel.show(False)
-                popover.trackingLabel.show(False)
-                popover.trackingEditText.show(False)
+                # Hide alignment control for unsupported proof types
                 popover.alignLabel.show(False)
                 popover.alignPopUp.show(False)
 
