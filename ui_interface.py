@@ -1422,21 +1422,38 @@ class ControlsTab:
     def removeProofCallback(self, sender):
         """Handle the Remove Proof button click."""
         try:
-            # Get the current selection
-            selection = self.group.proofOptionsList.getSelection()
+            # Get the current selection from the proof options list
+            # Note: We need to get selection before removing to track what was removed
+            current_proofs = list(self.group.proofOptionsList.get())
+            
+            # Get selection using the List2 object's selection
+            # Try to get the selection - List2 objects may use different method names
+            try:
+                selection = self.group.proofOptionsList.getSelection()
+            except AttributeError:
+                # Fallback - get selection using NSTableView if getSelection doesn't exist
+                table_view = self.group.proofOptionsList.getNSTableView()
+                selection_indexes = table_view.selectedRowIndexes()
+                selection = []
+                index = selection_indexes.firstIndex()
+                while index != AppKit.NSNotFound:
+                    selection.append(index)
+                    index = selection_indexes.indexGreaterThanIndex_(index)
             
             if not selection:
                 print("No proof selected for removal")
                 return
             
-            # Get current proof list
-            current_proofs = list(self.group.proofOptionsList.get())
+            # Track what we're removing for logging
+            removed_proofs = []
+            for index in selection:
+                if 0 <= index < len(current_proofs):
+                    removed_proofs.append(current_proofs[index]['Option'])
             
             # Remove selected items (in reverse order to maintain indices)
             for index in sorted(selection, reverse=True):
                 if 0 <= index < len(current_proofs):
-                    removed_proof = current_proofs.pop(index)
-                    print(f"Removed proof: {removed_proof['Option']}")
+                    current_proofs.pop(index)
             
             # Update the list
             self.group.proofOptionsList.set(current_proofs)
@@ -1445,6 +1462,10 @@ class ControlsTab:
             new_order = [item["Option"] for item in current_proofs]
             self.settings.set_proof_order(new_order)
             self.settings.save()
+            
+            # Log what was removed
+            for proof_name in removed_proofs:
+                print(f"Removed proof: {proof_name}")
             
         except Exception as e:
             print(f"Error removing proof: {e}")
