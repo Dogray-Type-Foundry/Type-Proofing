@@ -8,7 +8,7 @@ Usage:
 from setuptools import setup
 
 NAME = "TypeProofing"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 APP = ["TypeProofing.py"]
 DATA_FILES = [
     "config.py",

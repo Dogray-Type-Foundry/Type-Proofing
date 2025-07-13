@@ -71,9 +71,22 @@ When you first open the app, you'll see a two-tab interface:
 
 ## Controls Tab - Detailed Guide
 
+### General settings
+
+There's a number of settings that affect all proofs generated:
+- **Page size**: There's a page size selector that provides a list of common printer page sizes in landscape only.
+- **Show Grid**: This checkbox enables drawing of the baseline grid and text boxes which allows you to see the internal structure of your pages.
+
+### Action Buttons
+- **Add Settings File**: Load a previously saved settings configuration
+- **Reset Settings**: Clear loaded settings and return to defaults
+- **Generate Proof**: Creates PDF with all enabled proof types
+- **Add Proof**: Allows you to create another copy of a proof, which can have completely different settings from the default one. This can be useful to see a given proof with certain Opentype features on and off
+- **Remove Proof**: Remove the selected proofs from the list
+
 ### Proof Options List
 
-The left side shows available proof types. Each can be enabled/disabled individually:
+The left side shows available proof types. Proof in the list can be reordered, which will affect the order of the proof in the generated PDF. Each can be enabled/disabled individually:
 
 #### Basic Proof Types
 - **Show Baselines/Grid**: Displays text box and baseline grids
@@ -106,13 +119,10 @@ Many proof types have configurable settings accessible when that proof's checkbo
 ### Settings
 - **Font Size**: Adjustable size for the specific proof type
 - **Columns**: Change the number of text columns on the page
+- **Tracking**: Allows you to add positive or negative tracking to your proof. Value is in points, not percentage
+- **Alignment**: Allows you to change the text alingment of a proof. Options are: left, center and right
 - **OpenType Features**: Enable/disable specific OpenType features. This list is populated automatically based on the Opentype features available in the first font on the Files list.
 - **Paragraphs**: Select the number of paragraphs to be generated in the Wordsiv proof
-
-### Action Buttons
-- **Generate Proof**: Creates PDF with all enabled proof types
-- **Add Settings File**: Load a previously saved settings configuration
-- **Reset Settings**: Clear loaded settings and return to defaults
 
 ### PDF Preview
 - **Preview Window**: Shows real-time preview of the generated PDF. You can scroll though the pages and zoom in. You can resize the app's window to enlarge the Preview space.
@@ -124,7 +134,7 @@ Settings files allow you to save and reuse specific configurations:
 
 - **Auto-save**: Settings are automatically saved when you close the app. Settings are saved to `~/.type-proofing-prefs.json` (`~/` is the current user's Home folder)
 - **Auto-load**: When you open the app again, settings are automatically loaded from `~/.type-proofing-prefs.json`. If there are no settings in the file, default settings will be loaded. Note that every single setting in the app can be saved to the settings file, including fonts, export location and all the Controls page settings
-- **Creating Settings**: If you have settings that are useful for a given project, duplicate `~/.type-proofing-prefs.json`, rename it and save it elsewhere. You can load that settings file later so you don't have to set everything manually again
+- **Creating Settings**: If you have settings that are useful for a given project, duplicate `~/.type-proofing-prefs.json`, rename it and save it elsewhere. You can load that settings file later so you don't have to set everything manually again, which is useful when working on different projects
 - **Loading Custom Settings**: Use "Add Settings File" to load specific settings files
 
 ## Output and File Management
