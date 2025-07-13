@@ -1045,7 +1045,7 @@ class ControlsTab:
             self.group.removeProofButton = vanilla.Button(
                 (controls_x + 165, -40, 155, 20),
                 title="Remove Proof",
-                # callback=self.removeProofCallback,
+                callback=self.removeProofCallback,
             )
 
             self.group.generateButton = vanilla.GradientButton(
@@ -1419,6 +1419,38 @@ class ControlsTab:
         """Handle canceling the add proof action."""
         self.add_proof_popover.close()
 
+    def removeProofCallback(self, sender):
+        """Handle the Remove Proof button click."""
+        try:
+            # Get the current selection
+            selection = self.group.proofOptionsList.getSelection()
+            
+            if not selection:
+                print("No proof selected for removal")
+                return
+            
+            # Get current proof list
+            current_proofs = list(self.group.proofOptionsList.get())
+            
+            # Remove selected items (in reverse order to maintain indices)
+            for index in sorted(selection, reverse=True):
+                if 0 <= index < len(current_proofs):
+                    removed_proof = current_proofs.pop(index)
+                    print(f"Removed proof: {removed_proof['Option']}")
+            
+            # Update the list
+            self.group.proofOptionsList.set(current_proofs)
+            
+            # Update the proof order in settings
+            new_order = [item["Option"] for item in current_proofs]
+            self.settings.set_proof_order(new_order)
+            self.settings.save()
+            
+        except Exception as e:
+            print(f"Error removing proof: {e}")
+            import traceback
+            traceback.print_exc()
+
     def generate_unique_proof_name(self, base_proof_type, current_proofs):
         """Generate a unique proof name by adding a number suffix if needed."""
         existing_names = [item["Option"] for item in current_proofs]
@@ -1623,7 +1655,7 @@ class ProofWindow(object):
                 base_option = item.get(
                     "_original_option", proof_name
                 )  # Get original option name
-                enabled = bool(item["Enabled"])
+                enabled = item["Enabled"]
 
                 if base_option == "Show Baselines/Grid":
                     self.settings.set_proof_option("showBaselines", enabled)
@@ -2083,7 +2115,7 @@ class ProofWindow(object):
             # Open popover positioned relative to the selected row
             self.proof_settings_popover.open(
                 parentView=sender.getNSTableView(),
-                preferredEdge="right",
+                               preferredEdge="right",
                 relativeRect=relativeRect,
             )
 
@@ -3282,11 +3314,13 @@ class ProofWindow(object):
             if base_proof_key in supported_formatting_proofs:
                 # Tracking setting (default 0)
                 tracking_key = f"{unique_key}_tracking"
-                self.proof_settings[tracking_key] = 0
+                if tracking_key not in self.proof_settings:
+                    self.proof_settings[tracking_key] = 0
 
                 # Align setting (default "left")
                 align_key = f"{unique_key}_align"
-                self.proof_settings[align_key] = "left"
+                if align_key not in self.proof_settings:
+                    self.proof_settings[align_key] = "left"
 
             # OpenType features
             if self.font_manager.fonts:
