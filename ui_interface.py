@@ -23,14 +23,11 @@ from config import (
     DEFAULT_ON_FEATURES,
     SCRIPT_DIR,
     Settings,
-    charsetFontSize,
-    spacingFontSize,
-    largeTextFontSize,
-    smallTextFontSize,
     arabicVocalization,
     arabicLatinMixed,
     arabicFarsiUrduNumbers,
     proof_supports_formatting,
+    get_proof_default_font_size,
 )
 from font_analysis import (
     FontManager,
@@ -1638,21 +1635,8 @@ class ProofWindow(object):
                 unique_key = proof_identifier.replace(" ", "_").replace("/", "_")
                 font_size_key = f"{unique_key}_fontSize"
 
-        # Set default font size based on proof type
-        if proof_key in [
-            "big_paragraph_proof",
-            "big_diacritics_proof",
-            "big_arabic_text_proof",
-            "big_farsi_text_proof",
-        ]:
-            default_font_size = largeTextFontSize
-        elif proof_key in ["character_set_proof", "arabic_contextual_forms_proof"]:
-            default_font_size = charsetFontSize
-        elif proof_key == "spacing_proof":
-            default_font_size = spacingFontSize
-        else:
-            # Small proofs and other proofs
-            default_font_size = smallTextFontSize
+        # Set default font size based on proof type using registry
+        default_font_size = get_proof_default_font_size(proof_key)
 
         return self.proof_settings.get(font_size_key, default_font_size)
 
@@ -1824,7 +1808,6 @@ class ProofWindow(object):
 
             try:
                 # Initialize variables
-                global charsetFontSize, spacingFontSize, largeTextFontSize, smallTextFontSize
                 controls = self.controlsTab.group  # "Controls" group
 
                 if not self.font_manager.fonts:
@@ -1976,21 +1959,8 @@ class ProofWindow(object):
 
             # Font size settings for all proofs
             font_size_key = f"{proof_key}_fontSize"
-            # Set default font size based on proof type
-            if proof_key in [
-                "big_paragraph_proof",
-                "big_diacritics_proof",
-                "big_arabic_text_proof",
-                "big_farsi_text_proof",
-            ]:
-                default_font_size = largeTextFontSize
-            elif proof_key in ["character_set_proof", "arabic_contextual_forms_proof"]:
-                default_font_size = charsetFontSize
-            elif proof_key == "spacing_proof":
-                default_font_size = spacingFontSize
-            else:
-                # Small proofs and other proofs
-                default_font_size = smallTextFontSize
+            # Set default font size based on proof type using registry
+            default_font_size = get_proof_default_font_size(proof_key)
 
             if font_size_key not in self.proof_settings:
                 self.proof_settings[font_size_key] = default_font_size
@@ -2194,21 +2164,8 @@ class ProofWindow(object):
 
         # Font size setting for all proofs (always first)
         font_size_key = f"{proof_key}_fontSize"
-        # Set default font size based on proof type
-        if proof_key in [
-            "big_paragraph_proof",
-            "big_diacritics_proof",
-            "big_arabic_text_proof",
-            "big_farsi_text_proof",
-        ]:
-            default_font_size = largeTextFontSize
-        elif proof_key in ["character_set_proof", "arabic_contextual_forms_proof"]:
-            default_font_size = charsetFontSize
-        elif proof_key == "spacing_proof":
-            default_font_size = spacingFontSize
-        else:
-            # Small proofs and other proofs
-            default_font_size = smallTextFontSize
+        # Set default font size based on proof type using registry
+        default_font_size = get_proof_default_font_size(proof_key)
 
         font_size_value = self.proof_settings.get(font_size_key, default_font_size)
         numeric_items.append(
@@ -3223,16 +3180,8 @@ class ProofWindow(object):
                 "big_arabic_text_proof",
                 "big_farsi_text_proof",
             ]:
-                default_font_size = largeTextFontSize
-            elif base_proof_key in [
-                "character_set_proof",
-                "arabic_contextual_forms_proof",
-            ]:
-                default_font_size = charsetFontSize
-            elif base_proof_key == "spacing_proof":
-                default_font_size = spacingFontSize
-            else:
-                default_font_size = smallTextFontSize
+                # Set default font size using registry
+                default_font_size = get_proof_default_font_size(base_proof_key)
 
             self.proof_settings[font_size_key] = default_font_size
 
@@ -3331,22 +3280,8 @@ class ProofWindow(object):
 
             # Font size setting
             font_size_key = f"{unique_proof_key}_fontSize"
-            if base_proof_key in [
-                "Big_Paragraph_Proof",
-                "Big_Diacritics_Proof",
-                "Big_Arabic_Text_Proof",
-                "Big_Farsi_Text_Proof",
-            ]:
-                default_font_size = largeTextFontSize
-            elif base_proof_key in [
-                "character_set_proof",
-                "arabic_contextual_forms_proof",
-            ]:
-                default_font_size = charsetFontSize
-            elif base_proof_key == "spacing_proof":
-                default_font_size = spacingFontSize
-            else:
-                default_font_size = smallTextFontSize
+            # Set default font size using registry
+            default_font_size = get_proof_default_font_size(base_proof_key)
 
             font_size_value = self.proof_settings.get(font_size_key, default_font_size)
             numeric_items.append(
