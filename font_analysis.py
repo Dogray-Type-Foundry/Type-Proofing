@@ -71,20 +71,21 @@ def findAccented(char):
 def categorize(charset):
     """Categorize characters by Unicode category."""
     cat_map = {
-        "Lu": "uniLu",
-        "Ll": "uniLl",
-        "Lo": "uniLo",
-        "Po": "uniPo",
-        "Pc": "uniPc",
-        "Pd": "uniPd",
-        "Ps": "uniPs",
-        "Pe": "uniPe",
-        "Pi": "uniPi",
-        "Pf": "uniPf",
-        "Sm": "uniSm",
-        "Sc": "uniSc",
-        "Nd": "uniNd",
-        "No": "uniNo",
+        "Lu": "uniLu",  # Letter, uppercase
+        "Ll": "uniLl",  # Letter, lowercase
+        "Lo": "uniLo",  # Letter, other
+        "Po": "uniPo",  # Punctuation, other
+        "Pc": "uniPc",  # Punctuation, connector
+        "Pd": "uniPd",  # Punctuation, dash
+        "Ps": "uniPs",  # Punctuation, open
+        "Pe": "uniPe",  # Punctuation, close
+        "Pi": "uniPi",  # Punctuation, initial quote
+        "Pf": "uniPf",  # Punctuation, final quote
+        "Sm": "uniSm",  # Symbol, math
+        "Sc": "uniSc",  # Symbol, currency
+        "Nd": "uniNd",  # Number, decimal digit
+        "No": "uniNo",  # Number, other
+        "So": "uniSo",  # Symbol, other
     }
 
     result = {k: [] for k in cat_map.values()}
