@@ -22,6 +22,7 @@ from config import (
     get_proof_default_font_size,
     FsSelection,
     posForms,
+    DEFAULT_ON_FEATURES,
 )
 from font_analysis import get_ttfont, upperTemplate, lowerTemplate, product_dict
 
@@ -45,7 +46,7 @@ except ImportError:
     pte = None
 
 
-def drawFooter(title, indFont):
+def drawFooter(title, indFont, otFeatures=None):
     """Draw a simple footer with some minimal but useful info."""
     with db.savedState():
         # get date and font name
@@ -66,6 +67,32 @@ def drawFooter(title, indFont):
             lineHeight=9,
             align="right",
         )
+        
+        # Calculate feature info text if OpenType features are provided
+        features_text = ""
+        if otFeatures:
+            features_enabled = []
+            features_disabled = []
+            
+            for feature, enabled in otFeatures.items():
+                if enabled and feature not in DEFAULT_ON_FEATURES:
+                    # Feature is ON but usually OFF by default
+                    features_enabled.append(feature)
+                elif not enabled and feature in DEFAULT_ON_FEATURES:
+                    # Feature is OFF but usually ON by default
+                    features_disabled.append(feature)
+            
+            # Build features text
+            features_parts = []
+            if features_enabled:
+                features_parts.append(f"ON: {', '.join(sorted(features_enabled))}")
+            if features_disabled:
+                features_parts.append(f"OFF: {', '.join(sorted(features_disabled))}")
+            
+            if features_parts:
+                features_text = " | ".join(features_parts)
+        
+        # Main footer line
         db.textBox(
             footer,
             (
@@ -84,6 +111,25 @@ def drawFooter(title, indFont):
                 9,
             ),
         )
+        
+        # Features line (if any features to display)
+        if features_text:
+            features_footer = db.FormattedString(
+                f"Features: {features_text}",
+                font="Courier",
+                fontSize=7,
+                lineHeight=7,
+                fill=(0.5, 0.5, 0.5, 1)  # Gray color
+            )
+            db.textBox(
+                features_footer,
+                (
+                    marginHorizontal,
+                    marginVertical - 28,  # 10 points below main footer
+                    db.width() - marginHorizontal * 2,
+                    7,
+                ),
+            )
 
 
 def stringMaker(
@@ -210,7 +256,7 @@ def _apply_alternating_variations(textString, textInput, VFAxisInput, axis, valu
         textString.append(txt=word + " ")
 
 
-def drawContent(textToDraw, pageTitle, columnNumber, currentFont, direction="ltr"):
+def drawContent(textToDraw, pageTitle, columnNumber, currentFont, direction="ltr", otFeatures=None):
     """Function to draw content with proper layout."""
     try:
         showBaselines = (
@@ -219,7 +265,7 @@ def drawContent(textToDraw, pageTitle, columnNumber, currentFont, direction="ltr
 
         while textToDraw:
             db.newPage(pageDimensions)
-            drawFooter(pageTitle, currentFont)
+            drawFooter(pageTitle, currentFont, otFeatures)
             db.hyphenation(False)
 
             if BaselineGrid and columnBaselineGridTextBox:
@@ -581,7 +627,7 @@ def charsetProof(
                     mixedStyles=False,
                 )
                 drawContent(
-                    charsetString, sectionName + " - " + str(axisData), 1, indFont
+                    charsetString, sectionName + " - " + str(axisData), 1, indFont, "ltr", otFea
                 )
         elif axesProduct == "":
             charsetString = stringMaker(
@@ -600,6 +646,8 @@ def charsetProof(
                 sectionName + " - " + db.font(indFont).split("-")[1],
                 1,
                 indFont,
+                "ltr",
+                otFea,
             )
     except Exception as e:
         print(f"Error in charsetProof: {e}")
@@ -643,11 +691,15 @@ def spacingProof(
                 VFAxisInput=axisDict,
                 mixedStyles=False,
             )
+            # Get the actual features being used for the footer
+            used_features = dict(liga=False, kern=False) if otFea is None else otFea
             drawContent(
                 spacingString,
                 sectionName + " - " + str(axisData),
                 proof_columns,
                 indFont,
+                "ltr",
+                used_features,
             )
 
     elif axesProduct == "":
@@ -661,11 +713,15 @@ def spacingProof(
             OTFeaInput=dict(liga=False, kern=False) if otFea is None else otFea,
             mixedStyles=False,
         )
+        # Get the actual features being used for the footer
+        used_features = dict(liga=False, kern=False) if otFea is None else otFea
         drawContent(
             spacingString,
             sectionName + " - " + db.font(indFont).split("-")[1],
             proof_columns,
             indFont,
+            "ltr",
+            used_features,
         )
 
 
@@ -769,6 +825,7 @@ def textProof(
                 columnNumber=cols,
                 currentFont=indFont,
                 direction=text_direction,
+                otFeatures=otFea,
             )
     elif axesProduct == "":
         # Use provided align parameter, but fallback to language-based logic if align is "left" and language is Arabic/Farsi
@@ -798,6 +855,7 @@ def textProof(
             columnNumber=cols,
             currentFont=indFont,
             direction=text_direction,
+            otFeatures=otFea,
         )
 
 
@@ -960,6 +1018,7 @@ def arabicContextualFormsProof(
                     1,
                     indFont,
                     direction="rtl",
+                    otFeatures=otFea,
                 )
         elif axesProduct == "":
             formattedString = stringMaker(
@@ -979,6 +1038,7 @@ def arabicContextualFormsProof(
                 1,
                 indFont,
                 direction="rtl",
+                otFeatures=otFea,
             )
     except Exception as e:
         print(f"Error in arabicContextualFormsProof: {e}")
