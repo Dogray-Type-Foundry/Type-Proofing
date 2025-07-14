@@ -67,13 +67,13 @@ def drawFooter(title, indFont, otFeatures=None):
             lineHeight=9,
             align="right",
         )
-        
+
         # Calculate feature info text if OpenType features are provided
         features_text = ""
         if otFeatures:
             features_enabled = []
             features_disabled = []
-            
+
             for feature, enabled in otFeatures.items():
                 if enabled and feature not in DEFAULT_ON_FEATURES:
                     # Feature is ON but usually OFF by default
@@ -81,17 +81,17 @@ def drawFooter(title, indFont, otFeatures=None):
                 elif not enabled and feature in DEFAULT_ON_FEATURES:
                     # Feature is OFF but usually ON by default
                     features_disabled.append(feature)
-            
+
             # Build features text
             features_parts = []
             if features_enabled:
                 features_parts.append(f"ON: {', '.join(sorted(features_enabled))}")
             if features_disabled:
                 features_parts.append(f"OFF: {', '.join(sorted(features_disabled))}")
-            
+
             if features_parts:
                 features_text = " | ".join(features_parts)
-        
+
         # Main footer line
         db.textBox(
             footer,
@@ -111,15 +111,14 @@ def drawFooter(title, indFont, otFeatures=None):
                 9,
             ),
         )
-        
+
         # Features line (if any features to display)
         if features_text:
             features_footer = db.FormattedString(
-                f"Features: {features_text}",
+                features_text,
                 font="Courier",
                 fontSize=7,
                 lineHeight=7,
-                fill=(0.5, 0.5, 0.5, 1)  # Gray color
             )
             db.textBox(
                 features_footer,
@@ -256,7 +255,9 @@ def _apply_alternating_variations(textString, textInput, VFAxisInput, axis, valu
         textString.append(txt=word + " ")
 
 
-def drawContent(textToDraw, pageTitle, columnNumber, currentFont, direction="ltr", otFeatures=None):
+def drawContent(
+    textToDraw, pageTitle, columnNumber, currentFont, direction="ltr", otFeatures=None
+):
     """Function to draw content with proper layout."""
     try:
         showBaselines = (
@@ -627,7 +628,12 @@ def charsetProof(
                     mixedStyles=False,
                 )
                 drawContent(
-                    charsetString, sectionName + " - " + str(axisData), 1, indFont, "ltr", otFea
+                    charsetString,
+                    sectionName + " - " + str(axisData),
+                    1,
+                    indFont,
+                    "ltr",
+                    otFea,
                 )
         elif axesProduct == "":
             charsetString = stringMaker(
