@@ -21,6 +21,7 @@ from config import (
     SETTINGS_PATH,
     WINDOW_TITLE,
     DEFAULT_ON_FEATURES,
+    HIDDEN_FEATURES,
     SCRIPT_DIR,
     Settings,
     arabicVocalization,
@@ -2006,6 +2007,10 @@ class ProofWindow(object):
                     feature_tags = []
 
                 for tag in feature_tags:
+                    # Skip hidden features
+                    if tag in HIDDEN_FEATURES:
+                        continue
+                        
                     feature_key = f"otf_{proof_key}_{tag}"
                     if feature_key not in self.proof_settings:
                         default_value = tag in self.default_on_features
@@ -2241,6 +2246,10 @@ class ProofWindow(object):
 
         feature_items = []
         for tag in feature_tags:
+            # Skip hidden features
+            if tag in HIDDEN_FEATURES:
+                continue
+                
             feature_key = f"otf_{proof_key}_{tag}"
 
             # Special handling for Spacing_Proof kern feature
@@ -3228,6 +3237,10 @@ class ProofWindow(object):
                     feature_tags = []
 
                 for tag in feature_tags:
+                    # Skip hidden features
+                    if tag in HIDDEN_FEATURES:
+                        continue
+                        
                     feature_key = f"otf_{unique_key}_{tag}"
                     default_value = tag in self.default_on_features
                     self.proof_settings[feature_key] = default_value
@@ -3353,6 +3366,10 @@ class ProofWindow(object):
 
             feature_items = []
             for tag in feature_tags:
+                # Skip hidden features
+                if tag in HIDDEN_FEATURES:
+                    continue
+                    
                 feature_key = f"otf_{unique_proof_key}_{tag}"
 
                 # Special handling for SpacingProof kern feature
