@@ -53,13 +53,6 @@ PAGE_FORMAT_OPTIONS = [
     "LetterSmallLandscape",
 ]
 
-# Font sizes
-charsetFontSize = 56
-spacingFontSize = 10
-largeTextFontSize = 21
-smallTextFontSize = 8
-fullCharSetSize = 48
-
 # Seeds used for wordsiv and for regular vs italic/bold proofs
 wordsivSeed = 987654
 dualStyleSeed = 1029384756
@@ -100,6 +93,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
+        "default_size": 56,  # charsetFontSize
     },
     "spacing_proof": {
         "display_name": "Spacing Proof",
@@ -107,6 +101,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
+        "default_size": 10,  # spacingFontSize
     },
     "big_paragraph_proof": {
         "display_name": "Big Paragraph Proof",
@@ -114,6 +109,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
+        "default_size": 21,  # largeTextFontSize
     },
     "big_diacritics_proof": {
         "display_name": "Big Diacritics Proof",
@@ -121,6 +117,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
+        "default_size": 21,  # largeTextFontSize
     },
     "small_paragraph_proof": {
         "display_name": "Small Paragraph Proof",
@@ -128,6 +125,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
+        "default_size": 8,  # smallTextFontSize
     },
     "small_paired_styles_proof": {
         "display_name": "Small Paired Styles Proof",
@@ -135,6 +133,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
+        "default_size": 8,  # smallTextFontSize
     },
     "small_wordsiv_proof": {
         "display_name": "Small Wordsiv Proof",
@@ -142,6 +141,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": True,
+        "default_size": 8,  # smallTextFontSize
     },
     "small_diacritics_proof": {
         "display_name": "Small Diacritics Proof",
@@ -149,6 +149,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
+        "default_size": 8,  # smallTextFontSize
     },
     "small_mixed_text_proof": {
         "display_name": "Small Mixed Text Proof",
@@ -156,6 +157,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
+        "default_size": 8,  # smallTextFontSize
     },
     "arabic_contextual_forms_proof": {
         "display_name": "Arabic Contextual Forms",
@@ -163,6 +165,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
+        "default_size": 56,  # charsetFontSize
     },
     "big_arabic_text_proof": {
         "display_name": "Big Arabic Text Proof",
@@ -170,6 +173,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
+        "default_size": 21,  # largeTextFontSize
     },
     "big_farsi_text_proof": {
         "display_name": "Big Farsi Text Proof",
@@ -177,6 +181,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
+        "default_size": 21,  # largeTextFontSize
     },
     "small_arabic_text_proof": {
         "display_name": "Small Arabic Text Proof",
@@ -184,6 +189,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
+        "default_size": 8,  # smallTextFontSize
     },
     "small_farsi_text_proof": {
         "display_name": "Small Farsi Text Proof",
@@ -191,6 +197,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
+        "default_size": 8,  # smallTextFontSize
     },
     "arabic_vocalization_proof": {
         "display_name": "Arabic Vocalization Proof",
@@ -198,6 +205,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
+        "default_size": 8,  # smallTextFontSize
     },
     "arabic_latin_mixed_proof": {
         "display_name": "Arabic-Latin Mixed Proof",
@@ -205,6 +213,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
+        "default_size": 8,  # smallTextFontSize
     },
     "arabic_numbers_proof": {
         "display_name": "Arabic Numbers Proof",
@@ -212,6 +221,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
+        "default_size": 8,  # smallTextFontSize
     },
 }
 
@@ -321,6 +331,14 @@ def get_base_proof_display_names():
         for proof_info in PROOF_REGISTRY.values()
         if not proof_info["is_arabic"]
     ]
+
+
+def get_proof_default_font_size(proof_key):
+    """Get default font size for a proof type from the registry."""
+    proof_info = PROOF_REGISTRY.get(proof_key)
+    if proof_info:
+        return proof_info["default_size"]
+    return 8  # Fallback to small text size
 
 
 def proof_supports_formatting(proof_key):
@@ -487,12 +505,6 @@ class Settings:
         return {
             "version": "1.0",
             "fonts": {"paths": [], "axis_values": {}},
-            "font_sizes": {
-                "charset": charsetFontSize,
-                "spacing": spacingFontSize,
-                "large_text": largeTextFontSize,
-                "small_text": smallTextFontSize,
-            },
             "proof_options": {"show_baselines": False, **proof_options},
             "proof_settings": {},
             "proof_order": proof_order,
@@ -629,12 +641,6 @@ SETTINGS FILE STRUCTURE:
                 "slnt": 0
             }
         }
-    },
-    "font_sizes": {
-        "charset": 56,      // Font size for character set proofs
-        "spacing": 10,      // Font size for spacing proofs
-        "large_text": 21,   // Font size for large text proofs
-        "small_text": 8     // Font size for small text proofs
     },
     "proof_options": {
         "show_baselines": true,                    // Show baseline/grid overlays
@@ -802,7 +808,7 @@ USAGE NOTES:
 5. OpenType features are stored per proof type for maximum flexibility
 6. Column and paragraph settings allow customization of proof layout
 7. All boolean settings default to their defined values in proof_options
-8. Font sizes have sensible defaults but can be customized per proof type
+8. Font sizes are defined per proof type in the PROOF_REGISTRY and can be customized per proof instance
 
 EXAMPLE USER SETTINGS FILE:
 {

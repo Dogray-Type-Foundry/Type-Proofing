@@ -12,10 +12,6 @@ from wordsiv import WordSiv
 
 # Local imports
 from config import (
-    charsetFontSize,
-    spacingFontSize,
-    largeTextFontSize,
-    smallTextFontSize,
     marginHorizontal,
     marginVertical,
     pageDimensions,
@@ -23,6 +19,7 @@ from config import (
     useFontContainsCharacters,
     wordsivSeed,
     dualStyleSeed,
+    get_proof_default_font_size,
     FsSelection,
     posForms,
 )
@@ -552,8 +549,12 @@ def charsetProof(
         print("Empty character set, skipping")
         return
 
-    # Use provided font size or fall back to global default
-    proof_font_size = fontSize if fontSize is not None else charsetFontSize
+    # Use provided font size or fall back to proof type default
+    proof_font_size = (
+        fontSize
+        if fontSize is not None
+        else get_proof_default_font_size("character_set_proof")
+    )
 
     sectionName = "Character set proof"
     try:
@@ -609,8 +610,12 @@ def spacingProof(
     columns=None,
 ):
     """Generate spacing proof."""
-    # Use provided font size or fall back to global default
-    proof_font_size = fontSize if fontSize is not None else spacingFontSize
+    # Use provided font size or fall back to proof type default
+    proof_font_size = (
+        fontSize
+        if fontSize is not None
+        else get_proof_default_font_size("spacing_proof")
+    )
 
     # Use provided columns or fall back to default spacing proof columns (2)
     proof_columns = columns if columns is not None else 2
@@ -665,7 +670,7 @@ def textProof(
     cols=2,
     para=3,
     casing=False,
-    textSize=smallTextFontSize,
+    textSize=None,
     sectionName="Text Proof",
     mixedStyles=False,
     forceWordsiv=False,
@@ -679,6 +684,10 @@ def textProof(
     align="left",
 ):
     """Generate text proof with various options."""
+    # Set default textSize if None
+    if textSize is None:
+        textSize = get_proof_default_font_size("text_proof")
+
     textStringInput = ""
 
     if accents and pte:
@@ -701,11 +710,11 @@ def textProof(
                         textStringInput += w.replace("ß", "ẞ").upper() + " "
                     else:
                         textStringInput += w + " "
-                if textSize == smallTextFontSize:
+                if textSize == get_proof_default_font_size("small_text_proof"):
                     textStringInput += "\n"
     elif not injectText:
         # Determine if this is a big or small proof based on font size
-        bigProof = textSize == largeTextFontSize
+        bigProof = textSize == get_proof_default_font_size("large_text_proof")
         textStringInput = generateTextProofString(
             characterSet,
             para,
@@ -830,7 +839,7 @@ def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=N
                 axisDict = dict(axisData)
                 formattedString = stringMaker(
                     contextualString,
-                    charsetFontSize,
+                    get_proof_default_font_size("character_set_proof"),
                     indFont,
                     axesProduct,
                     pairedStaticStyles,
@@ -850,7 +859,7 @@ def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=N
         elif axesProduct == "":
             formattedString = stringMaker(
                 contextualString,
-                charsetFontSize,
+                get_proof_default_font_size("character_set_proof"),
                 indFont,
                 axesProduct,
                 pairedStaticStyles,
@@ -904,7 +913,11 @@ def arabicContextualFormsProof(
 ):
     """Generate Arabic contextual forms proof pages using configurable font size."""
     # Use provided font size or fall back to character set font size
-    proof_font_size = fontSize if fontSize is not None else charsetFontSize
+    proof_font_size = (
+        fontSize
+        if fontSize is not None
+        else get_proof_default_font_size("character_set_proof")
+    )
 
     contextualString = generateArabicContextualFormsProof(cat)
 
