@@ -69,6 +69,10 @@ myFallbackFont = os.path.abspath("AdobeBlank.otf")
 
 useFontContainsCharacters = True
 
+# Predefined axes values for variable fonts (empty by default)
+# This can be populated with specific axis value combinations if needed
+axesValues = {}
+
 # Default OpenType features that are typically enabled
 DEFAULT_ON_FEATURES = {
     "ccmp",
@@ -84,9 +88,313 @@ DEFAULT_ON_FEATURES = {
     "rvrn",
 }
 
-# Set your own axes values manually. Otherwise, leave empty and the script
-# will automatically use the master instances.
-axesValues = {}
+# =============================================================================
+# CENTRALIZED PROOF REGISTRY - Single Source of Truth
+# =============================================================================
+
+# Single source of truth for all proof definitions
+PROOF_REGISTRY = {
+    "character_set": {
+        "display_name": "Character Set Proof",
+        "settings_key": "Character_Set_Proof",
+        "popover_key": "CharacterSetProof",
+        "storage_key": "character_set_proof",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 1,
+        "has_paragraphs": False,
+    },
+    "spacing": {
+        "display_name": "Spacing Proof",
+        "settings_key": "Spacing_Proof",
+        "popover_key": "SpacingProof",
+        "storage_key": "spacing_proof",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+    },
+    "big_paragraph": {
+        "display_name": "Big Paragraph Proof",
+        "settings_key": "Big_Paragraph_Proof",
+        "popover_key": "BigParagraphProof",
+        "storage_key": "big_paragraph_proof",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 1,
+        "has_paragraphs": False,
+    },
+    "big_diacritics": {
+        "display_name": "Big Diacritics Proof",
+        "settings_key": "Big_Diacritics_Proof",
+        "popover_key": "BigDiacriticsProof",
+        "storage_key": "big_diacritics_proof",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 1,
+        "has_paragraphs": False,
+    },
+    "small_paragraph": {
+        "display_name": "Small Paragraph Proof",
+        "settings_key": "Small_Paragraph_Proof",
+        "popover_key": "SmallParagraphProof",
+        "storage_key": "small_paragraph_proof",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+    },
+    "small_paired_styles": {
+        "display_name": "Small Paired Styles Proof",
+        "settings_key": "Small_Paired_Styles_Proof",
+        "popover_key": "SmallPairedStylesProof",
+        "storage_key": "small_paired_styles_proof",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+    },
+    "small_wordsiv": {
+        "display_name": "Small Wordsiv Proof",
+        "settings_key": "Small_Wordsiv_Proof",
+        "popover_key": "SmallWordsivProof",
+        "storage_key": "small_wordsiv_proof",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": True,
+    },
+    "small_diacritics": {
+        "display_name": "Small Diacritics Proof",
+        "settings_key": "Small_Diacritics_Proof",
+        "popover_key": "SmallDiacriticsProof",
+        "storage_key": "small_diacritics_proof",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+    },
+    "small_mixed_text": {
+        "display_name": "Small Mixed Text Proof",
+        "settings_key": "Small_Mixed_Text_Proof",
+        "popover_key": "SmallMixedTextProof",
+        "storage_key": "small_mixed_text_proof",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+    },
+    "arabic_contextual_forms": {
+        "display_name": "Arabic Contextual Forms",
+        "settings_key": "Arabic_Contextual_Forms_Proof",
+        "popover_key": "ArabicContextualFormsProof",
+        "storage_key": "arabic_contextual_forms_proof",
+        "is_arabic": True,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+    },
+    "big_arabic_text": {
+        "display_name": "Big Arabic Text Proof",
+        "settings_key": "Big_Arabic_Text_Proof",
+        "popover_key": "BigArabicTextProof",
+        "storage_key": "big_arabic_text_proof",
+        "is_arabic": True,
+        "has_settings": True,
+        "default_cols": 1,
+        "has_paragraphs": False,
+    },
+    "big_farsi_text": {
+        "display_name": "Big Farsi Text Proof",
+        "settings_key": "Big_Farsi_Text_Proof",
+        "popover_key": "BigFarsiTextProof",
+        "storage_key": "big_farsi_text_proof",
+        "is_arabic": True,
+        "has_settings": True,
+        "default_cols": 1,
+        "has_paragraphs": False,
+    },
+    "small_arabic_text": {
+        "display_name": "Small Arabic Text Proof",
+        "settings_key": "Small_Arabic_Text_Proof",
+        "popover_key": "SmallArabicTextProof",
+        "storage_key": "small_arabic_text_proof",
+        "is_arabic": True,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+    },
+    "small_farsi_text": {
+        "display_name": "Small Farsi Text Proof",
+        "settings_key": "Small_Farsi_Text_Proof",
+        "popover_key": "SmallFarsiTextProof",
+        "storage_key": "small_farsi_text_proof",
+        "is_arabic": True,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+    },
+    "arabic_vocalization": {
+        "display_name": "Arabic Vocalization Proof",
+        "settings_key": "Arabic_Vocalization_Proof",
+        "popover_key": "ArabicVocalizationProof",
+        "storage_key": "arabic_vocalization_proof",
+        "is_arabic": True,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+    },
+    "arabic_latin_mixed": {
+        "display_name": "Arabic-Latin Mixed Proof",
+        "settings_key": "Arabic_Latin_Mixed_Proof",
+        "popover_key": "ArabicLatinMixedProof",
+        "storage_key": "arabic_latin_mixed_proof",
+        "is_arabic": True,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+    },
+    "arabic_numbers": {
+        "display_name": "Arabic Numbers Proof",
+        "settings_key": "Arabic_Numbers_Proof",
+        "popover_key": "ArabicNumbersProof",
+        "storage_key": "arabic_numbers_proof",
+        "is_arabic": True,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+    },
+}
+
+# =============================================================================
+# PROOF REGISTRY HELPER FUNCTIONS
+# =============================================================================
+
+
+def get_proof_display_names(include_arabic=True):
+    """Get list of proof display names in default order."""
+    proof_order = [
+        "character_set",
+        "spacing",
+        "big_paragraph",
+        "big_diacritics",
+        "small_paragraph",
+        "small_paired_styles",
+        "small_wordsiv",
+        "small_diacritics",
+        "small_mixed_text",
+        "arabic_contextual_forms",
+        "big_arabic_text",
+        "big_farsi_text",
+        "small_arabic_text",
+        "small_farsi_text",
+        "arabic_vocalization",
+        "arabic_latin_mixed",
+        "arabic_numbers",
+    ]
+
+    result = []
+    for proof_id in proof_order:
+        if proof_id in PROOF_REGISTRY:
+            proof_info = PROOF_REGISTRY[proof_id]
+            if include_arabic or not proof_info["is_arabic"]:
+                result.append(proof_info["display_name"])
+
+    return result
+
+
+def get_proof_settings_mapping():
+    """Get mapping from display names to settings keys."""
+    return {
+        proof_info["display_name"]: proof_info["settings_key"]
+        for proof_info in PROOF_REGISTRY.values()
+    }
+
+
+def get_proof_popover_mapping():
+    """Get mapping from display names to popover keys."""
+    return {
+        proof_info["display_name"]: proof_info["popover_key"]
+        for proof_info in PROOF_REGISTRY.values()
+    }
+
+
+def get_proof_storage_mapping():
+    """Get mapping from settings keys to storage keys."""
+    return {
+        proof_info["settings_key"]: proof_info["storage_key"]
+        for proof_info in PROOF_REGISTRY.values()
+    }
+
+
+def get_proof_default_columns():
+    """Get default column counts for all proofs."""
+    return {
+        f"{proof_info['popover_key']}_cols": proof_info["default_cols"]
+        for proof_info in PROOF_REGISTRY.values()
+    }
+
+
+def get_proof_paragraph_settings():
+    """Get proof types that have paragraph settings."""
+    return {
+        f"{proof_info['popover_key']}_para": 3  # Default paragraph count
+        for proof_info in PROOF_REGISTRY.values()
+        if proof_info["has_paragraphs"]
+    }
+
+
+def get_proof_by_display_name(display_name):
+    """Get proof info by display name."""
+    for proof_info in PROOF_REGISTRY.values():
+        if proof_info["display_name"] == display_name:
+            return proof_info
+    return None
+
+
+def get_proof_by_settings_key(settings_key):
+    """Get proof info by settings key."""
+    for proof_info in PROOF_REGISTRY.values():
+        if proof_info["settings_key"] == settings_key:
+            return proof_info
+    return None
+
+
+def get_proof_by_storage_key(storage_key):
+    """Get proof info by storage key."""
+    for proof_info in PROOF_REGISTRY.values():
+        if proof_info["storage_key"] == storage_key:
+            return proof_info
+    return None
+
+
+def get_arabic_proof_display_names():
+    """Get list of Arabic proof display names only."""
+    return [
+        proof_info["display_name"]
+        for proof_info in PROOF_REGISTRY.values()
+        if proof_info["is_arabic"]
+    ]
+
+
+def get_base_proof_display_names():
+    """Get list of non-Arabic proof display names only."""
+    return [
+        proof_info["display_name"]
+        for proof_info in PROOF_REGISTRY.values()
+        if not proof_info["is_arabic"]
+    ]
+
+
+def proof_supports_formatting(proof_key):
+    """Check if a proof type supports text formatting (tracking, alignment)."""
+    # Character Set and Arabic Contextual Forms don't support formatting
+    return proof_key not in ["Character_Set_Proof", "Arabic_Contextual_Forms_Proof"]
+
+
+# =============================================================================
+# END PROOF REGISTRY
+# =============================================================================
 
 
 # Some fsSelection values in bits format
@@ -230,7 +538,16 @@ class Settings:
         return len(existing_fonts) == len(real_paths)
 
     def _get_defaults(self):
-        """Get default settings structure."""
+        """Get default settings structure using the centralized proof registry."""
+        # Generate proof options dynamically from registry
+        proof_options = {}
+        for proof_info in PROOF_REGISTRY.values():
+            proof_options[proof_info["storage_key"]] = False
+
+        # Generate proof order dynamically from registry
+        proof_order = ["Show Baselines/Grid"]  # Special case
+        proof_order.extend(get_proof_display_names(include_arabic=True))
+
         return {
             "version": "1.0",
             "fonts": {"paths": [], "axis_values": {}},
@@ -240,269 +557,15 @@ class Settings:
                 "large_text": largeTextFontSize,
                 "small_text": smallTextFontSize,
             },
-            "proof_options": {
-                "show_baselines": False,
-                "character_set_proof": False,
-                "spacing_proof": False,
-                "big_paragraph_proof": False,
-                "big_diacritics_proof": False,
-                "small_paragraph_proof": False,
-                "small_paired_styles_proof": False,
-                "small_wordsiv_proof": False,
-                "small_diacritics_proof": False,
-                "small_mixed_text_proof": False,
-                "arabic_contextual_forms_proof": False,
-                "big_arabic_text_proof": False,
-                "big_farsi_text_proof": False,
-                "small_arabic_text_proof": False,
-                "small_farsi_text_proof": False,
-                "arabic_vocalization_proof": False,
-                "arabic_latin_mixed_proof": False,
-                "arabic_numbers_proof": False,
-            },
+            "proof_options": {"show_baselines": False, **proof_options},
             "proof_settings": {},
-            "proof_order": [
-                "Show Baselines/Grid",
-                "Character Set Proof",
-                "Spacing Proof",
-                "Big Paragraph Proof",
-                "Big Diacritics Proof",
-                "Small Paragraph Proof",
-                "Small Paired Styles Proof",
-                "Small Wordsiv Proof",
-                "Small Diacritics Proof",
-                "Small Mixed Text Proof",
-                "Arabic Contextual Forms",
-                "Big Arabic Text Proof",
-                "Big Farsi Text Proof",
-                "Small Arabic Text Proof",
-                "Small Farsi Text Proof",
-                "Arabic Vocalization Proof",
-                "Arabic-Latin Mixed Proof",
-                "Arabic Numbers Proof",
-            ],
+            "proof_order": proof_order,
             "pdf_output": {
                 "use_custom_location": False,
                 "custom_location": "",
             },
             "page_format": "A4Landscape",
         }
-
-    def save(self):
-        """Save settings to file."""
-        try:
-            # Ensure directory exists
-            settings_dir = os.path.dirname(self.settings_path)
-            if settings_dir and not os.path.exists(settings_dir):
-                os.makedirs(settings_dir, exist_ok=True)
-
-            if self.user_settings_file:
-                # If using a user settings file, save everything to that file
-                # and only save the reference in the auto-save file
-                with open(self.user_settings_file, "w") as f:
-                    json.dump(self.data, f, indent=2)
-
-                # Save reference to user settings file in auto-save
-                auto_save_data = {"user_settings_file": self.user_settings_file}
-                with open(self.settings_path, "w") as f:
-                    json.dump(auto_save_data, f, indent=2)
-            else:
-                # Save only non-default values to auto-save file
-                defaults = self._get_defaults()
-                non_default_data = self._get_non_default_values(self.data, defaults)
-
-                with open(self.settings_path, "w") as f:
-                    json.dump(non_default_data, f, indent=2)
-        except Exception as e:
-            print(f"Error saving settings: {e}")
-            raise
-
-    def _get_non_default_values(self, current_data, defaults):
-        """Get only the values that differ from defaults."""
-        non_defaults = {}
-
-        for key, value in current_data.items():
-            if key not in defaults:
-                non_defaults[key] = value
-            elif isinstance(value, dict) and isinstance(defaults[key], dict):
-                nested_non_defaults = self._get_non_default_values(value, defaults[key])
-                if nested_non_defaults:
-                    non_defaults[key] = nested_non_defaults
-            elif value != defaults[key]:
-                non_defaults[key] = value
-
-        return non_defaults
-
-    def load_user_settings_file(self, file_path):
-        """Load settings from a user-specified file."""
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Settings file not found: {file_path}")
-
-        try:
-            new_data = self._load_settings_file(file_path, raise_on_error=True)
-            self.data = new_data
-            self.user_settings_file = file_path
-            self.save()  # Save the reference to the user settings file
-            return True
-        except Exception as e:
-            print(f"Error loading user settings file: {e}")
-            return False
-
-    def clear_user_settings_file(self):
-        """Clear the user settings file and revert to auto-save mode."""
-        self.user_settings_file = None
-        # The current data will be saved as non-default values in auto-save mode
-        self.save()
-
-    def reset_to_defaults(self):
-        """Reset all settings to defaults."""
-        self.data = self._get_defaults()
-        self.user_settings_file = None  # Clear user settings file reference
-        self.save()
-
-    def get(self, key, default=None):
-        """Get a setting value."""
-        return self.data.get(key, default)
-
-    def set(self, key, value):
-        """Set a setting value."""
-        self.data[key] = value
-
-    def update(self, updates):
-        """Update multiple settings at once."""
-        self.data.update(updates)
-
-    def get_font_size(self, size_type):
-        """Get font size by type."""
-        size_map = {
-            "charset": "charset",
-            "spacing": "spacing",
-            "large": "large_text",
-            "small": "small_text",
-        }
-        key = size_map.get(size_type, size_type)
-        return self.data.get("font_sizes", {}).get(
-            key,
-            {
-                "charset": charsetFontSize,
-                "spacing": spacingFontSize,
-                "large_text": largeTextFontSize,
-                "small_text": smallTextFontSize,
-            }.get(key, 10),
-        )
-
-    def set_font_size(self, size_type, value):
-        """Set font size by type."""
-        size_map = {
-            "charset": "charset",
-            "spacing": "spacing",
-            "large": "large_text",
-            "small": "small_text",
-        }
-        key = size_map.get(size_type, size_type)
-        if "font_sizes" not in self.data:
-            self.data["font_sizes"] = {}
-        self.data["font_sizes"][key] = value
-
-    def get_proof_option(self, proof_name):
-        """Get proof option by name."""
-        # Convert proof names to standardized format
-        option_map = {
-            "showBaselines": "show_baselines",
-            "Character_Set_Proof": "character_set_proof",
-            "Spacing_Proof": "spacing_proof",
-            "Big_Paragraph_Proof": "big_paragraph_proof",
-            "Big_Diacritics_Proof": "big_diacritics_proof",
-            "Small_Paragraph_Proof": "small_paragraph_proof",
-            "Small_Paired_Styles_Proof": "small_paired_styles_proof",
-            "Small_Wordsiv_Proof": "small_wordsiv_proof",
-            "Small_Diacritics_Proof": "small_diacritics_proof",
-            "Small_Mixed_Text_Proof": "small_mixed_text_proof",
-            "Arabic_Contextual_Forms_Proof": "arabic_contextual_forms_proof",
-            "Big_Arabic_Text_Proof": "big_arabic_text_proof",
-            "Big_Farsi_Text_Proof": "big_farsi_text_proof",
-            "Small_Arabic_Text_Proof": "small_arabic_text_proof",
-            "Small_Farsi_Text_Proof": "small_farsi_text_proof",
-            "Arabic_Vocalization_Proof": "arabic_vocalization_proof",
-            "Arabic_Latin_Mixed_Proof": "arabic_latin_mixed_proof",
-            "Arabic_Numbers_Proof": "arabic_numbers_proof",
-        }
-        key = option_map.get(proof_name, proof_name.lower())
-        return self.data.get("proof_options", {}).get(key, False)
-
-    def set_proof_option(self, proof_name, enabled):
-        """Set proof option by name."""
-        option_map = {
-            "showBaselines": "show_baselines",
-            "Character_Set_Proof": "character_set_proof",
-            "Spacing_Proof": "spacing_proof",
-            "Big_Paragraph_Proof": "big_paragraph_proof",
-            "Big_Diacritics_Proof": "big_diacritics_proof",
-            "Small_Paragraph_Proof": "small_paragraph_proof",
-            "Small_Paired_Styles_Proof": "small_paired_styles_proof",
-            "Small_Wordsiv_Proof": "small_wordsiv_proof",
-            "Small_Diacritics_Proof": "small_diacritics_proof",
-            "Small_Mixed_Text_Proof": "small_mixed_text_proof",
-            "Arabic_Contextual_Forms_Proof": "arabic_contextual_forms_proof",
-            "Big_Arabic_Text_Proof": "big_arabic_text_proof",
-            "Big_Farsi_Text_Proof": "big_farsi_text_proof",
-            "Small_Arabic_Text_Proof": "small_arabic_text_proof",
-            "Small_Farsi_Text_Proof": "small_farsi_text_proof",
-            "Arabic_Vocalization_Proof": "arabic_vocalization_proof",
-            "Arabic_Latin_Mixed_Proof": "arabic_latin_mixed_proof",
-            "Arabic_Numbers_Proof": "arabic_numbers_proof",
-        }
-        key = option_map.get(proof_name, proof_name.lower())
-        if "proof_options" not in self.data:
-            self.data["proof_options"] = {}
-        self.data["proof_options"][key] = enabled
-
-    def get_fonts(self):
-        """Get saved font paths."""
-        return self.data.get("fonts", {}).get("paths", [])
-
-    def set_fonts(self, font_paths):
-        """Set font paths."""
-        if "fonts" not in self.data:
-            self.data["fonts"] = {"paths": [], "axis_values": {}}
-        self.data["fonts"]["paths"] = font_paths
-
-    def get_font_axis_values(self, font_path):
-        """Get axis values for a specific font."""
-        return self.data.get("fonts", {}).get("axis_values", {}).get(font_path, {})
-
-    def set_font_axis_values(self, font_path, axis_values):
-        """Set axis values for a specific font."""
-        if "fonts" not in self.data:
-            self.data["fonts"] = {"paths": [], "axis_values": {}}
-        if "axis_values" not in self.data["fonts"]:
-            self.data["fonts"]["axis_values"] = {}
-        self.data["fonts"]["axis_values"][font_path] = axis_values
-
-    def get_proof_settings(self):
-        """Get all proof settings."""
-        return self.data.get("proof_settings", {})
-
-    def set_proof_settings(self, proof_settings):
-        """Set all proof settings."""
-        self.data["proof_settings"] = proof_settings
-
-    def get_pdf_output_use_custom(self):
-        """Get whether to use custom PDF output location."""
-        return self.data.get("pdf_output", {}).get("use_custom_location", False)
-
-    def set_pdf_output_use_custom(self, use_custom):
-        """Set whether to use custom PDF output location."""
-        if "pdf_output" not in self.data:
-            self.data["pdf_output"] = {
-                "use_custom_location": False,
-                "custom_location": "",
-            }
-        self.data["pdf_output"]["use_custom_location"] = use_custom
-
-    def get_pdf_output_custom_location(self):
-        """Get custom PDF output location."""
-        return self.data.get("pdf_output", {}).get("custom_location", "")
 
     def set_pdf_output_custom_location(self, location):
         """Set custom PDF output location."""
@@ -515,29 +578,11 @@ class Settings:
 
     def get_proof_order(self):
         """Get the current proof order."""
-        return self.data.get(
-            "proof_order",
-            [
-                "Show Baselines/Grid",
-                "Character Set Proof",
-                "Spacing Proof",
-                "Big Paragraph Proof",
-                "Big Diacritics Proof",
-                "Small Paragraph Proof",
-                "Small Paired Styles Proof",
-                "Small Wordsiv Proof",
-                "Small Diacritics Proof",
-                "Small Mixed Text Proof",
-                "Arabic Contextual Forms",
-                "Big Arabic Text Proof",
-                "Big Farsi Text Proof",
-                "Small Arabic Text Proof",
-                "Small Farsi Text Proof",
-                "Arabic Vocalization Proof",
-                "Arabic-Latin Mixed Proof",
-                "Arabic Numbers Proof",
-            ],
-        )
+        # Generate default order from registry if not set
+        default_order = ["Show Baselines/Grid"]
+        default_order.extend(get_proof_display_names(include_arabic=True))
+
+        return self.data.get("proof_order", default_order)
 
     def set_proof_order(self, proof_order):
         """Set the proof order."""
@@ -550,6 +595,77 @@ class Settings:
     def set_page_format(self, page_format):
         """Set the page format."""
         self.data["page_format"] = page_format
+
+    def get_fonts(self):
+        """Get the list of font paths."""
+        return self.data.get("fonts", {}).get("paths", [])
+
+    def set_fonts(self, font_paths):
+        """Set the list of font paths."""
+        if "fonts" not in self.data:
+            self.data["fonts"] = {"paths": [], "axis_values": {}}
+        self.data["fonts"]["paths"] = list(font_paths)
+        self.save()
+
+    def get_font_axis_values(self, font_path):
+        """Get axis values for a specific font."""
+        return self.data.get("fonts", {}).get("axis_values", {}).get(font_path, {})
+
+    def set_font_axis_values(self, font_path, axis_values):
+        """Set axis values for a specific font."""
+        if "fonts" not in self.data:
+            self.data["fonts"] = {"paths": [], "axis_values": {}}
+        if "axis_values" not in self.data["fonts"]:
+            self.data["fonts"]["axis_values"] = {}
+        self.data["fonts"]["axis_values"][font_path] = dict(axis_values)
+        self.save()
+
+    def get_proof_option(self, option_key):
+        """Get a proof option value."""
+        return self.data.get("proof_options", {}).get(option_key, False)
+
+    def set_proof_option(self, option_key, value):
+        """Set a proof option value."""
+        if "proof_options" not in self.data:
+            self.data["proof_options"] = {}
+        self.data["proof_options"][option_key] = value
+        self.save()
+
+    def get_proof_settings(self):
+        """Get the proof settings dictionary."""
+        return self.data.get("proof_settings", {})
+
+    def set_proof_settings(self, proof_settings):
+        """Set the proof settings dictionary."""
+        if "proof_settings" not in self.data:
+            self.data["proof_settings"] = {}
+        self.data["proof_settings"] = dict(proof_settings)
+        self.save()
+
+    def save(self):
+        """Save current settings to file."""
+        try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
+
+            # If we're using a user settings file, save to that instead
+            save_path = (
+                self.user_settings_file
+                if self.user_settings_file
+                else self.settings_path
+            )
+
+            with open(save_path, "w") as f:
+                json.dump(self.data, f, indent=2)
+
+            # If we're using a user settings file, also update the auto-save file
+            # to remember which user file was loaded
+            if self.user_settings_file and save_path != self.settings_path:
+                auto_save_data = {"user_settings_file": self.user_settings_file}
+                with open(self.settings_path, "w") as f:
+                    json.dump(auto_save_data, f, indent=2)
+        except Exception as e:
+            print(f"Error saving settings: {e}")
 
 
 # =============================================================================
