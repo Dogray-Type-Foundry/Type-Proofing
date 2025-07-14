@@ -46,7 +46,7 @@ except ImportError:
     pte = None
 
 
-def drawFooter(title, indFont, otFeatures=None):
+def drawFooter(title, indFont, otFeatures=None, tracking=None):
     """Draw a simple footer with some minimal but useful info."""
     with db.savedState():
         # get date and font name
@@ -90,7 +90,15 @@ def drawFooter(title, indFont, otFeatures=None):
                 features_parts.append(f"OFF: {', '.join(sorted(features_disabled))}")
 
             if features_parts:
-                features_text = " | ".join(features_parts)
+                features_text = " - ".join(features_parts)
+
+        # Add tracking information if it's not 0
+        if tracking is not None and tracking != 0:
+            tracking_text = f"Tracking: {tracking}"
+            if features_text:
+                features_text += f" | {tracking_text}"
+            else:
+                features_text = tracking_text
 
         # Main footer line
         db.textBox(
@@ -115,7 +123,7 @@ def drawFooter(title, indFont, otFeatures=None):
         # Features line (if any features to display)
         if features_text:
             features_footer = db.FormattedString(
-                features_text,
+                f"OT Fea: {features_text}",
                 font="Courier",
                 fontSize=7,
                 lineHeight=7,
@@ -256,7 +264,13 @@ def _apply_alternating_variations(textString, textInput, VFAxisInput, axis, valu
 
 
 def drawContent(
-    textToDraw, pageTitle, columnNumber, currentFont, direction="ltr", otFeatures=None
+    textToDraw,
+    pageTitle,
+    columnNumber,
+    currentFont,
+    direction="ltr",
+    otFeatures=None,
+    tracking=None,
 ):
     """Function to draw content with proper layout."""
     try:
@@ -266,7 +280,7 @@ def drawContent(
 
         while textToDraw:
             db.newPage(pageDimensions)
-            drawFooter(pageTitle, currentFont, otFeatures)
+            drawFooter(pageTitle, currentFont, otFeatures, tracking)
             db.hyphenation(False)
 
             if BaselineGrid and columnBaselineGridTextBox:
@@ -596,6 +610,7 @@ def charsetProof(
     otFea=None,
     fontSize=None,
     sectionName="Filtered Character Set",
+    tracking=None,
 ):
     """Generate Filtered Character Set."""
     if not characterSet:
@@ -634,6 +649,7 @@ def charsetProof(
                     indFont,
                     "ltr",
                     otFea,
+                    tracking,
                 )
         elif axesProduct == "":
             charsetString = stringMaker(
@@ -654,6 +670,7 @@ def charsetProof(
                 indFont,
                 "ltr",
                 otFea,
+                tracking,
             )
     except Exception as e:
         print(f"Error in charsetProof: {e}")
@@ -669,6 +686,7 @@ def spacingProof(
     fontSize=None,
     columns=None,
     sectionName="Spacing proof",
+    tracking=None,
 ):
     """Generate spacing proof."""
     # Use provided font size or fall back to proof type default
@@ -706,6 +724,7 @@ def spacingProof(
                 indFont,
                 "ltr",
                 used_features,
+                tracking,
             )
 
     elif axesProduct == "":
@@ -728,6 +747,7 @@ def spacingProof(
             indFont,
             "ltr",
             used_features,
+            tracking,
         )
 
 
@@ -832,6 +852,7 @@ def textProof(
                 currentFont=indFont,
                 direction=text_direction,
                 otFeatures=otFea,
+                tracking=tracking,
             )
     elif axesProduct == "":
         # Use provided align parameter, but fallback to language-based logic if align is "left" and language is Arabic/Farsi
@@ -862,6 +883,7 @@ def textProof(
             currentFont=indFont,
             direction=text_direction,
             otFeatures=otFea,
+            tracking=tracking,
         )
 
 
@@ -987,6 +1009,7 @@ def arabicContextualFormsProof(
     otFea=None,
     fontSize=None,
     sectionName="Ar Character Set",
+    tracking=None,
 ):
     """Generate ARA Character Set proof pages using configurable font size."""
     # Use provided font size or fall back to character set font size
@@ -1025,6 +1048,7 @@ def arabicContextualFormsProof(
                     indFont,
                     direction="rtl",
                     otFeatures=otFea,
+                    tracking=tracking,
                 )
         elif axesProduct == "":
             formattedString = stringMaker(
@@ -1045,6 +1069,7 @@ def arabicContextualFormsProof(
                 indFont,
                 direction="rtl",
                 otFeatures=otFea,
+                tracking=tracking,
             )
     except Exception as e:
         print(f"Error in arabicContextualFormsProof: {e}")
