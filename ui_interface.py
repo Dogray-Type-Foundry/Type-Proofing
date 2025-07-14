@@ -811,7 +811,7 @@ class ControlsTab:
         self.create_ui()
 
     def get_proof_options_list(self):
-        """Generate dynamic proof options list based on font capabilities."""
+        """Generate dynamic proof options list based on font capabilities and saved custom instances."""
         # Import the helper functions from config
         from config import (
             get_base_proof_display_names,
@@ -835,16 +835,36 @@ class ControlsTab:
         # Check if any loaded font supports Arabic
         show_arabic_proofs = self.parent_window.font_manager.has_arabic_support()
 
-        # Build the complete options list
+        # Build the base options list
         all_options = base_options[:]
         if show_arabic_proofs:
             all_options.extend(arabic_options)
 
+        # Get the saved proof order to check for custom instances
+        saved_order = self.settings.get_proof_order()
+        base_proof_names = set(name for name, key in all_options)
+
+        # Add custom instances from saved order that aren't in base options
+        custom_instances = []
+        custom_instance_names = set()
+        for display_name in saved_order:
+            if (
+                display_name not in base_proof_names
+                and display_name != "Show Baselines/Grid"
+            ):
+                # This is a custom instance - extract the base proof type
+                base_type = self._extract_base_proof_type(display_name)
+                if base_type and base_type in base_proof_names:
+                    # Create a unique key for this custom instance
+                    unique_key = display_name.replace(" ", "_").replace("/", "_")
+                    custom_instances.append((display_name, unique_key))
+                    custom_instance_names.add(display_name)
+
+        # Add custom instances to the options
+        all_options.extend(custom_instances)
+
         # Create a mapping from display names to options
         options_dict = dict(all_options)
-
-        # Get the saved proof order from settings
-        saved_order = self.settings.get_proof_order()
 
         # Build ordered list based on saved order, filtering out unavailable options
         ordered_options = []
@@ -865,7 +885,15 @@ class ControlsTab:
         # Convert to UI format
         proof_options_items = []
         for display_name, settings_key in ordered_options:
-            enabled = self.settings.get_proof_option(settings_key)
+            # For custom instances, determine the enabled state correctly
+            if display_name in custom_instance_names:
+                # Custom instance - use the unique key format for storage
+                unique_key = display_name.replace(" ", "_").replace("/", "_")
+                enabled = self.settings.get_proof_option(unique_key)
+            else:
+                # Base proof type - use the registry key
+                enabled = self.settings.get_proof_option(settings_key)
+
             item = {
                 "Option": display_name,
                 "Enabled": enabled,
@@ -874,6 +902,26 @@ class ControlsTab:
             proof_options_items.append(item)
 
         return proof_options_items
+
+    def _extract_base_proof_type(self, custom_display_name):
+        """Extract base proof type from a custom display name like 'Small Diacritics Proof 2'."""
+        # Import helper functions
+        from config import get_proof_display_names
+
+        base_display_names = get_proof_display_names(include_arabic=True)
+
+        # Try to find the base proof type by checking if the custom name starts with a base name
+        for base_name in base_display_names:
+            if (
+                custom_display_name.startswith(base_name)
+                and custom_display_name != base_name
+            ):
+                # Check if the remainder is just a number/space pattern
+                remainder = custom_display_name[len(base_name) :].strip()
+                if remainder and (remainder.isdigit() or remainder.startswith(" ")):
+                    return base_name
+
+        return None
 
     def refresh_proof_options_list(self):
         """Refresh the proof options list when fonts change."""
@@ -887,7 +935,7 @@ class ControlsTab:
             # Update the standalone checkbox
             if hasattr(self.group, "showBaselinesCheckbox"):
                 self.group.showBaselinesCheckbox.set(
-                    self.settings.get_proof_option("showBaselines")
+                    self.settings.get_proof_option("show_baselines")
                 )
         except Exception as e:
             print(f"Error refreshing proof options list: {e}")
@@ -978,7 +1026,7 @@ class ControlsTab:
             self.group.showBaselinesCheckbox = vanilla.CheckBox(
                 (controls_x + 165, y, 100, 20),
                 "Show Grid",
-                value=self.settings.get_proof_option("showBaselines"),
+                value=self.settings.get_proof_option("show_baselines"),
                 callback=self.showBaselinesCallback,
             )
 
@@ -1112,9 +1160,19 @@ class ControlsTab:
             base_option = item.get("_original_option", proof_name)  # Get base type
             enabled = item["Enabled"]
 
-            # For unique proof names, use a sanitized version as the key
-            unique_key = proof_name.replace(" ", "_").replace("/", "_")
-            self.settings.set_proof_option(unique_key, enabled)
+            # Get the correct proof key from the registry
+            from config import get_proof_settings_mapping
+
+            proof_settings_mapping = get_proof_settings_mapping()
+
+            # For base proof types, use the registry key directly
+            if proof_name in proof_settings_mapping:
+                proof_key = proof_settings_mapping[proof_name]
+            else:
+                # For numbered variants, use a sanitized version as the key
+                proof_key = proof_name.replace(" ", "_").replace("/", "_").lower()
+
+            self.settings.set_proof_option(proof_key, enabled)
 
     def pageFormatCallback(self, sender):
         """Handle page format selection changes."""
@@ -1132,7 +1190,7 @@ class ControlsTab:
     def showBaselinesCallback(self, sender):
         """Handle the Show Baselines/Grid standalone checkbox."""
         enabled = sender.get()
-        self.settings.set_proof_option("showBaselines", enabled)
+        self.settings.set_proof_option("show_baselines", enabled)
 
     def makeProofDragDataCallback(self, index):
         """Create drag data for internal proof options reordering."""
@@ -1189,8 +1247,12 @@ class ControlsTab:
             # Update the list
             self.group.proofOptionsList.set(proof_items)
 
-            # Save the new order to settings
-            new_order = [item["Option"] for item in proof_items]
+            # Save the new order to settings (excluding Show Baselines/Grid)
+            new_order = [
+                item["Option"]
+                for item in proof_items
+                if item["Option"] != "Show Baselines/Grid"
+            ]
             self.settings.set_proof_order(new_order)
             self.settings.save()
 
@@ -1347,8 +1409,12 @@ class ControlsTab:
                 unique_proof_name, selected_proof_type
             )
 
-            # Update the proof order in settings
-            new_order = [item["Option"] for item in current_proofs]
+            # Update the proof order in settings (excluding Show Baselines/Grid)
+            new_order = [
+                item["Option"]
+                for item in current_proofs
+                if item["Option"] != "Show Baselines/Grid"
+            ]
             self.settings.set_proof_order(new_order)
             self.settings.save()
 
@@ -1406,8 +1472,12 @@ class ControlsTab:
             # Update the list
             self.group.proofOptionsList.set(current_proofs)
 
-            # Update the proof order in settings
-            new_order = [item["Option"] for item in current_proofs]
+            # Update the proof order in settings (excluding Show Baselines/Grid)
+            new_order = [
+                item["Option"]
+                for item in current_proofs
+                if item["Option"] != "Show Baselines/Grid"
+            ]
             self.settings.set_proof_order(new_order)
             self.settings.save()
 
@@ -1542,7 +1612,7 @@ class ProofWindow(object):
         """Get font size for a specific proof from its settings."""
         # Get mapping from config
         from config import get_proof_settings_mapping
-        
+
         display_name_to_settings_key = get_proof_settings_mapping()
 
         # Determine if this is a direct match or a numbered variant
@@ -1564,7 +1634,7 @@ class ProofWindow(object):
 
             # Fallback if no match found
             if not proof_key:
-                proof_key = "Small_Paragraph_Proof"
+                proof_key = "small_paragraph_proof"
                 unique_key = proof_identifier.replace(" ", "_").replace("/", "_")
                 font_size_key = f"{unique_key}_fontSize"
 
@@ -1640,24 +1710,24 @@ class ProofWindow(object):
 
                 # Override proof options to all be False (unchecked)
                 proof_option_keys = [
-                    "showBaselines",
-                    "Character_Set_Proof",
-                    "Spacing_Proof",
-                    "Big_Paragraph_Proof",
-                    "Big_Diacritics_Proof",
-                    "Small_Paragraph_Proof",
-                    "Small_Paired_Styles_Proof",
-                    "Small_Wordsiv_Proof",
-                    "Small_Diacritics_Proof",
-                    "Small_Mixed_Text_Proof",
-                    "Arabic_Contextual_Forms_Proof",
-                    "Big_Arabic_Text_Proof",
-                    "Big_Farsi_Text_Proof",
-                    "Small_Arabic_Text_Proof",
-                    "Small_Farsi_Text_Proof",
-                    "Arabic_Vocalization_Proof",
-                    "Arabic_Latin_Mixed_Proof",
-                    "Arabic_Numbers_Proof",
+                    "show_baselines",
+                    "character_set_proof",
+                    "spacing_proof",
+                    "big_paragraph_proof",
+                    "big_diacritics_proof",
+                    "small_paragraph_proof",
+                    "small_paired_styles_proof",
+                    "small_wordsiv_proof",
+                    "small_diacritics_proof",
+                    "small_mixed_text_proof",
+                    "arabic_contextual_forms_proof",
+                    "big_arabic_text_proof",
+                    "big_farsi_text_proof",
+                    "small_arabic_text_proof",
+                    "small_farsi_text_proof",
+                    "arabic_vocalization_proof",
+                    "arabic_latin_mixed_proof",
+                    "arabic_numbers_proof",
                 ]
 
                 for option_key in proof_option_keys:
@@ -1795,7 +1865,7 @@ class ProofWindow(object):
 
                 # Get mapping from config
                 from config import get_proof_settings_mapping
-                
+
                 display_name_to_settings_key = get_proof_settings_mapping()
 
                 # Process settings for both old-style and new unique proof identifiers
@@ -1978,25 +2048,25 @@ class ProofWindow(object):
         selected_item = items[selected_idx]
         proof_name = selected_item.get("Option", "")
 
-        # Map proof names to keys for proof types that have settings - updated to use standardized underscore format
+        # Map proof names to keys for proof types that have settings - using unified snake_case format
         proof_name_to_key = {
-            "Character Set Proof": "Character_Set_Proof",
-            "Spacing Proof": "Spacing_Proof",
-            "Big Paragraph Proof": "Big_Paragraph_Proof",
-            "Big Diacritics Proof": "Big_Diacritics_Proof",
-            "Small Paragraph Proof": "Small_Paragraph_Proof",
-            "Small Paired Styles Proof": "Small_Paired_Styles_Proof",
-            "Small Wordsiv Proof": "Small_Wordsiv_Proof",
-            "Small Diacritics Proof": "Small_Diacritics_Proof",
-            "Small Mixed Text Proof": "Small_Mixed_Text_Proof",
-            "Arabic Contextual Forms": "Arabic_Contextual_Forms_Proof",
-            "Big Arabic Text Proof": "Big_Arabic_Text_Proof",
-            "Big Farsi Text Proof": "Big_Farsi_Text_Proof",
-            "Small Arabic Text Proof": "Small_Arabic_Text_Proof",
-            "Small Farsi Text Proof": "Small_Farsi_Text_Proof",
-            "Arabic Vocalization Proof": "Arabic_Vocalization_Proof",
-            "Arabic-Latin Mixed Proof": "Arabic_Latin_Mixed_Proof",
-            "Arabic Numbers Proof": "Arabic_Numbers_Proof",
+            "Character Set Proof": "character_set_proof",
+            "Spacing Proof": "spacing_proof",
+            "Big Paragraph Proof": "big_paragraph_proof",
+            "Big Diacritics Proof": "big_diacritics_proof",
+            "Small Paragraph Proof": "small_paragraph_proof",
+            "Small Paired Styles Proof": "small_paired_styles_proof",
+            "Small Wordsiv Proof": "small_wordsiv_proof",
+            "Small Diacritics Proof": "small_diacritics_proof",
+            "Small Mixed Text Proof": "small_mixed_text_proof",
+            "Arabic Contextual Forms": "arabic_contextual_forms_proof",
+            "Big Arabic Text Proof": "big_arabic_text_proof",
+            "Big Farsi Text Proof": "big_farsi_text_proof",
+            "Small Arabic Text Proof": "small_arabic_text_proof",
+            "Small Farsi Text Proof": "small_farsi_text_proof",
+            "Arabic Vocalization Proof": "arabic_vocalization_proof",
+            "Arabic-Latin Mixed Proof": "arabic_latin_mixed_proof",
+            "Arabic Numbers Proof": "arabic_numbers_proof",
         }
 
         # Only show popover for proofs that have settings
@@ -2126,15 +2196,15 @@ class ProofWindow(object):
         font_size_key = f"{proof_key}_fontSize"
         # Set default font size based on proof type
         if proof_key in [
-            "Big_Paragraph_Proof",
-            "Big_Diacritics_Proof",
-            "Big_Arabic_Text_Proof",
-            "Big_Farsi_Text_Proof",
+            "big_paragraph_proof",
+            "big_diacritics_proof",
+            "big_arabic_text_proof",
+            "big_farsi_text_proof",
         ]:
             default_font_size = largeTextFontSize
-        elif proof_key in ["Character_Set_Proof", "Arabic_Contextual_Forms_Proof"]:
+        elif proof_key in ["character_set_proof", "arabic_contextual_forms_proof"]:
             default_font_size = charsetFontSize
-        elif proof_key == "Spacing_Proof":
+        elif proof_key == "spacing_proof":
             default_font_size = spacingFontSize
         else:
             # Small proofs and other proofs
@@ -2146,14 +2216,14 @@ class ProofWindow(object):
         )
 
         # Columns setting with appropriate defaults (skip for certain proofs)
-        if proof_key not in ["Character_Set_Proof", "Arabic_Contextual_Forms_Proof"]:
+        if proof_key not in ["character_set_proof", "arabic_contextual_forms_proof"]:
             cols_key = f"{proof_key}_cols"
 
             # Import helper functions from config
-            from config import get_proof_by_settings_key
+            from config import get_proof_by_storage_key
 
             # Get proof info from registry
-            proof_info = get_proof_by_settings_key(proof_key)
+            proof_info = get_proof_by_storage_key(proof_key)
             if proof_info:
                 default_cols = proof_info["default_cols"]
             else:
@@ -3111,26 +3181,26 @@ class ProofWindow(object):
     def initialize_settings_for_proof(self, unique_proof_name, base_proof_type):
         """Initialize settings for a newly added proof instance."""
         try:
-            # Map proof display names to internal keys - use standardized format
+            # Map proof display names to internal keys - use unified snake_case format
             proof_name_to_key = {
-                "Show Baselines/Grid": "showBaselines",
-                "Character Set Proof": "Character_Set_Proof",
-                "Spacing Proof": "Spacing_Proof",
-                "Big Paragraph Proof": "Big_Paragraph_Proof",
-                "Big Diacritics Proof": "Big_Diacritics_Proof",
-                "Small Paragraph Proof": "Small_Paragraph_Proof",
-                "Small Paired Styles Proof": "Small_Paired_Styles_Proof",
-                "Small Wordsiv Proof": "Small_Wordsiv_Proof",
-                "Small Diacritics Proof": "Small_Diacritics_Proof",
-                "Small Mixed Text Proof": "Small_Mixed_Text_Proof",
-                "Arabic Contextual Forms": "Arabic_Contextual_Forms_Proof",
-                "Big Arabic Text Proof": "Big_Arabic_Text_Proof",
-                "Big Farsi Text Proof": "Big_Farsi_Text_Proof",
-                "Small Arabic Text Proof": "Small_Arabic_Text_Proof",
-                "Small Farsi Text Proof": "Small_Farsi_Text_Proof",
-                "Arabic Vocalization Proof": "Arabic_Vocalization_Proof",
-                "Arabic-Latin Mixed Proof": "Arabic_Latin_Mixed_Proof",
-                "Arabic Numbers Proof": "Arabic_Numbers_Proof",
+                "Show Baselines/Grid": "show_baselines",
+                "Character Set Proof": "character_set_proof",
+                "Spacing Proof": "spacing_proof",
+                "Big Paragraph Proof": "big_paragraph_proof",
+                "Big Diacritics Proof": "big_diacritics_proof",
+                "Small Paragraph Proof": "small_paragraph_proof",
+                "Small Paired Styles Proof": "small_paired_styles_proof",
+                "Small Wordsiv Proof": "small_wordsiv_proof",
+                "Small Diacritics Proof": "small_diacritics_proof",
+                "Small Mixed Text Proof": "small_mixed_text_proof",
+                "Arabic Contextual Forms": "arabic_contextual_forms_proof",
+                "Big Arabic Text Proof": "big_arabic_text_proof",
+                "Big Farsi Text Proof": "big_farsi_text_proof",
+                "Small Arabic Text Proof": "small_arabic_text_proof",
+                "Small Farsi Text Proof": "small_farsi_text_proof",
+                "Arabic Vocalization Proof": "arabic_vocalization_proof",
+                "Arabic-Latin Mixed Proof": "arabic_latin_mixed_proof",
+                "Arabic Numbers Proof": "arabic_numbers_proof",
             }
 
             # Skip if this is just "Show Baselines/Grid" - it doesn't need special settings
@@ -3148,18 +3218,18 @@ class ProofWindow(object):
             # Font size setting
             font_size_key = f"{unique_key}_fontSize"
             if base_proof_key in [
-                "Big_Paragraph_Proof",
-                "Big_Diacritics_Proof",
-                "Big_Arabic_Text_Proof",
-                "Big_Farsi_Text_Proof",
+                "big_paragraph_proof",
+                "big_diacritics_proof",
+                "big_arabic_text_proof",
+                "big_farsi_text_proof",
             ]:
                 default_font_size = largeTextFontSize
             elif base_proof_key in [
-                "Character_Set_Proof",
-                "Arabic_Contextual_Forms_Proof",
+                "character_set_proof",
+                "arabic_contextual_forms_proof",
             ]:
                 default_font_size = charsetFontSize
-            elif base_proof_key == "Spacing_Proof":
+            elif base_proof_key == "spacing_proof":
                 default_font_size = spacingFontSize
             else:
                 default_font_size = smallTextFontSize
@@ -3167,17 +3237,17 @@ class ProofWindow(object):
             self.proof_settings[font_size_key] = default_font_size
 
             # Import helper functions from config
-            from config import get_proof_by_settings_key
+            from config import get_proof_by_storage_key
 
             # Get proof info from registry
-            proof_info = get_proof_by_settings_key(base_proof_key)
+            proof_info = get_proof_by_storage_key(base_proof_key)
             if proof_info is None:
                 return  # Skip if not found in registry
 
             # Columns setting (if applicable)
             if base_proof_key not in [
-                "Character_Set_Proof",
-                "Arabic_Contextual_Forms_Proof",
+                "character_set_proof",
+                "arabic_contextual_forms_proof",
             ]:
                 cols_key = f"{unique_key}_cols"
                 default_cols = proof_info["default_cols"]
@@ -3223,25 +3293,25 @@ class ProofWindow(object):
     ):
         """Update the proof settings popover for a specific proof instance."""
         try:
-            # Map base proof types to internal keys - updated to use standardized underscore format
+            # Map base proof types to internal keys - using unified snake_case format
             proof_name_to_key = {
-                "Character Set Proof": "Character_Set_Proof",
-                "Spacing Proof": "Spacing_Proof",
-                "Big Paragraph Proof": "Big_Paragraph_Proof",
-                "Big Diacritics Proof": "Big_Diacritics_Proof",
-                "Small Paragraph Proof": "Small_Paragraph_Proof",
-                "Small Paired Styles Proof": "Small_Paired_Styles_Proof",
-                "Small Wordsiv Proof": "Small_Wordsiv_Proof",
-                "Small Diacritics Proof": "Small_Diacritics_Proof",
-                "Small Mixed Text Proof": "Small_Mixed_Text_Proof",
-                "Arabic Contextual Forms": "Arabic_Contextual_Forms_Proof",
-                "Big Arabic Text Proof": "Big_Arabic_Text_Proof",
-                "Big Farsi Text Proof": "Big_Farsi_Text_Proof",
-                "Small Arabic Text Proof": "Small_Arabic_Text_Proof",
-                "Small Farsi Text Proof": "Small_Farsi_Text_Proof",
-                "Arabic Vocalization Proof": "Arabic_Vocalization_Proof",
-                "Arabic-Latin Mixed Proof": "Arabic_Latin_Mixed_Proof",
-                "Arabic Numbers Proof": "Arabic_Numbers_Proof",
+                "Character Set Proof": "character_set_proof",
+                "Spacing Proof": "spacing_proof",
+                "Big Paragraph Proof": "big_paragraph_proof",
+                "Big Diacritics Proof": "big_diacritics_proof",
+                "Small Paragraph Proof": "small_paragraph_proof",
+                "Small Paired Styles Proof": "small_paired_styles_proof",
+                "Small Wordsiv Proof": "small_wordsiv_proof",
+                "Small Diacritics Proof": "small_diacritics_proof",
+                "Small Mixed Text Proof": "small_mixed_text_proof",
+                "Arabic Contextual Forms": "arabic_contextual_forms_proof",
+                "Big Arabic Text Proof": "big_arabic_text_proof",
+                "Big Farsi Text Proof": "big_farsi_text_proof",
+                "Small Arabic Text Proof": "small_arabic_text_proof",
+                "Small Farsi Text Proof": "small_farsi_text_proof",
+                "Arabic Vocalization Proof": "arabic_vocalization_proof",
+                "Arabic-Latin Mixed Proof": "arabic_latin_mixed_proof",
+                "Arabic Numbers Proof": "arabic_numbers_proof",
             }
 
             base_proof_key = proof_name_to_key.get(base_proof_type)
@@ -3269,11 +3339,11 @@ class ProofWindow(object):
             ]:
                 default_font_size = largeTextFontSize
             elif base_proof_key in [
-                "Character_Set_Proof",
-                "Arabic_Contextual_Forms_Proof",
+                "character_set_proof",
+                "arabic_contextual_forms_proof",
             ]:
                 default_font_size = charsetFontSize
-            elif base_proof_key == "Spacing_Proof":
+            elif base_proof_key == "spacing_proof":
                 default_font_size = spacingFontSize
             else:
                 default_font_size = smallTextFontSize
@@ -3289,16 +3359,16 @@ class ProofWindow(object):
 
             # Columns setting (if applicable)
             if base_proof_key not in [
-                "Character_Set_Proof",
-                "Arabic_Contextual_Forms_Proof",
+                "character_set_proof",
+                "arabic_contextual_forms_proof",
             ]:
                 cols_key = f"{unique_proof_key}_cols"
 
                 # Import helper functions from config
-                from config import get_proof_by_settings_key
+                from config import get_proof_by_storage_key
 
                 # Get proof info from registry
-                proof_info = get_proof_by_settings_key(base_proof_key)
+                proof_info = get_proof_by_storage_key(base_proof_key)
                 if proof_info:
                     default_cols = proof_info["default_cols"]
                 else:

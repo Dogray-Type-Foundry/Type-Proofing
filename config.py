@@ -481,9 +481,8 @@ class Settings:
         for proof_key in PROOF_REGISTRY.keys():
             proof_options[proof_key] = False
 
-        # Generate proof order dynamically from registry
-        proof_order = ["Show Baselines/Grid"]  # Special case
-        proof_order.extend(get_proof_display_names(include_arabic=True))
+        # Generate proof order dynamically from registry (excluding show_baselines)
+        proof_order = get_proof_display_names(include_arabic=True)
 
         return {
             "version": "1.0",
@@ -515,9 +514,8 @@ class Settings:
 
     def get_proof_order(self):
         """Get the current proof order."""
-        # Generate default order from registry if not set
-        default_order = ["Show Baselines/Grid"]
-        default_order.extend(get_proof_display_names(include_arabic=True))
+        # Generate default order from registry if not set (excluding show_baselines)
+        default_order = get_proof_display_names(include_arabic=True)
 
         return self.data.get("proof_order", default_order)
 
@@ -577,6 +575,12 @@ class Settings:
         if "proof_settings" not in self.data:
             self.data["proof_settings"] = {}
         self.data["proof_settings"] = dict(proof_settings)
+        self.save()
+
+    def reset_to_defaults(self):
+        """Reset all settings to default values."""
+        self.data = self._get_defaults()
+        self.user_settings_file = None
         self.save()
 
     def save(self):
