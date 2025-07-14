@@ -30,6 +30,7 @@ from config import (
     arabicVocalization,
     arabicLatinMixed,
     arabicFarsiUrduNumbers,
+    proof_supports_formatting,
 )
 from font_analysis import (
     FontManager,
@@ -811,29 +812,24 @@ class ControlsTab:
 
     def get_proof_options_list(self):
         """Generate dynamic proof options list based on font capabilities."""
-        # Base proof options (always shown) - updated to use standardized underscore format
+        # Import the helper functions from config
+        from config import (
+            get_base_proof_display_names,
+            get_arabic_proof_display_names,
+            get_proof_settings_mapping,
+        )
+
+        # Get base and Arabic proof options from registry
         base_options = [
-            ("Character Set Proof", "Character_Set_Proof"),
-            ("Spacing Proof", "Spacing_Proof"),
-            ("Big Paragraph Proof", "Big_Paragraph_Proof"),
-            ("Big Diacritics Proof", "Big_Diacritics_Proof"),
-            ("Small Paragraph Proof", "Small_Paragraph_Proof"),
-            ("Small Paired Styles Proof", "Small_Paired_Styles_Proof"),
-            ("Small Wordsiv Proof", "Small_Wordsiv_Proof"),
-            ("Small Diacritics Proof", "Small_Diacritics_Proof"),
-            ("Small Mixed Text Proof", "Small_Mixed_Text_Proof"),
+            (name, key)
+            for name, key in get_proof_settings_mapping().items()
+            if name in get_base_proof_display_names()
         ]
 
-        # Arabic/Persian proof options (shown only if fonts support Arabic) - updated to use standardized underscore format
         arabic_options = [
-            ("Arabic Contextual Forms", "Arabic_Contextual_Forms_Proof"),
-            ("Big Arabic Text Proof", "Big_Arabic_Text_Proof"),
-            ("Big Farsi Text Proof", "Big_Farsi_Text_Proof"),
-            ("Small Arabic Text Proof", "Small_Arabic_Text_Proof"),
-            ("Small Farsi Text Proof", "Small_Farsi_Text_Proof"),
-            ("Arabic Vocalization Proof", "Arabic_Vocalization_Proof"),
-            ("Arabic-Latin Mixed Proof", "Arabic_Latin_Mixed_Proof"),
-            ("Arabic Numbers Proof", "Arabic_Numbers_Proof"),
+            (name, key)
+            for name, key in get_proof_settings_mapping().items()
+            if name in get_arabic_proof_display_names()
         ]
 
         # Check if any loaded font supports Arabic
@@ -1077,26 +1073,11 @@ class ControlsTab:
         # Check if this is a checkbox edit
         edited_index = sender.getEditedIndex()
 
-        # Define which proofs have settings (same as in create_ui)
-        proofs_with_settings = {
-            "Character Set Proof",
-            "Spacing Proof",
-            "Big Paragraph Proof",
-            "Big Diacritics Proof",
-            "Small Paragraph Proof",
-            "Small Paired Styles Proof",
-            "Small Wordsiv Proof",
-            "Small Diacritics Proof",
-            "Small Mixed Text Proof",
-            "Arabic Contextual Forms",
-            "Big Arabic Text Proof",
-            "Big Farsi Text Proof",
-            "Small Arabic Text Proof",
-            "Small Farsi Text Proof",
-            "Arabic Vocalization Proof",
-            "Arabic-Latin Mixed Proof",
-            "Arabic Numbers Proof",
-        }
+        # Import helper functions from config
+        from config import get_proof_display_names
+
+        # Get proofs with settings from registry (all proofs have settings)
+        proofs_with_settings = set(get_proof_display_names(include_arabic=True))
 
         if edited_index is not None and edited_index < len(items):
             item = items[edited_index]
@@ -1226,26 +1207,11 @@ class ControlsTab:
 
     def show_popover_for_option(self, option, row_index):
         """Show popover for the specified option."""
-        # Map proof names to keys for proof types that have settings
-        proof_name_to_key = {
-            "Character Set Proof": "CharacterSetProof",
-            "Spacing Proof": "SpacingProof",
-            "Big Paragraph Proof": "BigParagraphProof",
-            "Big Diacritics Proof": "BigDiacriticsProof",
-            "Small Paragraph Proof": "SmallParagraphProof",
-            "Small Paired Styles Proof": "SmallPairedStylesProof",
-            "Small Wordsiv Proof": "SmallWordsivProof",
-            "Small Diacritics Proof": "SmallDiacriticsProof",
-            "Small Mixed Text Proof": "SmallMixedTextProof",
-            "Arabic Contextual Forms": "ArabicContextualFormsProof",
-            "Big Arabic Text Proof": "BigArabicTextProof",
-            "Big Farsi Text Proof": "BigFarsiTextProof",
-            "Small Arabic Text Proof": "SmallArabicTextProof",
-            "Small Farsi Text Proof": "SmallFarsiTextProof",
-            "Arabic Vocalization Proof": "ArabicVocalizationProof",
-            "Arabic-Latin Mixed Proof": "ArabicLatinMixedProof",
-            "Arabic Numbers Proof": "ArabicNumbersProof",
-        }
+        # Import the helper function from config
+        from config import get_proof_popover_mapping
+
+        # Get proof name to key mapping from registry
+        proof_name_to_key = get_proof_popover_mapping()
 
         # Check if this is a base proof type or a numbered variant
         base_proof_type = option
@@ -1316,33 +1282,15 @@ class ControlsTab:
             (10, 10, -10, 20), "Select Proof Type to Add:"
         )
 
-        # Proof type selector - get available proof types
-        proof_type_options = [
-            "Character Set Proof",
-            "Spacing Proof",
-            "Big Paragraph Proof",
-            "Big Diacritics Proof",
-            "Small Paragraph Proof",
-            "Small Paired Styles Proof",
-            "Small Wordsiv Proof",
-            "Small Diacritics Proof",
-            "Small Mixed Text Proof",
-        ]
+        # Import helper functions from config
+        from config import get_base_proof_display_names, get_arabic_proof_display_names
+
+        # Get available proof types from registry
+        proof_type_options = get_base_proof_display_names()
 
         # Add Arabic proof types if fonts support Arabic
         if self.parent_window.font_manager.has_arabic_support():
-            proof_type_options.extend(
-                [
-                    "Arabic Contextual Forms",
-                    "Big Arabic Text Proof",
-                    "Big Farsi Text Proof",
-                    "Small Arabic Text Proof",
-                    "Small Farsi Text Proof",
-                    "Arabic Vocalization Proof",
-                    "Arabic-Latin Mixed Proof",
-                    "Arabic Numbers Proof",
-                ]
-            )
+            proof_type_options.extend(get_arabic_proof_display_names())
 
         popover.proofTypePopup = vanilla.PopUpButton(
             (10, 35, -10, 20),
@@ -1425,7 +1373,7 @@ class ControlsTab:
             # Get the current selection from the proof options list
             # Note: We need to get selection before removing to track what was removed
             current_proofs = list(self.group.proofOptionsList.get())
-            
+
             # Get selection using the List2 object's selection
             # Try to get the selection - List2 objects may use different method names
             try:
@@ -1439,37 +1387,38 @@ class ControlsTab:
                 while index != AppKit.NSNotFound:
                     selection.append(index)
                     index = selection_indexes.indexGreaterThanIndex_(index)
-            
+
             if not selection:
                 print("No proof selected for removal")
                 return
-            
+
             # Track what we're removing for logging
             removed_proofs = []
             for index in selection:
                 if 0 <= index < len(current_proofs):
-                    removed_proofs.append(current_proofs[index]['Option'])
-            
+                    removed_proofs.append(current_proofs[index]["Option"])
+
             # Remove selected items (in reverse order to maintain indices)
             for index in sorted(selection, reverse=True):
                 if 0 <= index < len(current_proofs):
                     current_proofs.pop(index)
-            
+
             # Update the list
             self.group.proofOptionsList.set(current_proofs)
-            
+
             # Update the proof order in settings
             new_order = [item["Option"] for item in current_proofs]
             self.settings.set_proof_order(new_order)
             self.settings.save()
-            
+
             # Log what was removed
             for proof_name in removed_proofs:
                 print(f"Removed proof: {proof_name}")
-            
+
         except Exception as e:
             print(f"Error removing proof: {e}")
             import traceback
+
             traceback.print_exc()
 
     def generate_unique_proof_name(self, base_proof_type, current_proofs):
@@ -1501,24 +1450,13 @@ class ProofWindow(object):
         self.font_manager = FontManager(self.settings)
 
         # Initialize proof-specific settings storage
+        # Import the helper function from config
+        from config import get_proof_settings_mapping
+
+        # Get proof types with settings keys from registry
+        settings_mapping = get_proof_settings_mapping()
         self.proof_types_with_otf = [
-            ("Character_Set_Proof", "Character Set Proof"),
-            ("Spacing_Proof", "Spacing Proof"),
-            ("Big_Paragraph_Proof", "Big Paragraph Proof"),
-            ("Big_Diacritics_Proof", "Big Diacritics Proof"),
-            ("Small_Paragraph_Proof", "Small Paragraph Proof"),
-            ("Small_Paired_Styles_Proof", "Small Paired Styles Proof"),
-            ("Small_Wordsiv_Proof", "Small Wordsiv Proof"),
-            ("Small_Diacritics_Proof", "Small Diacritics Proof"),
-            ("Small_Mixed_Text_Proof", "Small Mixed Text Proof"),
-            ("Arabic_Contextual_Forms_Proof", "Arabic Contextual Forms"),
-            ("Big_Arabic_Text_Proof", "Big Arabic Text Proof"),
-            ("Big_Farsi_Text_Proof", "Big Farsi Text Proof"),
-            ("Small_Arabic_Text_Proof", "Small Arabic Text Proof"),
-            ("Small_Farsi_Text_Proof", "Small Farsi Text Proof"),
-            ("Arabic_Vocalization_Proof", "Arabic Vocalization Proof"),
-            ("Arabic_Latin_Mixed_Proof", "Arabic-Latin Mixed Proof"),
-            ("Arabic_Numbers_Proof", "Arabic Numbers Proof"),
+            (key, name) for name, key in settings_mapping.items()
         ]
         self.default_on_features = DEFAULT_ON_FEATURES
         self.proof_settings = {}
@@ -1979,24 +1917,22 @@ class ProofWindow(object):
 
         # Initialize default values for all proof types
         for proof_key, _ in self.proof_types_with_otf:
-            # Column settings - set proper defaults for each proof type
+            # Import helper functions from config
+            from config import get_proof_by_settings_key
+
+            # Get proof info from registry
+            proof_info = get_proof_by_settings_key(proof_key)
+            if proof_info is None:
+                continue  # Skip if not found in registry
+
+            # Column settings - use default from registry
             cols_key = f"{proof_key}_cols"
             # Character Set and Arabic Contextual Forms don't use columns
             if proof_key not in [
                 "Character_Set_Proof",
                 "Arabic_Contextual_Forms_Proof",
             ]:
-                # Big proofs, Big Diacritics, and Big Arabic/Farsi proofs use 1 column
-                if proof_key in [
-                    "Big_Paragraph_Proof",
-                    "Big_Diacritics_Proof",
-                    "Big_Arabic_Text_Proof",
-                    "Big_Farsi_Text_Proof",
-                ]:
-                    default_cols = 1
-                else:
-                    default_cols = 2
-
+                default_cols = proof_info["default_cols"]
                 if cols_key not in self.proof_settings:
                     self.proof_settings[cols_key] = default_cols
 
@@ -2021,31 +1957,14 @@ class ProofWindow(object):
             if font_size_key not in self.proof_settings:
                 self.proof_settings[font_size_key] = default_font_size
 
-            # Paragraph settings (only for Small_Wordsiv_Proof)
-            if proof_key == "Small_Wordsiv_Proof":
+            # Paragraph settings (only for proofs that have paragraphs)
+            if proof_info["has_paragraphs"]:
                 para_key = f"{proof_key}_para"
                 if para_key not in self.proof_settings:
                     self.proof_settings[para_key] = 5
 
             # Text formatting settings for supported proof types
-            supported_formatting_proofs = {
-                "Big_Paragraph_Proof",
-                "Big_Diacritics_Proof",
-                "Small_Paragraph_Proof",
-                "Small_Paired_Styles_Proof",
-                "Small_Wordsiv_Proof",
-                "Small_Diacritics_Proof",
-                "Small_Mixed_Text_Proof",
-                "Big_Arabic_Text_Proof",
-                "Big_Farsi_Text_Proof",
-                "Small_Arabic_Text_Proof",
-                "Small_Farsi_Text_Proof",
-                "Arabic_Vocalization_Proof",
-                "Arabic_Latin_Mixed_Proof",
-                "Arabic_Numbers_Proof",
-            }
-
-            if proof_key in supported_formatting_proofs:
+            if proof_supports_formatting(proof_key):
                 # Tracking setting (default 0)
                 tracking_key = f"{proof_key}_tracking"
                 if tracking_key not in self.proof_settings:
@@ -2136,7 +2055,7 @@ class ProofWindow(object):
             # Open popover positioned relative to the selected row
             self.proof_settings_popover.open(
                 parentView=sender.getNSTableView(),
-                               preferredEdge="right",
+                preferredEdge="right",
                 relativeRect=relativeRect,
             )
 
@@ -2261,25 +2180,29 @@ class ProofWindow(object):
         # Columns setting with appropriate defaults (skip for certain proofs)
         if proof_key not in ["Character_Set_Proof", "Arabic_Contextual_Forms_Proof"]:
             cols_key = f"{proof_key}_cols"
-            # Big proofs, Big Arabic/Farsi proofs, and Big Diacritics default to 1 column
 
-            if proof_key in [
-                "Big_Paragraph_Proof",
-                "Big_Diacritics_Proof",
-                "Big_Arabic_Text_Proof",
-                "Big_Farsi_Text_Proof",
-            ]:
-                default_cols = 1
+            # Import helper functions from config
+            from config import get_proof_by_settings_key
+
+            # Get proof info from registry
+            proof_info = get_proof_by_settings_key(proof_key)
+            if proof_info:
+                default_cols = proof_info["default_cols"]
             else:
-                # All other proofs default to 2 columns
-                default_cols = 2
+                default_cols = 2  # Fallback
+
             cols_value = self.proof_settings.get(cols_key, default_cols)
             numeric_items.append(
                 {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
             )
 
-        # Paragraphs setting (only for Small_Wordsiv_Proof)
-        if proof_key == "Small_Wordsiv_Proof":
+        # Paragraphs setting (only for proofs that have paragraphs)
+        # Import helper functions from config
+        from config import get_proof_by_settings_key
+
+        # Get proof info from registry
+        proof_info = get_proof_by_settings_key(proof_key)
+        if proof_info and proof_info["has_paragraphs"]:
             para_key = f"{proof_key}_para"
             para_value = self.proof_settings.get(para_key, 5)
             numeric_items.append(
@@ -2287,24 +2210,7 @@ class ProofWindow(object):
             )
 
         # Add tracking for supported proof types
-        supported_formatting_proofs = {
-            "Big_Paragraph_Proof",
-            "Big_Diacritics_Proof",
-            "Small_Paragraph_Proof",
-            "Small_Paired_Styles_Proof",
-            "Small_Wordsiv_Proof",
-            "Small_Diacritics_Proof",
-            "Small_Mixed_Text_Proof",
-            "Big_Arabic_Text_Proof",
-            "Big_Farsi_Text_Proof",
-            "Small_Arabic_Text_Proof",
-            "Small_Farsi_Text_Proof",
-            "Arabic_Vocalization_Proof",
-            "Arabic_Latin_Mixed_Proof",
-            "Arabic_Numbers_Proof",
-        }
-
-        if proof_key in supported_formatting_proofs:
+        if proof_supports_formatting(proof_key):
             tracking_key = f"{proof_key}_tracking"
             tracking_value = self.proof_settings.get(tracking_key, 0)
             numeric_items.append(
@@ -2349,7 +2255,7 @@ class ProofWindow(object):
         popover.featuresList.set(feature_items)
 
         # Update alignment control for supported proof types
-        if proof_key in supported_formatting_proofs:
+        if proof_supports_formatting(proof_key):
             # Update align control
             align_key = f"{proof_key}_align"
             align_value = self.proof_settings.get(align_key, "left")
@@ -3292,47 +3198,30 @@ class ProofWindow(object):
 
             self.proof_settings[font_size_key] = default_font_size
 
+            # Import helper functions from config
+            from config import get_proof_by_settings_key
+
+            # Get proof info from registry
+            proof_info = get_proof_by_settings_key(base_proof_key)
+            if proof_info is None:
+                return  # Skip if not found in registry
+
             # Columns setting (if applicable)
             if base_proof_key not in [
                 "Character_Set_Proof",
                 "Arabic_Contextual_Forms_Proof",
             ]:
                 cols_key = f"{unique_key}_cols"
-                if base_proof_key in [
-                    "Big_Paragraph_Proof",
-                    "Big_Diacritics_Proof",
-                    "Big_Arabic_Text_Proof",
-                    "Big_Farsi_Text_Proof",
-                ]:
-                    default_cols = 1
-                else:
-                    default_cols = 2
+                default_cols = proof_info["default_cols"]
                 self.proof_settings[cols_key] = default_cols
 
-            # Paragraphs setting (only for Small_Wordsiv_Proof)
-            if base_proof_key == "Small_Wordsiv_Proof":
+            # Paragraphs setting (only for proofs that have paragraphs)
+            if proof_info["has_paragraphs"]:
                 para_key = f"{unique_key}_para"
                 self.proof_settings[para_key] = 5
 
             # Text formatting settings for supported proof types
-            supported_formatting_proofs = {
-                "Big_Paragraph_Proof",
-                "Big_Diacritics_Proof",
-                "Small_Paragraph_Proof",
-                "Small_Paired_Styles_Proof",
-                "Small_Wordsiv_Proof",
-                "Small_Diacritics_Proof",
-                "Small_Mixed_Text_Proof",
-                "Big_Arabic_Text_Proof",
-                "Big_Farsi_Text_Proof",
-                "Small_Arabic_Text_Proof",
-                "Small_Farsi_Text_Proof",
-                "Arabic_Vocalization_Proof",
-                "Arabic_Latin_Mixed_Proof",
-                "Arabic_Numbers_Proof",
-            }
-
-            if base_proof_key in supported_formatting_proofs:
+            if proof_supports_formatting(base_proof_key):
                 # Tracking setting (default 0)
                 tracking_key = f"{unique_key}_tracking"
                 if tracking_key not in self.proof_settings:
@@ -3436,22 +3325,29 @@ class ProofWindow(object):
                 "Arabic_Contextual_Forms_Proof",
             ]:
                 cols_key = f"{unique_proof_key}_cols"
-                if base_proof_key in [
-                    "Big_Paragraph_Proof",
-                    "Big_Diacritics_Proof",
-                    "Big_Arabic_Text_Proof",
-                    "Big_Farsi_Text_Proof",
-                ]:
-                    default_cols = 1
+
+                # Import helper functions from config
+                from config import get_proof_by_settings_key
+
+                # Get proof info from registry
+                proof_info = get_proof_by_settings_key(base_proof_key)
+                if proof_info:
+                    default_cols = proof_info["default_cols"]
                 else:
-                    default_cols = 2
+                    default_cols = 2  # Fallback
+
                 cols_value = self.proof_settings.get(cols_key, default_cols)
                 numeric_items.append(
                     {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
                 )
 
-            # Paragraphs setting (only for Small_Wordsiv_Proof)
-            if base_proof_key == "Small_Wordsiv_Proof":
+            # Paragraphs setting (only for proofs that have paragraphs)
+            # Import helper functions from config
+            from config import get_proof_by_settings_key
+
+            # Get proof info from registry
+            proof_info = get_proof_by_settings_key(base_proof_key)
+            if proof_info and proof_info["has_paragraphs"]:
                 para_key = f"{unique_proof_key}_para"
                 para_value = self.proof_settings.get(para_key, 5)
                 numeric_items.append(
@@ -3459,24 +3355,7 @@ class ProofWindow(object):
                 )
 
             # Add tracking for supported proof types
-            supported_formatting_proofs = {
-                "Big_Paragraph_Proof",
-                "Big_Diacritics_Proof",
-                "Small_Paragraph_Proof",
-                "Small_Paired_Styles_Proof",
-                "Small_Wordsiv_Proof",
-                "Small_Diacritics_Proof",
-                "Small_Mixed_Text_Proof",
-                "Big_Arabic_Text_Proof",
-                "Big_Farsi_Text_Proof",
-                "Small_Arabic_Text_Proof",
-                "Small_Farsi_Text_Proof",
-                "Arabic_Vocalization_Proof",
-                "Arabic_Latin_Mixed_Proof",
-                "Arabic_Numbers_Proof",
-            }
-
-            if base_proof_key in supported_formatting_proofs:
+            if proof_supports_formatting(base_proof_key):
                 tracking_key = f"{unique_proof_key}_tracking"
                 tracking_value = self.proof_settings.get(tracking_key, 0)
                 numeric_items.append(
@@ -3524,7 +3403,7 @@ class ProofWindow(object):
             popover.featuresList.set(feature_items)
 
             # Update alignment control for supported proof types
-            if base_proof_key in supported_formatting_proofs:
+            if proof_supports_formatting(base_proof_key):
                 # Update align control
                 align_key = f"{unique_proof_key}_align"
                 align_value = self.proof_settings.get(align_key, "left")
