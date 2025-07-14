@@ -542,7 +542,13 @@ def generateSpacingString(characterSet):
 
 
 def charsetProof(
-    characterSet, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None
+    characterSet,
+    axesProduct,
+    indFont,
+    pairedStaticStyles,
+    otFea=None,
+    fontSize=None,
+    sectionName="Filtered Character Set",
 ):
     """Generate Filtered Character Set."""
     if not characterSet:
@@ -556,7 +562,7 @@ def charsetProof(
         else get_proof_default_font_size("filtered_character_set")
     )
 
-    sectionName = "Filtered Character Set"
+    # sectionName parameter is now passed from the caller
     try:
         if axesProduct:
             axisDict = {}
@@ -608,6 +614,7 @@ def spacingProof(
     otFea=None,
     fontSize=None,
     columns=None,
+    sectionName="Spacing proof",
 ):
     """Generate spacing proof."""
     # Use provided font size or fall back to proof type default
@@ -620,7 +627,7 @@ def spacingProof(
     # Use provided columns or fall back to default spacing proof columns (2)
     proof_columns = columns if columns is not None else 2
 
-    sectionName = "Spacing proof"
+    # Use the provided sectionName parameter
     if axesProduct:
         axisDict = {}
         for axisData in axesProduct:
@@ -909,7 +916,13 @@ def generateArabicContextualFormsProof(cat):
 
 
 def arabicContextualFormsProof(
-    cat, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None
+    cat,
+    axesProduct,
+    indFont,
+    pairedStaticStyles,
+    otFea=None,
+    fontSize=None,
+    sectionName="Ar Character Set",
 ):
     """Generate ARA Character Set proof pages using configurable font size."""
     # Use provided font size or fall back to character set font size
@@ -923,8 +936,6 @@ def arabicContextualFormsProof(
 
     if not contextualString:
         return
-
-    sectionName = "Ar Character Set"
 
     try:
         if axesProduct:
