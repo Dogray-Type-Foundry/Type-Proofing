@@ -2422,7 +2422,7 @@ class ProofWindow(object):
                     # Generate each enabled proof using the unique proof name as identifier
                     if base_proof_type == "Filtered Character Set":
                         charset_font_size = self.get_proof_font_size(proof_name)
-                        section_name = f"{proof_name} {charset_font_size}pt"
+                        section_name = f"{proof_name} - {charset_font_size}pt"
                         charsetProof(
                             fullCharacterSet,
                             axesProduct,
@@ -2435,7 +2435,7 @@ class ProofWindow(object):
                     elif base_proof_type == "Spacing Proof":
                         spacing_font_size = self.get_proof_font_size(proof_name)
                         spacing_columns = cols_by_proof.get(proof_name, 2)
-                        section_name = f"{proof_name} {spacing_font_size}pt"
+                        section_name = f"{proof_name} - {spacing_font_size}pt"
                         spacingProof(
                             fullCharacterSet,
                             axesProduct,
@@ -2468,7 +2468,7 @@ class ProofWindow(object):
                             2,
                             False,
                             big_paragraph_font_size,
-                            f"{proof_name} {big_paragraph_font_size}pt",
+                            f"{proof_name} - {big_paragraph_font_size}pt",
                             False,  # mixedStyles=False
                             False,  # forceWordsiv
                             None,  # injectText
@@ -2501,7 +2501,7 @@ class ProofWindow(object):
                             3,
                             False,
                             big_diacritics_font_size,
-                            f"{proof_name} {big_paragraph_font_size}pt",
+                            f"{proof_name} - {big_paragraph_font_size}pt",
                             False,  # mixedStyles=False
                             False,  # forceWordsiv
                             None,  # injectText
@@ -2534,7 +2534,7 @@ class ProofWindow(object):
                             5,
                             False,
                             small_paragraph_font_size,
-                            f"{proof_name} {small_paragraph_font_size}pt",
+                            f"{proof_name} - {small_paragraph_font_size}pt",
                             False,  # mixedStyles=False
                             False,  # forceWordsiv
                             None,  # injectText
@@ -2569,7 +2569,7 @@ class ProofWindow(object):
                             5,
                             False,
                             small_paired_styles_font_size,
-                            f"{proof_name} {small_paired_styles_font_size}pt",
+                            f"{proof_name} - {small_paired_styles_font_size}pt",
                             True,  # mixedStyles=True for SmallPairedStylesProof
                             True,  # forceWordsiv
                             None,  # injectText
@@ -2602,7 +2602,7 @@ class ProofWindow(object):
                             paras_by_proof.get(proof_name, 5),
                             False,
                             small_wordsiv_font_size,
-                            f"{proof_name} {small_wordsiv_font_size}pt",
+                            f"{proof_name} - {small_wordsiv_font_size}pt",
                             False,  # mixedStyles=False
                             True,  # forceWordsiv
                             None,  # injectText
@@ -2637,7 +2637,7 @@ class ProofWindow(object):
                             4,
                             False,
                             small_diacritics_font_size,
-                            f"{proof_name} {small_diacritics_font_size}pt",
+                            f"{proof_name} - {small_diacritics_font_size}pt",
                             False,  # mixedStyles=False
                             False,  # forceWordsiv
                             None,  # injectText
@@ -2672,7 +2672,7 @@ class ProofWindow(object):
                             5,
                             False,
                             small_mixed_text_font_size,
-                            f"{proof_name} {small_mixed_text_font_size}pt",
+                            f"{proof_name} - {small_mixed_text_font_size}pt",
                             False,  # mixedStyles=False
                             False,  # forceWordsiv
                             (  # injectText
@@ -2692,7 +2692,7 @@ class ProofWindow(object):
                             proof_name
                         )
                         section_name = (
-                            f"{proof_name} {arabic_contextual_forms_font_size}pt"
+                            f"{proof_name} - {arabic_contextual_forms_font_size}pt"
                         )
                         arabicContextualFormsProof(
                             cat,
@@ -2725,7 +2725,7 @@ class ProofWindow(object):
                                 2,  # Fixed paragraph count for big text
                                 False,
                                 big_arabic_font_size,
-                                f"{proof_name} {big_arabic_font_size}pt",
+                                f"{proof_name} - {big_arabic_font_size}pt",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
@@ -2759,7 +2759,7 @@ class ProofWindow(object):
                                 2,  # Fixed paragraph count for big text
                                 False,
                                 big_farsi_font_size,
-                                f"{proof_name} {big_farsi_font_size}pt",
+                                f"{proof_name} - {big_farsi_font_size}pt",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
@@ -2793,7 +2793,7 @@ class ProofWindow(object):
                                 5,  # Standard paragraph count for small text
                                 False,
                                 small_arabic_font_size,
-                                f"{proof_name} {small_arabic_font_size}pt",
+                                f"{proof_name} - {small_arabic_font_size}pt",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
@@ -2827,7 +2827,7 @@ class ProofWindow(object):
                                 5,  # Standard paragraph count for small text
                                 False,
                                 small_farsi_font_size,
-                                f"{proof_name} {small_farsi_font_size}pt",
+                                f"{proof_name} - {small_farsi_font_size}pt",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
@@ -2861,7 +2861,7 @@ class ProofWindow(object):
                                 3,  # Specific paragraph count for vocalization
                                 False,
                                 arabic_vocab_font_size,
-                                f"{proof_name} {arabic_vocab_font_size}pt",
+                                f"{proof_name} - {arabic_vocab_font_size}pt",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 (arabicVocalization,),  # injectText
@@ -2895,7 +2895,7 @@ class ProofWindow(object):
                                 3,  # Specific paragraph count for mixed text
                                 False,
                                 arabic_latin_font_size,
-                                f"{proof_name} {arabic_latin_font_size}pt",
+                                f"{proof_name} - {arabic_latin_font_size}pt",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 (arabicLatinMixed,),  # injectText
@@ -2929,7 +2929,7 @@ class ProofWindow(object):
                                 3,  # Specific paragraph count for numbers
                                 False,
                                 arabic_numbers_font_size,
-                                f"{proof_name} {arabic_numbers_font_size}pt",
+                                f"{proof_name} - {arabic_numbers_font_size}pt",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 (arabicFarsiUrduNumbers,),  # injectText
