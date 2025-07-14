@@ -894,15 +894,23 @@ class ControlsTab:
                 # Custom instance - use the unique key format for storage
                 unique_key = create_unique_proof_key(display_name)
                 enabled = self.settings.get_proof_option(unique_key)
+
+                # For custom instances, set the original option to the base type
+                base_type = self._extract_base_proof_type(display_name)
+                item = {
+                    "Option": display_name,
+                    "Enabled": enabled,
+                    "_original_option": base_type or display_name,
+                }
             else:
                 # Base proof type - use the registry key
                 enabled = self.settings.get_proof_option(settings_key)
+                item = {
+                    "Option": display_name,
+                    "Enabled": enabled,
+                    "_original_option": display_name,
+                }
 
-            item = {
-                "Option": display_name,
-                "Enabled": enabled,
-                "_original_option": display_name,
-            }
             proof_options_items.append(item)
 
         return proof_options_items
