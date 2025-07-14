@@ -90,27 +90,27 @@ The left side shows available proof types. Proof in the list can be reordered, w
 
 #### Basic Proof Types
 - **Show Baselines/Grid**: Displays text box and baseline grids
-- **Character Set Proof**: Shows all available characters in the font
+- **Filtered Character Set**: Shows all available characters in the font
 - **Spacing Proof**: Shows each character in a pattern that helps evaluate spacing
-- **Big Paragraph Proof**: Paragraphs of text in large font size
-- **Big Diacritics Proof**: Diacritics proof in large font size
-- **Small Paragraph Proof**: Paragraphs of text in small font size
-- **Small Paired Styles Proof**: Show regular/italic or regular/bold parings to evaluate how those styles work together in small font size
-- **Small Wordsiv Proof**: Generates pseudo-random text in small font size
-- **Small Diacritics Proof**: Diacritics proof in small font size
-- **Small Mixed Text Proof**: Preset text to test numbers, punctuation and symbols in paragraphs of text set in small font size
+- **Basic Paragraph Large**: Paragraphs of text in large font size
+- **Diacritic Words Large**: Diacritics proof in large font size
+- **Basic Paragraph Small**: Paragraphs of text in small font size
+- **Paired Styles Paragraph Small**: Show regular/italic or regular/bold parings to evaluate how those styles work together in small font size
+- **Generative Text Small**: Generates pseudo-random text in small font size
+- **Diacritic Words Small**: Diacritics proof in small font size
+- **Misc Paragraph Small**: Preset text to test numbers, punctuation and symbols in paragraphs of text set in small font size
 
 #### Arabic/Persian Proof Types
 *These options appear automatically when Arabic-supporting fonts are loaded:*
 
-- **Arabic Contextual Forms**: Shows arabic positional forms in big font size
-- **Big Arabic Text Proof**: Paragraphs of Arabic language text in large font size
-- **Big Farsi Text Proof**: Paragraphs of Persian language text in large font size
-- **Small Arabic Text Proof**: Paragraphs of Arabic language text in small font size
-- **Small Farsi Text Proof**: Paragraphs of Persian language text in small font size
-- **Arabic Vocalization Proof**: Shows Arabic vocalization marks in small font size
-- **Arabic-Latin Mixed Proof**: Shows Arabic and Latin script mixed in text
-- **Arabic Numbers Proof**: Numbers in different contexts
+- **ARA Character Set**: Shows arabic positional forms in big font size
+- **Ar Paragraph Large**: Paragraphs of Arabic language text in large font size
+- **Fa Paragraph Large**: Paragraphs of Persian language text in large font size
+- **Ar Paragraph Small**: Paragraphs of Arabic language text in small font size
+- **Fa Paragraph Small**: Paragraphs of Persian language text in small font size
+- **Ar Vocalization Paragraph Small**: Shows Arabic vocalization marks in small font size
+- **Ar-Lat Mixed Paragraph Small**: Shows Arabic and Latin script mixed in text
+- **Ar Numbers Small**: Numbers in different contexts
 
 ### Proof Settings
 
