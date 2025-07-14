@@ -2423,6 +2423,13 @@ class ProofWindow(object):
                     if base_proof_type == "Filtered Character Set":
                         charset_font_size = self.get_proof_font_size(proof_name)
                         section_name = f"{proof_name} - {charset_font_size}pt"
+                        
+                        # Get tracking value
+                        unique_proof_key = create_unique_proof_key(proof_name)
+                        tracking_value = self.proof_settings.get(
+                            f"{unique_proof_key}_tracking", 0
+                        )
+                        
                         charsetProof(
                             fullCharacterSet,
                             axesProduct,
@@ -2431,11 +2438,19 @@ class ProofWindow(object):
                             otfeatures_by_proof.get(proof_name, {}),
                             charset_font_size,
                             sectionName=section_name,
+                            tracking=tracking_value,
                         )
                     elif base_proof_type == "Spacing Proof":
                         spacing_font_size = self.get_proof_font_size(proof_name)
                         spacing_columns = cols_by_proof.get(proof_name, 2)
                         section_name = f"{proof_name} - {spacing_font_size}pt"
+                        
+                        # Get tracking value
+                        unique_proof_key = create_unique_proof_key(proof_name)
+                        tracking_value = self.proof_settings.get(
+                            f"{unique_proof_key}_tracking", 0
+                        )
+                        
                         spacingProof(
                             fullCharacterSet,
                             axesProduct,
@@ -2445,6 +2460,7 @@ class ProofWindow(object):
                             spacing_font_size,
                             spacing_columns,
                             sectionName=section_name,
+                            tracking=tracking_value,
                         )
                     elif base_proof_type == "Basic Paragraph Large":
                         big_paragraph_font_size = self.get_proof_font_size(proof_name)
@@ -2694,6 +2710,13 @@ class ProofWindow(object):
                         section_name = (
                             f"{proof_name} - {arabic_contextual_forms_font_size}pt"
                         )
+                        
+                        # Get tracking value
+                        unique_proof_key = create_unique_proof_key(proof_name)
+                        tracking_value = self.proof_settings.get(
+                            f"{unique_proof_key}_tracking", 0
+                        )
+                        
                         arabicContextualFormsProof(
                             cat,
                             axesProduct,
@@ -2702,6 +2725,7 @@ class ProofWindow(object):
                             otfeatures_by_proof.get(proof_name, {}),
                             arabic_contextual_forms_font_size,
                             sectionName=section_name,
+                            tracking=tracking_value,
                         )
                     elif base_proof_type == "Ar Paragraph Large":
                         big_arabic_font_size = self.get_proof_font_size(proof_name)
@@ -2953,6 +2977,12 @@ class ProofWindow(object):
                         "filtered_character_set"
                     )
                     section_name = f"Filtered Character Set {charset_font_size}pt"
+                    
+                    # Get tracking value
+                    tracking_value = self.proof_settings.get(
+                        "filtered_character_set_tracking", 0
+                    )
+                    
                     charsetProof(
                         fullCharacterSet,
                         axesProduct,
@@ -2961,12 +2991,19 @@ class ProofWindow(object):
                         otfeatures_by_proof.get("filtered_character_set", {}),
                         charset_font_size,
                         sectionName=section_name,
+                        tracking=tracking_value,
                     )
 
                 if proof_options.get("spacing_proof"):
                     spacing_font_size = self.get_proof_font_size("spacing_proof")
                     spacing_columns = cols_by_proof.get("spacing_proof", 2)
                     section_name = f"Spacing proof {spacing_font_size}pt"
+                    
+                    # Get tracking value
+                    tracking_value = self.proof_settings.get(
+                        "spacing_proof_tracking", 0
+                    )
+                    
                     spacingProof(
                         fullCharacterSet,
                         axesProduct,
@@ -2976,6 +3013,7 @@ class ProofWindow(object):
                         spacing_font_size,
                         spacing_columns,
                         sectionName=section_name,
+                        tracking=tracking_value,
                     )
 
                 # Add other proofs in the same pattern if needed...
