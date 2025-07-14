@@ -1,0 +1,1241 @@
+# Main Window - Application window and controller
+
+import sys
+import io
+import os
+import traceback
+import datetime
+from itertools import product
+import vanilla
+import AppKit
+import Quartz.PDFKit as PDFKit
+from PyObjCTools import AppHelper
+
+from config import (
+    WINDOW_TITLE,
+    SETTINGS_PATH,
+    SCRIPT_DIR,
+    DEFAULT_ON_FEATURES,
+    HIDDEN_FEATURES,
+    get_proof_default_font_size,
+    proof_supports_formatting,
+)
+from font_analysis import (
+    FontManager,
+    product_dict,
+    filteredCharset,
+    categorize,
+    variableFont,
+    pairStaticStyles,
+)
+from proof_generation import (
+    charsetProof,
+    spacingProof,
+)
+from proof_handlers import ProofContext, get_proof_handler, create_unique_proof_key
+from settings_manager import Settings, ProofSettingsManager, AppSettingsManager
+from files_tab import FilesTab
+from controls_tab import ControlsTab
+import drawBot as db
+
+
+def close_existing_windows(window_title):
+    """Close any existing windows with the same title."""
+    try:
+        app = AppKit.NSApp()
+        if app is not None and hasattr(app, "windows"):
+            for window in app.windows():
+                if window.title() == window_title:
+                    window.close()
+    except (ImportError, AttributeError):
+        pass
+
+
+class TextBoxOutput:
+    """Redirect stdout/stderr to a text box."""
+
+    def __init__(self, textBox):
+        self.textBox = textBox
+
+    def write(self, text):
+        """Write text to the text box."""
+        if hasattr(self.textBox, "set"):
+            current_text = self.textBox.get()
+            new_text = current_text + text
+            self.textBox.set(new_text)
+
+    def flush(self):
+        """Flush method for compatibility."""
+        pass
+
+
+class ProofWindow:
+    """Main application window and controller."""
+
+    def __init__(self):
+        # Close any existing windows with the same title
+        close_existing_windows(WINDOW_TITLE)
+
+        # Initialize settings and font manager
+        self.settings = Settings(SETTINGS_PATH)
+        self.font_manager = FontManager(self.settings)
+
+        # Initialize settings managers
+        self.proof_settings_manager = ProofSettingsManager(
+            self.settings, self.font_manager
+        )
+        self.app_settings_manager = AppSettingsManager(self.settings)
+
+        # Initialize proof-specific settings storage (deprecated - use proof_settings_manager)
+        # Import the helper function from config
+        from config import get_proof_settings_mapping
+
+        # Get proof types with settings keys from registry
+        settings_mapping = get_proof_settings_mapping()
+        self.proof_types_with_otf = [
+            (key, name) for name, key in settings_mapping.items()
+        ]
+        self.default_on_features = DEFAULT_ON_FEATURES
+        self.proof_settings = self.proof_settings_manager.proof_settings
+        self.initialize_proof_settings()
+
+        # Create main window
+        self.w = vanilla.Window(
+            (1000, 700), WINDOW_TITLE, minSize=(1000, 700), closable=True
+        )
+
+        # Set the window close callback to handle the window close button
+        self.w.bind("close", self.windowCloseCallback)
+        self.w.bind("should close", self.windowShouldCloseCallback)
+
+        # SegmentedButton for tab switching
+        self.tabSwitcher = vanilla.SegmentedButton(
+            (10, 10, 322, 24),
+            segmentDescriptions=[
+                dict(title="Files"),
+                dict(title="Controls"),
+            ],
+            callback=self.switchTab,
+        )
+
+        # Create tab instances
+        self.filesTab = FilesTab(self, self.font_manager)
+        self.controlsTab = ControlsTab(self, self.settings)
+
+        # Create preview components that will be integrated into Controls tab
+        self.preview_components = self.create_preview_components()
+
+        # Refresh proof options list after tabs are created
+        if hasattr(self, "controlsTab") and self.controlsTab:
+            self.controlsTab.refresh_proof_options_list()
+
+        # --- Main Content Group (holds the two tab groups) ---
+        self.mainContent = vanilla.Group((0, 44, -0, -0))
+        self.mainContent.filesGroup = self.filesTab.group
+        self.mainContent.controlsGroup = self.controlsTab.group
+        self.filesTab.group.show(True)
+        self.controlsTab.group.show(False)
+
+        # Integrate preview into controls tab
+        self.controlsTab.integrate_preview_view(self.preview_components["pdfView"])
+
+        # --- Debug Text Editor ---
+        self.debugTextEditor = vanilla.TextEditor(
+            (0, 0, -0, -0), "Debug output will appear here.", readOnly=True
+        )
+
+        # --- SplitView: main content (top), debug (bottom) ---
+        self.w.splitView = vanilla.SplitView(
+            (0, 0, -0, -0),
+            [
+                dict(view=self.mainContent, identifier="main", size=600),
+                dict(view=self.debugTextEditor, identifier="debug", size=100),
+            ],
+            isVertical=False,
+        )
+        self.w.tabSwitcher = self.tabSwitcher
+
+        # Show only the selected group
+        self.switchTab(self.tabSwitcher)
+
+        # Redirect stdout and stderr to the debugTextEditor
+        self._original_stdout = sys.stdout
+        self._original_stderr = sys.stderr
+        sys.stdout = TextBoxOutput(self.debugTextEditor)
+        sys.stderr = TextBoxOutput(self.debugTextEditor)
+
+        self.w.open()
+        # Ensure Files tab is selected by default on startup
+        self.tabSwitcher.set(0)
+        self.switchTab(self.tabSwitcher)
+
+    def switchTab(self, sender):
+        """Switch between tabs."""
+        idx = sender.get()
+        self.filesTab.group.show(idx == 0)
+        self.controlsTab.group.show(idx == 1)
+
+    def get_proof_font_size(self, proof_identifier):
+        """Get font size for a specific proof from its settings."""
+        return self.proof_settings_manager.get_proof_font_size(proof_identifier)
+
+    def save_all_settings(self):
+        """Save all current settings to the settings file."""
+        try:
+            # Save proof options
+            proof_options_items = self.controlsTab.group.proofOptionsList.get()
+            for item in proof_options_items:
+                proof_name = item[
+                    "Option"
+                ]  # Use the actual proof name (including numbers)
+                base_option = item.get(
+                    "_original_option", proof_name
+                )  # Get original option name
+                enabled = item["Enabled"]
+
+                if base_option == "Show Baselines/Grid":
+                    self.settings.set_proof_option("showBaselines", enabled)
+                else:
+                    # For unique proof names, use a sanitized version as the key
+                    unique_key = create_unique_proof_key(proof_name)
+                    self.settings.set_proof_option(unique_key, enabled)
+
+            # Save proof-specific settings
+            self.settings.set_proof_settings(self.proof_settings)
+
+            # Save the settings file
+            self.settings.save()
+
+        except Exception as e:
+            print(f"Error saving settings: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+    def resetSettingsCallback(self, sender):
+        """Handle the Reset Settings button click."""
+        try:
+            # Show confirmation dialog
+            from vanilla.dialogs import askYesNo
+
+            message_text = (
+                "This will reset all settings to defaults and clear all loaded fonts."
+            )
+            if self.settings.user_settings_file:
+                message_text += f"\n\nThis will also stop using the custom settings file:\n{self.settings.user_settings_file}"
+            message_text += "\n\nAre you sure?"
+
+            result = askYesNo("Reset All Settings", message_text)
+
+            if result == 1:  # User clicked Yes
+                # Reset settings to defaults (this also clears user_settings_file)
+                self.settings.reset_to_defaults()
+
+                # Override proof options to all be False (unchecked)
+                proof_option_keys = [
+                    "show_baselines",
+                    "filtered_character_set",
+                    "spacing_proof",
+                    "basic_paragraph_large",
+                    "diacritic_words_large",
+                    "basic_paragraph_small",
+                    "paired_styles_paragraph_small",
+                    "generative_text_small",
+                    "diacritic_words_small",
+                    "misc_paragraph_small",
+                    "ar_character_set",
+                    "ar_paragraph_large",
+                    "fa_paragraph_large",
+                    "ar_paragraph_small",
+                    "fa_paragraph_small",
+                    "ar_vocalization_paragraph_small",
+                    "ar_lat_mixed_paragraph_small",
+                    "ar_numbers_small",
+                ]
+
+                for option_key in proof_option_keys:
+                    self.settings.set_proof_option(option_key, False)
+
+                # Clear font manager
+                self.font_manager.fonts = tuple()
+                self.font_manager.font_info = {}
+                self.font_manager.axis_values_by_font = {}
+
+                # Reset table columns to base columns only
+                self.filesTab.reset_table_columns()
+
+                # Refresh UI
+                self.filesTab.update_table()
+
+                # Update PDF location UI to reflect reset settings
+                self.filesTab.update_pdf_location_ui()
+
+                # Refresh controls tab with default values
+                self.refresh_controls_tab()
+
+                self.initialize_proof_settings()
+
+                print("Settings reset to defaults.")
+
+        except Exception as e:
+            print(f"Error resetting settings: {e}")
+            traceback.print_exc()
+
+    def closeWindowCallback(self, sender):
+        """Handle the Close Window button click."""
+        self._perform_cleanup_and_exit()
+
+    def windowCloseCallback(self, sender):
+        """Handle the window close button (X) being pressed."""
+        self._perform_cleanup_and_exit()
+
+    def windowShouldCloseCallback(self, sender):
+        """Handle the window should close event to ensure proper cleanup."""
+        # Just allow the close, cleanup will be handled by windowCloseCallback
+        return True
+
+    def _perform_cleanup_and_exit(self):
+        """Perform cleanup and exit the application."""
+        # Prevent multiple calls to this method
+        if hasattr(self, "_exiting"):
+            return
+        self._exiting = True
+
+        try:
+            # Try to save settings quickly without full validation
+            if hasattr(self, "settings"):
+                try:
+                    self.settings.save()
+                except:
+                    pass  # Don't fail if settings can't be saved
+
+            # Restore stdout and stderr
+            try:
+                if hasattr(self, "_original_stdout"):
+                    sys.stdout = self._original_stdout
+                if hasattr(self, "_original_stderr"):
+                    sys.stderr = self._original_stderr
+            except:
+                pass
+
+            # Stop the event loop
+            try:
+                AppHelper.stopEventLoop()
+            except:
+                pass
+
+        except:
+            pass  # Don't let any error prevent exit
+
+        # Force exit the Python process
+        import os
+
+        os._exit(0)
+
+    def generateCallback(self, sender):
+        """Handle the Generate Proof button click."""
+        try:
+            # Save all current settings before generating
+            self.save_all_settings()
+
+            # Setup stdout/stderr redirection
+            buffer = io.StringIO()
+            old_stdout = sys.stdout
+            old_stderr = sys.stderr
+            sys.stdout = buffer
+            sys.stderr = buffer
+
+            try:
+                # Initialize variables
+                controls = self.controlsTab.group  # "Controls" group
+
+                if not self.font_manager.fonts:
+                    print("No fonts loaded. Please add fonts first.")
+                    return
+
+                # Use the currently loaded fonts
+                fonts = self.font_manager.fonts
+                familyName = os.path.splitext(os.path.basename(fonts[0]))[0].split("-")[
+                    0
+                ]
+
+                # Read axis values - now handled through Files tab per-font settings
+                userAxesValues = {}
+
+                # Read proof options from list
+                proof_options_items = controls.proofOptionsList.get()
+                proof_options = {}
+
+                # Read showBaselines from the standalone checkbox
+                self.showBaselines = controls.showBaselinesCheckbox.get()
+                db.showBaselines = self.showBaselines
+
+                for item in proof_options_items:
+                    option = item.get(
+                        "_original_option", item["Option"]
+                    )  # Get original option name
+                    enabled = bool(item["Enabled"])
+
+                    # For all proofs, use the actual option name as the key
+                    # This handles both original proofs and numbered duplicates
+                    proof_options[item["Option"]] = enabled
+
+                # Build otfeatures dict from proof_settings
+                otfeatures_by_proof = {}
+                cols_by_proof = {}
+                paras_by_proof = {}
+
+                # Get mapping from config
+                from config import get_proof_settings_mapping
+
+                display_name_to_settings_key = get_proof_settings_mapping()
+
+                # Process settings for both old-style and new unique proof identifiers
+                for item in proof_options_items:
+                    if not item["Enabled"]:
+                        continue
+
+                    proof_name = item["Option"]
+
+                    # Always use the unique identifier for settings keys to ensure consistency
+                    # This handles both original proofs and numbered duplicates uniformly
+                    unique_key = create_unique_proof_key(proof_name)
+
+                    # Determine the base proof type for validation
+                    settings_key = None
+                    for (
+                        display_name,
+                        base_settings_key,
+                    ) in display_name_to_settings_key.items():
+                        if proof_name.startswith(display_name):
+                            settings_key = base_settings_key
+                            break
+
+                    # Fallback if no base type found
+                    if not settings_key:
+                        settings_key = "basic_paragraph_small"
+
+                    # Always use unique identifier for all settings keys
+                    cols_key = f"{unique_key}_cols"
+                    para_key = f"{unique_key}_para"
+                    otf_prefix = f"otf_{unique_key}_"
+
+                    # Get columns setting
+                    if cols_key in self.proof_settings:
+                        cols_by_proof[proof_name] = self.proof_settings[cols_key]
+
+                    # Get paragraphs setting (only for Wordsiv proofs)
+                    if "Wordsiv" in proof_name:
+                        if para_key in self.proof_settings:
+                            paras_by_proof[proof_name] = self.proof_settings[para_key]
+
+                    # Get OpenType features
+                    otf_dict = {}
+                    otf_search_prefix = f"otf_{unique_key if proof_name not in display_name_to_settings_key else settings_key}_"
+                    for key, value in self.proof_settings.items():
+                        if key.startswith(otf_prefix):
+                            feature = key.replace(otf_prefix, "")
+                            otf_dict[feature] = bool(value)
+                    otfeatures_by_proof[proof_name] = otf_dict
+
+                # Generate proof
+                output_path = self.run_proof(
+                    userAxesValues,
+                    proof_options,
+                    otfeatures_by_proof,
+                    cols_by_proof=cols_by_proof,
+                    paras_by_proof=paras_by_proof,
+                )
+
+                # Display the generated PDF
+                if self.display_pdf(output_path):
+                    self.tabSwitcher.set(
+                        1
+                    )  # Switch to Controls tab (which now has preview)
+                    self.switchTab(self.tabSwitcher)
+
+            except Exception as e:
+                print(f"Error in proof generation: {e}")
+                traceback.print_exc()
+
+            # Restore stdout/stderr and update debug output
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+            self.debugTextEditor.set(buffer.getvalue())
+
+        except Exception as e:
+            print(f"Error in generate callback: {e}")
+            traceback.print_exc()
+
+    def initialize_proof_settings(self):
+        """Initialize proof-specific settings storage using the settings manager."""
+        # Delegate to the proof settings manager
+        self.proof_settings_manager.initialize_proof_settings()
+
+        # Update our reference to the proof settings
+        self.proof_settings = self.proof_settings_manager.proof_settings
+
+        # Refresh proof options list to show/hide Arabic proofs based on loaded fonts
+        if hasattr(self, "controlsTab") and self.controlsTab:
+            self.controlsTab.refresh_proof_options_list()
+
+    def create_proof_settings_popover(self):
+        """Create the proof settings popover."""
+        self.proof_settings_popover = vanilla.Popover((400, 520))
+        popover = self.proof_settings_popover
+
+        # Proof type selector
+        popover.proofTypeLabel = vanilla.TextBox(
+            (10, 10, -10, 20), "Select Proof Type:"
+        )
+        proof_type_names = [label for _, label in self.proof_types_with_otf]
+        popover.proofTypePopup = vanilla.PopUpButton(
+            (10, 35, -10, 20),
+            proof_type_names,
+            callback=self.proofTypeSelectionCallback,
+        )
+
+        # Numeric settings list (now includes tracking)
+        popover.numericLabel = vanilla.TextBox((10, 70, -10, 20), "Settings:")
+        popover.numericList = vanilla.List2(
+            (10, 95, -10, 140),
+            [],
+            columnDescriptions=[
+                {
+                    "identifier": "Setting",
+                    "title": "Setting",
+                    "key": "Setting",
+                    "width": 150,
+                    "editable": False,
+                },
+                {
+                    "identifier": "Value",
+                    "title": "Value",
+                    "key": "Value",
+                    "width": 100,
+                    "editable": True,
+                },
+            ],
+            editCallback=self.numericSettingsEditCallback,
+        )
+
+        # Align control (standalone)
+        popover.alignLabel = vanilla.TextBox((10, 245, 100, 20), "Alignment:")
+        popover.alignPopUp = vanilla.PopUpButton(
+            (120, 245, 100, 20),
+            ["left", "center", "right"],
+            callback=self.alignPopUpCallback,
+        )
+
+        # OpenType features list
+        popover.featuresLabel = vanilla.TextBox(
+            (10, 275, -10, 20), "OpenType Features:"
+        )
+        popover.featuresList = vanilla.List2(
+            (10, 300, -10, -10),
+            [],
+            columnDescriptions=[
+                {
+                    "identifier": "Feature",
+                    "title": "Feature",
+                    "key": "Feature",
+                    "width": 150,
+                    "editable": False,
+                },
+                {
+                    "identifier": "Enabled",
+                    "title": "Enabled",
+                    "key": "Enabled",
+                    "width": 80,
+                    "editable": True,
+                    "cellClass": vanilla.CheckBoxList2Cell,
+                },
+            ],
+            editCallback=self.featuresEditCallback,
+        )
+
+        # Initialize with first proof type
+        if self.proof_types_with_otf:
+            popover.proofTypePopup.set(0)
+            self.proofTypeSelectionCallback(popover.proofTypePopup)
+
+    def proofTypeSelectionCallback(self, sender):
+        """Handle proof type selection in popover."""
+        if not hasattr(self, "proof_settings_popover"):
+            return
+
+        idx = sender.get()
+        if idx < 0 or idx >= len(self.proof_types_with_otf):
+            return
+
+        proof_key, proof_label = self.proof_types_with_otf[idx]
+        popover = self.proof_settings_popover
+
+        # Update numeric settings
+        numeric_items = []
+
+        # Font size setting for all proofs (always first)
+        font_size_key = f"{proof_key}_fontSize"
+        # Set default font size based on proof type using registry
+        default_font_size = get_proof_default_font_size(proof_key)
+
+        font_size_value = self.proof_settings.get(font_size_key, default_font_size)
+        numeric_items.append(
+            {"Setting": "Font Size", "Value": font_size_value, "_key": font_size_key}
+        )
+
+        # Columns setting with appropriate defaults (skip for certain proofs)
+        if proof_key not in ["filtered_character_set", "ar_character_set"]:
+            cols_key = f"{proof_key}_cols"
+
+            # Import helper functions from config
+            from config import get_proof_by_storage_key
+
+            # Get proof info from registry
+            proof_info = get_proof_by_storage_key(proof_key)
+            if proof_info:
+                default_cols = proof_info["default_cols"]
+            else:
+                default_cols = 2  # Fallback
+
+            cols_value = self.proof_settings.get(cols_key, default_cols)
+            numeric_items.append(
+                {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
+            )
+
+        # Paragraphs setting (only for proofs that have paragraphs)
+        # Import helper functions from config
+        from config import get_proof_by_settings_key
+
+        # Get proof info from registry
+        proof_info = get_proof_by_settings_key(proof_key)
+        if proof_info and proof_info["has_paragraphs"]:
+            para_key = f"{proof_key}_para"
+            para_value = self.proof_settings.get(para_key, 5)
+            numeric_items.append(
+                {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
+            )
+
+        # Add tracking for supported proof types
+        if proof_supports_formatting(proof_key):
+            tracking_key = f"{proof_key}_tracking"
+            tracking_value = self.proof_settings.get(tracking_key, 0)
+            numeric_items.append(
+                {"Setting": "Tracking", "Value": tracking_value, "_key": tracking_key}
+            )
+
+        popover.numericList.set(numeric_items)
+
+        # Update features settings
+        if self.font_manager.fonts:
+            try:
+                feature_tags = db.listOpenTypeFeatures(self.font_manager.fonts[0])
+
+            except Exception:
+                feature_tags = []
+        else:
+            feature_tags = []
+
+        feature_items = []
+        for tag in feature_tags:
+            # Skip hidden features
+            if tag in HIDDEN_FEATURES:
+                continue
+
+            feature_key = f"otf_{proof_key}_{tag}"
+
+            # Special handling for Spacing_Proof kern feature
+            if proof_key == "spacing_proof" and tag == "kern":
+                feature_value = False
+                self.proof_settings[feature_key] = False
+                feature_items.append(
+                    {
+                        "Feature": f"{tag} (always off)",
+                        "Enabled": feature_value,
+                        "_key": feature_key,
+                        "_readonly": True,
+                    }
+                )
+            else:
+                default_value = tag in self.default_on_features
+                feature_value = self.proof_settings.get(feature_key, default_value)
+                feature_items.append(
+                    {"Feature": tag, "Enabled": feature_value, "_key": feature_key}
+                )
+
+        popover.featuresList.set(feature_items)
+
+        # Update alignment control for supported proof types
+        if proof_supports_formatting(proof_key):
+            # Update align control
+            align_key = f"{proof_key}_align"
+            align_value = self.proof_settings.get(align_key, "left")
+            align_options = ["left", "center", "right"]
+            if align_value in align_options:
+                popover.alignPopUp.set(align_options.index(align_value))
+            else:
+                popover.alignPopUp.set(0)  # Default to "left"
+
+            # Show alignment control
+            popover.alignLabel.show(True)
+            popover.alignPopUp.show(True)
+        else:
+            # Hide alignment control for unsupported proof types
+            popover.alignLabel.show(False)
+            popover.alignPopUp.show(False)
+
+    def alignPopUpCallback(self, sender):
+        """Handle alignment selection changes."""
+        if not hasattr(self, "current_proof_key"):
+            return
+
+        selected_idx = sender.get()
+        align_options = ["left", "center", "right"]
+        if 0 <= selected_idx < len(align_options):
+            align_value = align_options[selected_idx]
+            align_key = f"{self.current_proof_key}_align"
+            self.proof_settings[align_key] = align_value
+
+    def numericSettingsEditCallback(self, sender):
+        """Handle edits to numeric settings in popover."""
+        items = sender.get()
+        for item in items:
+            if "_key" in item:
+                key = item["_key"]
+                value = item["Value"]
+                try:
+                    # Handle tracking values (can be float) vs other settings (must be positive int)
+                    if "_tracking" in key:
+                        value = float(value)
+                        self.proof_settings[key] = value
+                    else:
+                        value = int(value)
+                        if value <= 0:
+                            print(f"Invalid value for {item['Setting']}: must be > 0")
+                            continue
+                        self.proof_settings[key] = value
+                except (ValueError, TypeError):
+                    print(f"Invalid value for {item['Setting']}: {value}")
+
+    def featuresEditCallback(self, sender):
+        """Handle edits to OpenType features in popover."""
+        items = sender.get()
+        for item in items:
+            if "_key" in item:
+                key = item["_key"]
+                enabled = item["Enabled"]
+
+                # Prevent editing kern feature for SpacingProof
+                if item.get("_readonly", False):
+                    # Reset to disabled if someone tries to change it
+                    if enabled:
+                        item["Enabled"] = False
+                        sender.set(items)
+                    continue
+
+                self.proof_settings[key] = bool(enabled)
+
+    def run_proof(
+        self,
+        userAxesValues,
+        proof_options,
+        otfeatures_by_proof=None,
+        now=None,
+        nowformat=None,
+        cols_by_proof=None,
+        paras_by_proof=None,
+    ):
+        """Run the proof generation process."""
+        # Update the global pageDimensions variable with user setting
+        import config
+
+        config.pageDimensions = self.settings.get_page_format()
+
+        db.newDrawing()
+        pairedStaticStyles = pairStaticStyles(self.font_manager.fonts)
+        if otfeatures_by_proof is None:
+            otfeatures_by_proof = {}
+        if cols_by_proof is None:
+            cols_by_proof = {}
+        if paras_by_proof is None:
+            paras_by_proof = {}
+        feature_tags = (
+            db.listOpenTypeFeatures(self.font_manager.fonts[0])
+            if self.font_manager.fonts
+            else []
+        )
+        # Create default OpenType features dict
+        default_otfeatures = {tag: tag in DEFAULT_ON_FEATURES for tag in feature_tags}
+        spacing_otfeatures = dict(default_otfeatures)
+        spacing_otfeatures["kern"] = False
+
+        # Initialize now and nowformat if not provided
+        if now is None:
+            now = datetime.datetime.now()
+        if nowformat is None:
+            nowformat = now.strftime("%Y-%m-%d_%H%M")
+
+        for indFont in self.font_manager.fonts:
+            fullCharacterSet = filteredCharset(indFont)
+            cat = categorize(fullCharacterSet)
+            variableDict = db.listFontVariations(indFont)
+
+            # Prefer per-font axes from Files tab if present
+            axes_dict = self.font_manager.get_axis_values_for_font(indFont)
+            if axes_dict:
+                axesProduct = list(product_dict(**axes_dict))
+            elif userAxesValues:
+                axesProduct = list(product_dict(**userAxesValues))
+            elif not bool(variableDict):
+                axesProduct = ""
+            else:
+                axesProduct = variableFont(indFont)[0]
+
+            # Dynamic proof generation based on UI list order
+            # Get the current proof options from the UI in their display order
+            controls = self.controlsTab
+            if hasattr(controls, "group") and hasattr(
+                controls.group, "proofOptionsList"
+            ):
+                proof_options_items = controls.group.proofOptionsList.get()
+
+                for item in proof_options_items:
+                    proof_name = item[
+                        "Option"
+                    ]  # Use the actual proof name (may include numbers)
+                    base_proof_type = item.get(
+                        "_original_option", proof_name
+                    )  # Get the base type
+                    enabled = bool(item["Enabled"])
+
+                    if not enabled:
+                        continue  # Skip disabled proofs
+
+                    # Generate each enabled proof using the handler system
+                    # Create proof context with all necessary data
+                    proof_context = ProofContext(
+                        full_character_set=fullCharacterSet,
+                        axes_product=axesProduct,
+                        ind_font=indFont,
+                        paired_static_styles=pairedStaticStyles,
+                        otfeatures_by_proof=otfeatures_by_proof,
+                        cols_by_proof=cols_by_proof,
+                        paras_by_proof=paras_by_proof,
+                        cat=cat,
+                        proof_name=proof_name,
+                    )
+
+                    # Get the appropriate handler for this proof type
+                    handler = get_proof_handler(
+                        base_proof_type,
+                        proof_name,
+                        self.proof_settings,
+                        self.get_proof_font_size,
+                    )
+
+                    if handler:
+                        try:
+                            handler.generate_proof(proof_context)
+                        except Exception as e:
+                            print(f"Error generating proof '{proof_name}': {e}")
+                            import traceback
+
+                            traceback.print_exc()
+                    else:
+                        print(
+                            f"Warning: No handler found for proof type '{base_proof_type}'"
+                        )
+            else:
+                # Fallback to old hardcoded order if UI list is not available
+                print(
+                    "Warning: Could not access proof options list, using fallback order"
+                )
+
+                # Generate proofs in default order using proof_options dict
+                if proof_options.get("filtered_character_set"):
+                    charset_font_size = self.get_proof_font_size(
+                        "filtered_character_set"
+                    )
+                    section_name = f"Filtered Character Set {charset_font_size}pt"
+
+                    # Get tracking value
+                    tracking_value = self.proof_settings.get(
+                        "filtered_character_set_tracking", 0
+                    )
+
+                    charsetProof(
+                        fullCharacterSet,
+                        axesProduct,
+                        indFont,
+                        None,  # pairedStaticStyles
+                        otfeatures_by_proof.get("filtered_character_set", {}),
+                        charset_font_size,
+                        sectionName=section_name,
+                        tracking=tracking_value,
+                    )
+
+                if proof_options.get("spacing_proof"):
+                    spacing_font_size = self.get_proof_font_size("spacing_proof")
+                    spacing_columns = cols_by_proof.get("spacing_proof", 2)
+                    section_name = f"Spacing proof {spacing_font_size}pt"
+
+                    # Get tracking value
+                    tracking_value = self.proof_settings.get(
+                        "spacing_proof_tracking", 0
+                    )
+
+                    spacingProof(
+                        fullCharacterSet,
+                        axesProduct,
+                        indFont,
+                        None,  # pairedStaticStyles
+                        otfeatures_by_proof.get("spacing_proof", {}),
+                        spacing_font_size,
+                        spacing_columns,
+                        sectionName=section_name,
+                        tracking=tracking_value,
+                    )
+
+                # Add other proofs in the same pattern if needed...
+                # (This is a simplified fallback - the main path uses the UI order)
+
+        db.endDrawing()
+        # Save the proof doc
+        try:
+            if self.font_manager.fonts:
+                first_font_path = self.font_manager.fonts[0]
+                family_name = os.path.splitext(os.path.basename(first_font_path))[
+                    0
+                ].split("-")[0]
+
+                # Check if user wants to use custom PDF output location
+                # Ensure pdf_output key exists with defaults
+                if "pdf_output" not in self.settings.data:
+                    self.settings.data["pdf_output"] = {
+                        "use_custom_location": False,
+                        "custom_location": "",
+                    }
+
+                use_custom = self.settings.data["pdf_output"].get(
+                    "use_custom_location", False
+                )
+                custom_location = self.settings.data["pdf_output"].get(
+                    "custom_location", ""
+                )
+
+                if use_custom and custom_location and os.path.exists(custom_location):
+                    # Use custom location
+                    pdf_directory = custom_location
+                else:
+                    # Use default: first font's directory
+                    pdf_directory = os.path.dirname(first_font_path)
+            else:
+                # Fallback to script directory if no fonts loaded
+                pdf_directory = SCRIPT_DIR
+                family_name = "proof"
+
+            proofPath = os.path.join(
+                pdf_directory, f"{nowformat}_{family_name}-proof.pdf"
+            )
+            db.saveImage(proofPath)
+            print(f"Proof PDF was saved: {proofPath}")
+        except Exception as e:
+            print(f"Error saving proof: {e}")
+            print("Use UI to select which proofs to generate")
+        print(datetime.datetime.now() - now)
+        return proofPath
+
+    def addSettingsFileCallback(self, sender):
+        """Handle the Add Settings File button click."""
+        try:
+            from vanilla.dialogs import getFile
+
+            # Show file dialog to select settings file
+            result = getFile(
+                title="Select Settings File",
+                messageText="Choose a JSON settings file to load:",
+                fileTypes=["json"],
+                allowsMultipleSelection=False,
+            )
+
+            if result and len(result) > 0:
+                settings_file_path = result[0]
+
+                # Try to load the settings file
+                if self.settings.load_user_settings_file(settings_file_path):
+                    # Clear font manager and reload fonts
+                    self.font_manager.fonts = tuple()
+                    self.font_manager.font_info = {}
+                    self.font_manager.axis_values_by_font = {}
+
+                    # Load fonts from the new settings
+                    font_paths = self.settings.get_fonts()
+                    if font_paths:
+                        self.font_manager.load_fonts(font_paths)
+
+                        # Load axis values
+                        for font_path in font_paths:
+                            axis_values = self.settings.get_font_axis_values(font_path)
+                            if axis_values:
+                                self.font_manager.axis_values_by_font[font_path] = (
+                                    axis_values
+                                )
+
+                    # Refresh UI
+                    self.filesTab.update_table()
+
+                    # Refresh controls tab with new values
+                    self.refresh_controls_tab()
+
+                    self.initialize_proof_settings()
+
+                    print(f"Settings loaded from: {settings_file_path}")
+
+                    # Show information dialog
+                    from vanilla.dialogs import message
+
+                    message(
+                        "Settings Loaded",
+                        f"Settings have been loaded from:\n{settings_file_path}\n\n"
+                        "Changes will now be saved to this file instead of the auto-save file.",
+                        informativeText="You can use 'Reset Settings' to clear this file and return to auto-save mode.",
+                    )
+                else:
+                    from vanilla.dialogs import message
+
+                    message(
+                        "Error Loading Settings",
+                        f"Failed to load settings from:\n{settings_file_path}\n\n"
+                        "Please check that the file contains valid JSON and try again.",
+                    )
+
+        except Exception as e:
+            print(f"Error loading settings file: {e}")
+            traceback.print_exc()
+            from vanilla.dialogs import message
+
+            message("Error", f"An error occurred while loading the settings file:\n{e}")
+
+    def refresh_controls_tab(self):
+        """Refresh the controls tab with current settings values."""
+        try:
+            # Use the dynamic proof options list
+            self.controlsTab.refresh_proof_options_list()
+
+            # Update page format selection
+            if hasattr(self.controlsTab.group, "pageFormatPopUp"):
+                from config import PAGE_FORMAT_OPTIONS
+
+                current_format = self.settings.get_page_format()
+                if current_format in PAGE_FORMAT_OPTIONS:
+                    self.controlsTab.group.pageFormatPopUp.set(
+                        PAGE_FORMAT_OPTIONS.index(current_format)
+                    )
+
+        except Exception as e:
+            print(f"Error refreshing controls tab: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+    def create_preview_components(self):
+        """Create preview components that will be integrated into Controls tab."""
+        components = {}
+
+        # Create PDFView for preview
+        pdfView = PDFKit.PDFView.alloc().initWithFrame_(((0, 0), (100, 100)))
+        pdfView.setAutoresizingMask_(1 << 1 | 1 << 4)
+        pdfView.setAutoScales_(True)
+        pdfView.setDisplaysPageBreaks_(True)
+        pdfView.setDisplayMode_(1)
+        pdfView.setDisplayBox_(0)
+
+        components["pdfView"] = pdfView
+        return components
+
+    def display_pdf(self, pdf_path):
+        """Display a PDF in the preview."""
+        if pdf_path and os.path.exists(pdf_path):
+            pdfDoc = PDFKit.PDFDocument.alloc().initWithURL_(
+                AppKit.NSURL.fileURLWithPath_(pdf_path)
+            )
+            self.preview_components["pdfView"].setDocument_(pdfDoc)
+            return True
+        return False
+
+    def initialize_settings_for_proof(self, unique_proof_name, base_proof_type):
+        """Initialize settings for a newly added proof instance."""
+        # Delegate to the proof settings manager
+        self.proof_settings_manager.initialize_settings_for_proof(
+            unique_proof_name, base_proof_type
+        )
+
+        # Update our reference to the proof settings
+        self.proof_settings = self.proof_settings_manager.proof_settings
+
+    def update_proof_settings_popover_for_instance(
+        self, unique_proof_key, base_proof_type
+    ):
+        """Update the proof settings popover for a specific proof instance."""
+        try:
+            # Map base proof types to internal keys - using unified snake_case format
+            proof_name_to_key = {
+                "Filtered Character Set": "filtered_character_set",
+                "Spacing Proof": "spacing_proof",
+                "Basic Paragraph Large": "basic_paragraph_large",
+                "Diacritic Words Large": "diacritic_words_large",
+                "Basic Paragraph Small": "basic_paragraph_small",
+                "Paired Styles Paragraph Small": "paired_styles_paragraph_small",
+                "Generative Text Small": "generative_text_small",
+                "Diacritic Words Small": "diacritic_words_small",
+                "Misc Paragraph Small": "misc_paragraph_small",
+                "Ar Character Set": "ar_character_set",
+                "Ar Paragraph Large": "ar_paragraph_large",
+                "Fa Paragraph Large": "fa_paragraph_large",
+                "Ar Paragraph Small": "ar_paragraph_small",
+                "Fa Paragraph Small": "fa_paragraph_small",
+                "Ar Vocalization Paragraph Small": "ar_vocalization_paragraph_small",
+                "Ar-Lat Mixed Paragraph Small": "ar_lat_mixed_paragraph_small",
+                "Ar Numbers Small": "ar_numbers_small",
+            }
+
+            base_proof_key = proof_name_to_key.get(base_proof_type)
+            if not base_proof_key:
+                return
+
+            popover = self.proof_settings_popover
+
+            # Hide the proof type popup since we're editing a specific instance
+            if hasattr(popover, "proofTypeLabel"):
+                popover.proofTypeLabel.show(False)
+            if hasattr(popover, "proofTypePopup"):
+                popover.proofTypePopup.show(False)
+
+            # Update numeric settings for this specific instance
+            numeric_items = []
+
+            # Font size setting
+            font_size_key = f"{unique_proof_key}_fontSize"
+            # Set default font size using registry
+            default_font_size = get_proof_default_font_size(base_proof_key)
+
+            font_size_value = self.proof_settings.get(font_size_key, default_font_size)
+            numeric_items.append(
+                {
+                    "Setting": "Font Size",
+                    "Value": font_size_value,
+                    "_key": font_size_key,
+                }
+            )
+
+            # Columns setting (if applicable)
+            if base_proof_key not in [
+                "filtered_character_set",
+                "ar_character_set",
+            ]:
+                cols_key = f"{unique_proof_key}_cols"
+
+                # Import helper functions from config
+                from config import get_proof_by_storage_key
+
+                # Get proof info from registry
+                proof_info = get_proof_by_storage_key(base_proof_key)
+                if proof_info:
+                    default_cols = proof_info["default_cols"]
+                else:
+                    default_cols = 2  # Fallback
+
+                cols_value = self.proof_settings.get(cols_key, default_cols)
+                numeric_items.append(
+                    {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
+                )
+
+            # Paragraphs setting (only for proofs that have paragraphs)
+            # Import helper functions from config
+            from config import get_proof_by_settings_key
+
+            # Get proof info from registry
+            proof_info = get_proof_by_settings_key(base_proof_key)
+            if proof_info and proof_info["has_paragraphs"]:
+                para_key = f"{unique_proof_key}_para"
+                para_value = self.proof_settings.get(para_key, 5)
+                numeric_items.append(
+                    {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
+                )
+
+            # Add tracking for supported proof types
+            if proof_supports_formatting(base_proof_key):
+                tracking_key = f"{unique_proof_key}_tracking"
+                tracking_value = self.proof_settings.get(tracking_key, 0)
+                numeric_items.append(
+                    {
+                        "Setting": "Tracking",
+                        "Value": tracking_value,
+                        "_key": tracking_key,
+                    }
+                )
+
+            popover.numericList.set(numeric_items)
+
+            # Update OpenType features for this specific instance
+            if self.font_manager.fonts:
+                try:
+                    feature_tags = db.listOpenTypeFeatures(self.font_manager.fonts[0])
+                except Exception:
+                    feature_tags = []
+            else:
+                feature_tags = []
+
+            feature_items = []
+            for tag in feature_tags:
+                # Skip hidden features
+                if tag in HIDDEN_FEATURES:
+                    continue
+
+                feature_key = f"otf_{unique_proof_key}_{tag}"
+
+                # Special handling for SpacingProof kern feature
+                if base_proof_key == "spacing_proof" and tag == "kern":
+                    feature_value = False
+                    self.proof_settings[feature_key] = False
+                    feature_items.append(
+                        {
+                            "Feature": f"{tag} (always off)",
+                            "Enabled": feature_value,
+                            "_key": feature_key,
+                            "_readonly": True,
+                        }
+                    )
+                else:
+                    default_value = tag in self.default_on_features
+                    feature_value = self.proof_settings.get(feature_key, default_value)
+                    feature_items.append(
+                        {"Feature": tag, "Enabled": feature_value, "_key": feature_key}
+                    )
+
+            popover.featuresList.set(feature_items)
+
+            # Update alignment control for supported proof types
+            if proof_supports_formatting(base_proof_key):
+                # Update align control
+                align_key = f"{unique_proof_key}_align"
+                align_value = self.proof_settings.get(align_key, "left")
+                align_options = ["left", "center", "right"]
+                if align_value in align_options:
+                    popover.alignPopUp.set(align_options.index(align_value))
+                else:
+                    popover.alignPopUp.set(0)  # Default to "left"
+
+                # Show alignment control
+                popover.alignLabel.show(True)
+                popover.alignPopUp.show(True)
+            else:
+                # Hide alignment control for unsupported proof types
+                popover.alignLabel.show(False)
+                popover.alignPopUp.show(False)
+
+        except Exception as e:
+            print(f"Error updating proof settings popover: {e}")
+            import traceback
+
+            traceback.print_exc()
