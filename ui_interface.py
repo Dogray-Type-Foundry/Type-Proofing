@@ -2010,7 +2010,7 @@ class ProofWindow(object):
                     # Skip hidden features
                     if tag in HIDDEN_FEATURES:
                         continue
-                        
+
                     feature_key = f"otf_{proof_key}_{tag}"
                     if feature_key not in self.proof_settings:
                         default_value = tag in self.default_on_features
@@ -2249,7 +2249,7 @@ class ProofWindow(object):
             # Skip hidden features
             if tag in HIDDEN_FEATURES:
                 continue
-                
+
             feature_key = f"otf_{proof_key}_{tag}"
 
             # Special handling for Spacing_Proof kern feature
@@ -3240,7 +3240,7 @@ class ProofWindow(object):
                     # Skip hidden features
                     if tag in HIDDEN_FEATURES:
                         continue
-                        
+
                     feature_key = f"otf_{unique_key}_{tag}"
                     default_value = tag in self.default_on_features
                     self.proof_settings[feature_key] = default_value
@@ -3369,7 +3369,7 @@ class ProofWindow(object):
                 # Skip hidden features
                 if tag in HIDDEN_FEATURES:
                     continue
-                    
+
                 feature_key = f"otf_{unique_proof_key}_{tag}"
 
                 # Special handling for SpacingProof kern feature
