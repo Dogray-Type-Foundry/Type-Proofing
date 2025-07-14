@@ -94,171 +94,120 @@ DEFAULT_ON_FEATURES = {
 
 # Single source of truth for all proof definitions
 PROOF_REGISTRY = {
-    "character_set": {
+    "character_set_proof": {
         "display_name": "Character Set Proof",
-        "settings_key": "Character_Set_Proof",
-        "popover_key": "CharacterSetProof",
-        "storage_key": "character_set_proof",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
     },
-    "spacing": {
+    "spacing_proof": {
         "display_name": "Spacing Proof",
-        "settings_key": "Spacing_Proof",
-        "popover_key": "SpacingProof",
-        "storage_key": "spacing_proof",
         "is_arabic": False,
         "has_settings": True,
-        "default_cols": 2,
+        "default_cols": 1,
         "has_paragraphs": False,
     },
-    "big_paragraph": {
+    "big_paragraph_proof": {
         "display_name": "Big Paragraph Proof",
-        "settings_key": "Big_Paragraph_Proof",
-        "popover_key": "BigParagraphProof",
-        "storage_key": "big_paragraph_proof",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
     },
-    "big_diacritics": {
+    "big_diacritics_proof": {
         "display_name": "Big Diacritics Proof",
-        "settings_key": "Big_Diacritics_Proof",
-        "popover_key": "BigDiacriticsProof",
-        "storage_key": "big_diacritics_proof",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
     },
-    "small_paragraph": {
+    "small_paragraph_proof": {
         "display_name": "Small Paragraph Proof",
-        "settings_key": "Small_Paragraph_Proof",
-        "popover_key": "SmallParagraphProof",
-        "storage_key": "small_paragraph_proof",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
     },
-    "small_paired_styles": {
+    "small_paired_styles_proof": {
         "display_name": "Small Paired Styles Proof",
-        "settings_key": "Small_Paired_Styles_Proof",
-        "popover_key": "SmallPairedStylesProof",
-        "storage_key": "small_paired_styles_proof",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
     },
-    "small_wordsiv": {
+    "small_wordsiv_proof": {
         "display_name": "Small Wordsiv Proof",
-        "settings_key": "Small_Wordsiv_Proof",
-        "popover_key": "SmallWordsivProof",
-        "storage_key": "small_wordsiv_proof",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": True,
     },
-    "small_diacritics": {
+    "small_diacritics_proof": {
         "display_name": "Small Diacritics Proof",
-        "settings_key": "Small_Diacritics_Proof",
-        "popover_key": "SmallDiacriticsProof",
-        "storage_key": "small_diacritics_proof",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
     },
-    "small_mixed_text": {
+    "small_mixed_text_proof": {
         "display_name": "Small Mixed Text Proof",
-        "settings_key": "Small_Mixed_Text_Proof",
-        "popover_key": "SmallMixedTextProof",
-        "storage_key": "small_mixed_text_proof",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
     },
-    "arabic_contextual_forms": {
+    "arabic_contextual_forms_proof": {
         "display_name": "Arabic Contextual Forms",
-        "settings_key": "Arabic_Contextual_Forms_Proof",
-        "popover_key": "ArabicContextualFormsProof",
-        "storage_key": "arabic_contextual_forms_proof",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
     },
-    "big_arabic_text": {
+    "big_arabic_text_proof": {
         "display_name": "Big Arabic Text Proof",
-        "settings_key": "Big_Arabic_Text_Proof",
-        "popover_key": "BigArabicTextProof",
-        "storage_key": "big_arabic_text_proof",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
     },
-    "big_farsi_text": {
+    "big_farsi_text_proof": {
         "display_name": "Big Farsi Text Proof",
-        "settings_key": "Big_Farsi_Text_Proof",
-        "popover_key": "BigFarsiTextProof",
-        "storage_key": "big_farsi_text_proof",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
     },
-    "small_arabic_text": {
+    "small_arabic_text_proof": {
         "display_name": "Small Arabic Text Proof",
-        "settings_key": "Small_Arabic_Text_Proof",
-        "popover_key": "SmallArabicTextProof",
-        "storage_key": "small_arabic_text_proof",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
     },
-    "small_farsi_text": {
+    "small_farsi_text_proof": {
         "display_name": "Small Farsi Text Proof",
-        "settings_key": "Small_Farsi_Text_Proof",
-        "popover_key": "SmallFarsiTextProof",
-        "storage_key": "small_farsi_text_proof",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
     },
-    "arabic_vocalization": {
+    "arabic_vocalization_proof": {
         "display_name": "Arabic Vocalization Proof",
-        "settings_key": "Arabic_Vocalization_Proof",
-        "popover_key": "ArabicVocalizationProof",
-        "storage_key": "arabic_vocalization_proof",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
     },
-    "arabic_latin_mixed": {
+    "arabic_latin_mixed_proof": {
         "display_name": "Arabic-Latin Mixed Proof",
-        "settings_key": "Arabic_Latin_Mixed_Proof",
-        "popover_key": "ArabicLatinMixedProof",
-        "storage_key": "arabic_latin_mixed_proof",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
     },
-    "arabic_numbers": {
+    "arabic_numbers_proof": {
         "display_name": "Arabic Numbers Proof",
-        "settings_key": "Arabic_Numbers_Proof",
-        "popover_key": "ArabicNumbersProof",
-        "storage_key": "arabic_numbers_proof",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 2,
@@ -274,29 +223,29 @@ PROOF_REGISTRY = {
 def get_proof_display_names(include_arabic=True):
     """Get list of proof display names in default order."""
     proof_order = [
-        "character_set",
-        "spacing",
-        "big_paragraph",
-        "big_diacritics",
-        "small_paragraph",
-        "small_paired_styles",
-        "small_wordsiv",
-        "small_diacritics",
-        "small_mixed_text",
-        "arabic_contextual_forms",
-        "big_arabic_text",
-        "big_farsi_text",
-        "small_arabic_text",
-        "small_farsi_text",
-        "arabic_vocalization",
-        "arabic_latin_mixed",
-        "arabic_numbers",
+        "character_set_proof",
+        "spacing_proof",
+        "big_paragraph_proof",
+        "big_diacritics_proof",
+        "small_paragraph_proof",
+        "small_paired_styles_proof",
+        "small_wordsiv_proof",
+        "small_diacritics_proof",
+        "small_mixed_text_proof",
+        "arabic_contextual_forms_proof",
+        "big_arabic_text_proof",
+        "big_farsi_text_proof",
+        "small_arabic_text_proof",
+        "small_farsi_text_proof",
+        "arabic_vocalization_proof",
+        "arabic_latin_mixed_proof",
+        "arabic_numbers_proof",
     ]
 
     result = []
-    for proof_id in proof_order:
-        if proof_id in PROOF_REGISTRY:
-            proof_info = PROOF_REGISTRY[proof_id]
+    for proof_key in proof_order:
+        if proof_key in PROOF_REGISTRY:
+            proof_info = PROOF_REGISTRY[proof_key]
             if include_arabic or not proof_info["is_arabic"]:
                 result.append(proof_info["display_name"])
 
@@ -304,68 +253,56 @@ def get_proof_display_names(include_arabic=True):
 
 
 def get_proof_settings_mapping():
-    """Get mapping from display names to settings keys."""
+    """Get mapping from display names to proof keys."""
     return {
-        proof_info["display_name"]: proof_info["settings_key"]
-        for proof_info in PROOF_REGISTRY.values()
+        proof_info["display_name"]: proof_key
+        for proof_key, proof_info in PROOF_REGISTRY.items()
     }
 
 
 def get_proof_popover_mapping():
-    """Get mapping from display names to popover keys."""
-    return {
-        proof_info["display_name"]: proof_info["popover_key"]
-        for proof_info in PROOF_REGISTRY.values()
-    }
+    """Get mapping from display names to proof keys (for popover compatibility)."""
+    return get_proof_settings_mapping()
 
 
 def get_proof_storage_mapping():
-    """Get mapping from settings keys to storage keys."""
-    return {
-        proof_info["settings_key"]: proof_info["storage_key"]
-        for proof_info in PROOF_REGISTRY.values()
-    }
+    """Get mapping from proof keys to storage keys (now the same)."""
+    return {proof_key: proof_key for proof_key in PROOF_REGISTRY.keys()}
 
 
 def get_proof_default_columns():
     """Get default column counts for all proofs."""
     return {
-        f"{proof_info['popover_key']}_cols": proof_info["default_cols"]
-        for proof_info in PROOF_REGISTRY.values()
+        f"{proof_key}_cols": proof_info["default_cols"]
+        for proof_key, proof_info in PROOF_REGISTRY.items()
     }
 
 
 def get_proof_paragraph_settings():
     """Get proof types that have paragraph settings."""
     return {
-        f"{proof_info['popover_key']}_para": 3  # Default paragraph count
-        for proof_info in PROOF_REGISTRY.values()
+        f"{proof_key}_para": 3  # Default paragraph count
+        for proof_key, proof_info in PROOF_REGISTRY.items()
         if proof_info["has_paragraphs"]
     }
 
 
 def get_proof_by_display_name(display_name):
     """Get proof info by display name."""
-    for proof_info in PROOF_REGISTRY.values():
+    for proof_key, proof_info in PROOF_REGISTRY.items():
         if proof_info["display_name"] == display_name:
             return proof_info
     return None
 
 
 def get_proof_by_settings_key(settings_key):
-    """Get proof info by settings key."""
-    for proof_info in PROOF_REGISTRY.values():
-        if proof_info["settings_key"] == settings_key:
-            return proof_info
-    return None
+    """Get proof info by settings key (now same as proof key)."""
+    return PROOF_REGISTRY.get(settings_key)
 
 
 def get_proof_by_storage_key(storage_key):
-    """Get proof info by storage key."""
-    for proof_info in PROOF_REGISTRY.values():
-        if proof_info["storage_key"] == storage_key:
-            return proof_info
-    return None
+    """Get proof info by storage key (now same as proof key)."""
+    return PROOF_REGISTRY.get(storage_key)
 
 
 def get_arabic_proof_display_names():
@@ -389,7 +326,7 @@ def get_base_proof_display_names():
 def proof_supports_formatting(proof_key):
     """Check if a proof type supports text formatting (tracking, alignment)."""
     # Character Set and Arabic Contextual Forms don't support formatting
-    return proof_key not in ["Character_Set_Proof", "Arabic_Contextual_Forms_Proof"]
+    return proof_key not in ["character_set_proof", "arabic_contextual_forms_proof"]
 
 
 # =============================================================================
@@ -541,8 +478,8 @@ class Settings:
         """Get default settings structure using the centralized proof registry."""
         # Generate proof options dynamically from registry
         proof_options = {}
-        for proof_info in PROOF_REGISTRY.values():
-            proof_options[proof_info["storage_key"]] = False
+        for proof_key in PROOF_REGISTRY.keys():
+            proof_options[proof_key] = False
 
         # Generate proof order dynamically from registry
         proof_order = ["Show Baselines/Grid"]  # Special case
