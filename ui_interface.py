@@ -68,6 +68,13 @@ def close_existing_windows(window_title):
         pass
 
 
+def create_unique_proof_key(proof_name):
+    unique_proof_key = (
+        proof_name.lower().replace(" ", "_").replace("/", "_").replace("-", "_")
+    )
+    return unique_proof_key
+
+
 class TextBoxOutput:
     """Redirect output to a text box widget."""
 
@@ -853,7 +860,7 @@ class ControlsTab:
                 base_type = self._extract_base_proof_type(display_name)
                 if base_type and base_type in base_proof_names:
                     # Create a unique key for this custom instance
-                    unique_key = display_name.replace(" ", "_").replace("/", "_")
+                    unique_key = create_unique_proof_key(display_name)
                     custom_instances.append((display_name, unique_key))
                     custom_instance_names.add(display_name)
 
@@ -885,7 +892,7 @@ class ControlsTab:
             # For custom instances, determine the enabled state correctly
             if display_name in custom_instance_names:
                 # Custom instance - use the unique key format for storage
-                unique_key = display_name.replace(" ", "_").replace("/", "_")
+                unique_key = create_unique_proof_key(display_name)
                 enabled = self.settings.get_proof_option(unique_key)
             else:
                 # Base proof type - use the registry key
@@ -901,7 +908,7 @@ class ControlsTab:
         return proof_options_items
 
     def _extract_base_proof_type(self, custom_display_name):
-        """Extract base proof type from a custom display name like 'Small Diacritics Proof 2'."""
+        """Extract base proof type from a custom display name like 'Diacritic Words Small 2'."""
         # Import helper functions
         from config import get_proof_display_names
 
@@ -957,23 +964,23 @@ class ControlsTab:
 
             # Define which proofs have settings (all proofs now have font size setting)
             proofs_with_settings = {
-                "Character Set Proof",
+                "Filtered Character Set",
                 "Spacing Proof",
-                "Big Paragraph Proof",
-                "Big Diacritics Proof",
-                "Small Paragraph Proof",
-                "Small Paired Styles Proof",
-                "Small Wordsiv Proof",
-                "Small Diacritics Proof",
-                "Small Mixed Text Proof",
-                "Arabic Contextual Forms",
-                "Big Arabic Text Proof",
-                "Big Farsi Text Proof",
-                "Small Arabic Text Proof",
-                "Small Farsi Text Proof",
-                "Arabic Vocalization Proof",
-                "Arabic-Latin Mixed Proof",
-                "Arabic Numbers Proof",
+                "Basic Paragraph Large",
+                "Diacritic Words Large",
+                "Basic Paragraph Small",
+                "Paired Styles Paragraph Small",
+                "Generative Text Small",
+                "Diacritic Words Small",
+                "Misc Paragraph Small",
+                "Ar Character Set",
+                "Ar Paragraph Large",
+                "Fa Paragraph Large",
+                "Ar Paragraph Small",
+                "Fa Paragraph Small",
+                "Ar Vocalization Paragraph Small",
+                "Ar-Lat Mixed Paragraph Small",
+                "Ar Numbers Small",
             }
 
             # Generate dynamic proof options list
@@ -1167,7 +1174,7 @@ class ControlsTab:
                 proof_key = proof_settings_mapping[proof_name]
             else:
                 # For numbered variants, use a sanitized version as the key
-                proof_key = proof_name.replace(" ", "_").replace("/", "_").lower()
+                proof_key = create_unique_proof_key(proof_name)
 
             self.settings.set_proof_option(proof_key, enabled)
 
@@ -1281,7 +1288,7 @@ class ControlsTab:
 
         if base_proof_type in proof_name_to_key:
             # Use the unique option name as the proof key for settings
-            unique_proof_key = option.replace(" ", "_").replace("/", "_")
+            unique_proof_key = create_unique_proof_key(option)
             self.parent_window.current_proof_key = unique_proof_key
             self.parent_window.current_base_proof_type = base_proof_type
 
@@ -1619,20 +1626,20 @@ class ProofWindow(object):
             proof_key = display_name_to_settings_key[proof_identifier]
             font_size_key = f"{proof_key}_fontSize"
         else:
-            # This might be a numbered variant like "Character Set Proof 2"
+            # This might be a numbered variant like "Filtered Character Set 2"
             # Find the base proof type by checking if the identifier starts with any known proof type
             for display_name, settings_key in display_name_to_settings_key.items():
                 if proof_identifier.startswith(display_name):
                     proof_key = settings_key
                     # For numbered variants, we use the unique identifier as the key
-                    unique_key = proof_identifier.replace(" ", "_").replace("/", "_")
+                    unique_key = create_unique_proof_key(proof_identifier)
                     font_size_key = f"{unique_key}_fontSize"
                     break
 
             # Fallback if no match found
             if not proof_key:
-                proof_key = "small_paragraph_proof"
-                unique_key = proof_identifier.replace(" ", "_").replace("/", "_")
+                proof_key = "basic_paragraph_small"
+                unique_key = create_unique_proof_key(proof_identifier)
                 font_size_key = f"{unique_key}_fontSize"
 
         # Set default font size based on proof type using registry
@@ -1658,7 +1665,7 @@ class ProofWindow(object):
                     self.settings.set_proof_option("showBaselines", enabled)
                 else:
                     # For unique proof names, use a sanitized version as the key
-                    unique_key = proof_name.replace(" ", "_").replace("/", "_")
+                    unique_key = create_unique_proof_key(proof_name)
                     self.settings.set_proof_option(unique_key, enabled)
 
             # Save proof-specific settings
@@ -1695,23 +1702,23 @@ class ProofWindow(object):
                 # Override proof options to all be False (unchecked)
                 proof_option_keys = [
                     "show_baselines",
-                    "character_set_proof",
+                    "filtered_character_set",
                     "spacing_proof",
-                    "big_paragraph_proof",
-                    "big_diacritics_proof",
-                    "small_paragraph_proof",
-                    "small_paired_styles_proof",
-                    "small_wordsiv_proof",
-                    "small_diacritics_proof",
-                    "small_mixed_text_proof",
-                    "arabic_contextual_forms_proof",
-                    "big_arabic_text_proof",
-                    "big_farsi_text_proof",
-                    "small_arabic_text_proof",
-                    "small_farsi_text_proof",
-                    "arabic_vocalization_proof",
-                    "arabic_latin_mixed_proof",
-                    "arabic_numbers_proof",
+                    "basic_paragraph_large",
+                    "diacritic_words_large",
+                    "basic_paragraph_small",
+                    "paired_styles_paragraph_small",
+                    "generative_text_small",
+                    "diacritic_words_small",
+                    "misc_paragraph_small",
+                    "ar_character_set",
+                    "ar_paragraph_large",
+                    "fa_paragraph_large",
+                    "ar_paragraph_small",
+                    "fa_paragraph_small",
+                    "ar_vocalization_paragraph_small",
+                    "ar_lat_mixed_paragraph_small",
+                    "ar_numbers_small",
                 ]
 
                 for option_key in proof_option_keys:
@@ -1860,7 +1867,7 @@ class ProofWindow(object):
 
                     # Always use the unique identifier for settings keys to ensure consistency
                     # This handles both original proofs and numbered duplicates uniformly
-                    unique_key = proof_name.replace(" ", "_").replace("/", "_")
+                    unique_key = create_unique_proof_key(proof_name)
 
                     # Determine the base proof type for validation
                     settings_key = None
@@ -1874,7 +1881,7 @@ class ProofWindow(object):
 
                     # Fallback if no base type found
                     if not settings_key:
-                        settings_key = "small_paragraph_proof"
+                        settings_key = "basic_paragraph_small"
 
                     # Always use unique identifier for all settings keys
                     cols_key = f"{unique_key}_cols"
@@ -1948,10 +1955,10 @@ class ProofWindow(object):
 
             # Column settings - use default from registry
             cols_key = f"{proof_key}_cols"
-            # Character Set and Arabic Contextual Forms don't use columns
+            # Character Set and ARA Character Set don't use columns
             if proof_key not in [
-                "character_set_proof",
-                "arabic_contextual_forms_proof",
+                "filtered_character_set",
+                "ar_character_set",
             ]:
                 default_cols = proof_info["default_cols"]
                 if cols_key not in self.proof_settings:
@@ -2020,23 +2027,23 @@ class ProofWindow(object):
 
         # Map proof names to keys for proof types that have settings - using unified snake_case format
         proof_name_to_key = {
-            "Character Set Proof": "character_set_proof",
+            "Filtered Character Set": "filtered_character_set",
             "Spacing Proof": "spacing_proof",
-            "Big Paragraph Proof": "big_paragraph_proof",
-            "Big Diacritics Proof": "big_diacritics_proof",
-            "Small Paragraph Proof": "small_paragraph_proof",
-            "Small Paired Styles Proof": "small_paired_styles_proof",
-            "Small Wordsiv Proof": "small_wordsiv_proof",
-            "Small Diacritics Proof": "small_diacritics_proof",
-            "Small Mixed Text Proof": "small_mixed_text_proof",
-            "Arabic Contextual Forms": "arabic_contextual_forms_proof",
-            "Big Arabic Text Proof": "big_arabic_text_proof",
-            "Big Farsi Text Proof": "big_farsi_text_proof",
-            "Small Arabic Text Proof": "small_arabic_text_proof",
-            "Small Farsi Text Proof": "small_farsi_text_proof",
-            "Arabic Vocalization Proof": "arabic_vocalization_proof",
-            "Arabic-Latin Mixed Proof": "arabic_latin_mixed_proof",
-            "Arabic Numbers Proof": "arabic_numbers_proof",
+            "Basic Paragraph Large": "basic_paragraph_large",
+            "Diacritic Words Large": "diacritic_words_large",
+            "Basic Paragraph Small": "basic_paragraph_small",
+            "Paired Styles Paragraph Small": "paired_styles_paragraph_small",
+            "Generative Text Small": "generative_text_small",
+            "Diacritic Words Small": "diacritic_words_small",
+            "Misc Paragraph Small": "misc_paragraph_small",
+            "Ar Character Set": "ar_character_set",
+            "Ar Paragraph Large": "ar_paragraph_large",
+            "Fa Paragraph Large": "fa_paragraph_large",
+            "Ar Paragraph Small": "ar_paragraph_small",
+            "Fa Paragraph Small": "fa_paragraph_small",
+            "Ar Vocalization Paragraph Small": "ar_vocalization_paragraph_small",
+            "Ar-Lat Mixed Paragraph Small": "ar_lat_mixed_paragraph_small",
+            "Ar Numbers Small": "ar_numbers_small",
         }
 
         # Only show popover for proofs that have settings
@@ -2173,7 +2180,7 @@ class ProofWindow(object):
         )
 
         # Columns setting with appropriate defaults (skip for certain proofs)
-        if proof_key not in ["character_set_proof", "arabic_contextual_forms_proof"]:
+        if proof_key not in ["filtered_character_set", "ar_character_set"]:
             cols_key = f"{proof_key}_cols"
 
             # Import helper functions from config
@@ -2396,7 +2403,7 @@ class ProofWindow(object):
                         continue  # Skip disabled proofs
 
                     # Generate each enabled proof using the unique proof name as identifier
-                    if base_proof_type == "Character Set Proof":
+                    if base_proof_type == "Filtered Character Set":
                         charset_font_size = self.get_proof_font_size(proof_name)
                         charsetProof(
                             fullCharacterSet,
@@ -2418,14 +2425,12 @@ class ProofWindow(object):
                             spacing_font_size,
                             spacing_columns,
                         )
-                    elif base_proof_type == "Big Paragraph Proof":
+                    elif base_proof_type == "Basic Paragraph Large":
                         big_paragraph_font_size = self.get_proof_font_size(proof_name)
                         big_paragraph_columns = cols_by_proof.get(proof_name, 1)
 
                         # Get text formatting settings
-                        unique_proof_key = proof_name.replace(" ", "_").replace(
-                            "/", "_"
-                        )
+                        unique_proof_key = create_unique_proof_key(proof_name)
                         tracking_value = self.proof_settings.get(
                             f"{unique_proof_key}_tracking", 0
                         )
@@ -2454,13 +2459,11 @@ class ProofWindow(object):
                             tracking_value,
                             align_value,
                         )
-                    elif base_proof_type == "Big Diacritics Proof":
+                    elif base_proof_type == "Diacritic Words Large":
                         big_diacritics_font_size = self.get_proof_font_size(proof_name)
 
                         # Get text formatting settings
-                        unique_proof_key = proof_name.replace(" ", "_").replace(
-                            "/", "_"
-                        )
+                        unique_proof_key = create_unique_proof_key(proof_name)
                         tracking_value = self.proof_settings.get(
                             f"{unique_proof_key}_tracking", 0
                         )
@@ -2489,13 +2492,11 @@ class ProofWindow(object):
                             tracking_value,
                             align_value,
                         )
-                    elif base_proof_type == "Small Paragraph Proof":
+                    elif base_proof_type == "Basic Paragraph Small":
                         small_paragraph_font_size = self.get_proof_font_size(proof_name)
 
                         # Get text formatting settings
-                        unique_proof_key = proof_name.replace(" ", "_").replace(
-                            "/", "_"
-                        )
+                        unique_proof_key = create_unique_proof_key(proof_name)
                         tracking_value = self.proof_settings.get(
                             f"{unique_proof_key}_tracking", 0
                         )
@@ -2524,15 +2525,13 @@ class ProofWindow(object):
                             tracking_value,
                             align_value,
                         )
-                    elif base_proof_type == "Small Paired Styles Proof":
+                    elif base_proof_type == "Paired Styles Paragraph Small":
                         small_paired_styles_font_size = self.get_proof_font_size(
                             proof_name
                         )
 
                         # Get text formatting settings
-                        unique_proof_key = proof_name.replace(" ", "_").replace(
-                            "/", "_"
-                        )
+                        unique_proof_key = create_unique_proof_key(proof_name)
                         tracking_value = self.proof_settings.get(
                             f"{unique_proof_key}_tracking", 0
                         )
@@ -2561,13 +2560,11 @@ class ProofWindow(object):
                             tracking_value,
                             align_value,
                         )
-                    elif base_proof_type == "Small Wordsiv Proof":
+                    elif base_proof_type == "Generative Text Small":
                         small_wordsiv_font_size = self.get_proof_font_size(proof_name)
 
                         # Get text formatting settings
-                        unique_proof_key = proof_name.replace(" ", "_").replace(
-                            "/", "_"
-                        )
+                        unique_proof_key = create_unique_proof_key(proof_name)
                         tracking_value = self.proof_settings.get(
                             f"{unique_proof_key}_tracking", 0
                         )
@@ -2596,15 +2593,13 @@ class ProofWindow(object):
                             tracking_value,
                             align_value,
                         )
-                    elif base_proof_type == "Small Diacritics Proof":
+                    elif base_proof_type == "Diacritic Words Small":
                         small_diacritics_font_size = self.get_proof_font_size(
                             proof_name
                         )
 
                         # Get text formatting settings
-                        unique_proof_key = proof_name.replace(" ", "_").replace(
-                            "/", "_"
-                        )
+                        unique_proof_key = create_unique_proof_key(proof_name)
                         tracking_value = self.proof_settings.get(
                             f"{unique_proof_key}_tracking", 0
                         )
@@ -2633,15 +2628,13 @@ class ProofWindow(object):
                             tracking_value,
                             align_value,
                         )
-                    elif base_proof_type == "Small Mixed Text Proof":
+                    elif base_proof_type == "Misc Paragraph Small":
                         small_mixed_text_font_size = self.get_proof_font_size(
                             proof_name
                         )
 
                         # Get text formatting settings
-                        unique_proof_key = proof_name.replace(" ", "_").replace(
-                            "/", "_"
-                        )
+                        unique_proof_key = create_unique_proof_key(proof_name)
                         tracking_value = self.proof_settings.get(
                             f"{unique_proof_key}_tracking", 0
                         )
@@ -2673,26 +2666,24 @@ class ProofWindow(object):
                             tracking_value,
                             align_value,
                         )
-                    elif base_proof_type == "Arabic Contextual Forms":
+                    elif base_proof_type == "Ar Character Set":
                         arabic_contextual_forms_font_size = self.get_proof_font_size(
-                            "ArabicContextualFormsProof"
+                            proof_name
                         )
                         arabicContextualFormsProof(
                             cat,
                             axesProduct,
                             indFont,
                             None,  # pairedStaticStyles
-                            otfeatures_by_proof.get("ArabicContextualFormsProof", {}),
+                            otfeatures_by_proof.get(proof_name, {}),
                             arabic_contextual_forms_font_size,
                         )
-                    elif base_proof_type == "Big Arabic Text Proof":
+                    elif base_proof_type == "Ar Paragraph Large":
                         big_arabic_font_size = self.get_proof_font_size(proof_name)
                         arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                         if arabic_chars:
                             # Get text formatting settings
-                            unique_proof_key = proof_name.replace(" ", "_").replace(
-                                "/", "_"
-                            )
+                            unique_proof_key = create_unique_proof_key(proof_name)
                             tracking_value = self.proof_settings.get(
                                 f"{unique_proof_key}_tracking", 0
                             )
@@ -2709,7 +2700,7 @@ class ProofWindow(object):
                                 2,  # Fixed paragraph count for big text
                                 False,
                                 big_arabic_font_size,
-                                f"Big Arabic text proof - {proof_name}",
+                                f"Ar Paragraph Large - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
@@ -2721,14 +2712,12 @@ class ProofWindow(object):
                                 tracking_value,
                                 align_value,
                             )
-                    elif base_proof_type == "Big Farsi Text Proof":
+                    elif base_proof_type == "Fa Paragraph Large":
                         big_farsi_font_size = self.get_proof_font_size(proof_name)
                         farsi_chars = cat.get("fa", "") or cat.get("arab", "")
                         if farsi_chars:
                             # Get text formatting settings
-                            unique_proof_key = proof_name.replace(" ", "_").replace(
-                                "/", "_"
-                            )
+                            unique_proof_key = create_unique_proof_key(proof_name)
                             tracking_value = self.proof_settings.get(
                                 f"{unique_proof_key}_tracking", 0
                             )
@@ -2745,7 +2734,7 @@ class ProofWindow(object):
                                 2,  # Fixed paragraph count for big text
                                 False,
                                 big_farsi_font_size,
-                                f"Big Farsi text proof - {proof_name}",
+                                f"Fa Paragraph Large - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
@@ -2757,14 +2746,12 @@ class ProofWindow(object):
                                 tracking_value,
                                 align_value,
                             )
-                    elif base_proof_type == "Small Arabic Text Proof":
+                    elif base_proof_type == "Ar Paragraph Small":
                         small_arabic_font_size = self.get_proof_font_size(proof_name)
                         arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                         if arabic_chars:
                             # Get text formatting settings
-                            unique_proof_key = proof_name.replace(" ", "_").replace(
-                                "/", "_"
-                            )
+                            unique_proof_key = create_unique_proof_key(proof_name)
                             tracking_value = self.proof_settings.get(
                                 f"{unique_proof_key}_tracking", 0
                             )
@@ -2781,7 +2768,7 @@ class ProofWindow(object):
                                 5,  # Standard paragraph count for small text
                                 False,
                                 small_arabic_font_size,
-                                f"Small Arabic text proof - {proof_name}",
+                                f"Ar Paragraph Small - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
@@ -2793,14 +2780,12 @@ class ProofWindow(object):
                                 tracking_value,
                                 align_value,
                             )
-                    elif base_proof_type == "Small Farsi Text Proof":
+                    elif base_proof_type == "Fa Paragraph Small":
                         small_farsi_font_size = self.get_proof_font_size(proof_name)
                         farsi_chars = cat.get("fa", "") or cat.get("arab", "")
                         if farsi_chars:
                             # Get text formatting settings
-                            unique_proof_key = proof_name.replace(" ", "_").replace(
-                                "/", "_"
-                            )
+                            unique_proof_key = create_unique_proof_key(proof_name)
                             tracking_value = self.proof_settings.get(
                                 f"{unique_proof_key}_tracking", 0
                             )
@@ -2817,7 +2802,7 @@ class ProofWindow(object):
                                 5,  # Standard paragraph count for small text
                                 False,
                                 small_farsi_font_size,
-                                f"Small Farsi text proof - {proof_name}",
+                                f"Fa Paragraph Small - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 None,  # injectText
@@ -2829,14 +2814,12 @@ class ProofWindow(object):
                                 tracking_value,
                                 align_value,
                             )
-                    elif base_proof_type == "Arabic Vocalization Proof":
+                    elif base_proof_type == "Ar Vocalization Paragraph Small":
                         arabic_vocab_font_size = self.get_proof_font_size(proof_name)
                         arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                         if arabic_chars:
                             # Get text formatting settings
-                            unique_proof_key = proof_name.replace(" ", "_").replace(
-                                "/", "_"
-                            )
+                            unique_proof_key = create_unique_proof_key(proof_name)
                             tracking_value = self.proof_settings.get(
                                 f"{unique_proof_key}_tracking", 0
                             )
@@ -2853,7 +2836,7 @@ class ProofWindow(object):
                                 3,  # Specific paragraph count for vocalization
                                 False,
                                 arabic_vocab_font_size,
-                                f"Arabic vocalization proof - {proof_name}",
+                                f"Ar Vocalization Paragraph Small - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 (arabicVocalization,),  # injectText
@@ -2865,14 +2848,12 @@ class ProofWindow(object):
                                 tracking_value,
                                 align_value,
                             )
-                    elif base_proof_type == "Arabic-Latin Mixed Proof":
+                    elif base_proof_type == "Ar-Lat Mixed Paragraph Small":
                         arabic_latin_font_size = self.get_proof_font_size(proof_name)
                         arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                         if arabic_chars:
                             # Get text formatting settings
-                            unique_proof_key = proof_name.replace(" ", "_").replace(
-                                "/", "_"
-                            )
+                            unique_proof_key = create_unique_proof_key(proof_name)
                             tracking_value = self.proof_settings.get(
                                 f"{unique_proof_key}_tracking", 0
                             )
@@ -2889,7 +2870,7 @@ class ProofWindow(object):
                                 3,  # Specific paragraph count for mixed text
                                 False,
                                 arabic_latin_font_size,
-                                f"Arabic-Latin mixed proof - {proof_name}",
+                                f"Ar-Lat Mixed Paragraph Small - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 (arabicLatinMixed,),  # injectText
@@ -2901,14 +2882,12 @@ class ProofWindow(object):
                                 tracking_value,
                                 align_value,
                             )
-                    elif base_proof_type == "Arabic Numbers Proof":
+                    elif base_proof_type == "Ar Numbers Small":
                         arabic_numbers_font_size = self.get_proof_font_size(proof_name)
                         arabic_chars = cat.get("ar", "") or cat.get("arab", "")
                         if arabic_chars:
                             # Get text formatting settings
-                            unique_proof_key = proof_name.replace(" ", "_").replace(
-                                "/", "_"
-                            )
+                            unique_proof_key = create_unique_proof_key(proof_name)
                             tracking_value = self.proof_settings.get(
                                 f"{unique_proof_key}_tracking", 0
                             )
@@ -2925,7 +2904,7 @@ class ProofWindow(object):
                                 3,  # Specific paragraph count for numbers
                                 False,
                                 arabic_numbers_font_size,
-                                f"Arabic numbers proof - {proof_name}",
+                                f"Ar Numbers Small - {proof_name}",
                                 False,  # mixedStyles=False
                                 False,  # forceWordsiv
                                 (arabicFarsiUrduNumbers,),  # injectText
@@ -2944,26 +2923,28 @@ class ProofWindow(object):
                 )
 
                 # Generate proofs in default order using proof_options dict
-                if proof_options.get("CharacterSetProof"):
-                    charset_font_size = self.get_proof_font_size("CharacterSetProof")
+                if proof_options.get("filtered_character_set"):
+                    charset_font_size = self.get_proof_font_size(
+                        "filtered_character_set"
+                    )
                     charsetProof(
                         fullCharacterSet,
                         axesProduct,
                         indFont,
                         None,  # pairedStaticStyles
-                        otfeatures_by_proof.get("CharacterSetProof", {}),
+                        otfeatures_by_proof.get("filtered_character_set", {}),
                         charset_font_size,
                     )
 
-                if proof_options.get("SpacingProof"):
-                    spacing_font_size = self.get_proof_font_size("SpacingProof")
-                    spacing_columns = cols_by_proof.get("SpacingProof", 2)
+                if proof_options.get("spacing_proof"):
+                    spacing_font_size = self.get_proof_font_size("spacing_proof")
+                    spacing_columns = cols_by_proof.get("spacing_proof", 2)
                     spacingProof(
                         fullCharacterSet,
                         axesProduct,
                         indFont,
                         None,  # pairedStaticStyles
-                        otfeatures_by_proof.get("SpacingProof", {}),
+                        otfeatures_by_proof.get("spacing_proof", {}),
                         spacing_font_size,
                         spacing_columns,
                     )
@@ -3141,23 +3122,23 @@ class ProofWindow(object):
             # Map proof display names to internal keys - use unified snake_case format
             proof_name_to_key = {
                 "Show Baselines/Grid": "show_baselines",
-                "Character Set Proof": "character_set_proof",
+                "Filtered Character Set": "filtered_character_set",
                 "Spacing Proof": "spacing_proof",
-                "Big Paragraph Proof": "big_paragraph_proof",
-                "Big Diacritics Proof": "big_diacritics_proof",
-                "Small Paragraph Proof": "small_paragraph_proof",
-                "Small Paired Styles Proof": "small_paired_styles_proof",
-                "Small Wordsiv Proof": "small_wordsiv_proof",
-                "Small Diacritics Proof": "small_diacritics_proof",
-                "Small Mixed Text Proof": "small_mixed_text_proof",
-                "Arabic Contextual Forms": "arabic_contextual_forms_proof",
-                "Big Arabic Text Proof": "big_arabic_text_proof",
-                "Big Farsi Text Proof": "big_farsi_text_proof",
-                "Small Arabic Text Proof": "small_arabic_text_proof",
-                "Small Farsi Text Proof": "small_farsi_text_proof",
-                "Arabic Vocalization Proof": "arabic_vocalization_proof",
-                "Arabic-Latin Mixed Proof": "arabic_latin_mixed_proof",
-                "Arabic Numbers Proof": "arabic_numbers_proof",
+                "Basic Paragraph Large": "basic_paragraph_large",
+                "Diacritic Words Large": "diacritic_words_large",
+                "Basic Paragraph Small": "basic_paragraph_small",
+                "Paired Styles Paragraph Small": "paired_styles_paragraph_small",
+                "Generative Text Small": "generative_text_small",
+                "Diacritic Words Small": "diacritic_words_small",
+                "Misc Paragraph Small": "misc_paragraph_small",
+                "Ar Character Set": "ar_character_set",
+                "Ar Paragraph Large": "ar_paragraph_large",
+                "Fa Paragraph Large": "fa_paragraph_large",
+                "Ar Paragraph Small": "ar_paragraph_small",
+                "Fa Paragraph Small": "fa_paragraph_small",
+                "Ar Vocalization Paragraph Small": "ar_vocalization_paragraph_small",
+                "Ar-Lat Mixed Paragraph Small": "ar_lat_mixed_paragraph_small",
+                "Ar Numbers Small": "ar_numbers_small",
             }
 
             # Skip if this is just "Show Baselines/Grid" - it doesn't need special settings
@@ -3169,16 +3150,16 @@ class ProofWindow(object):
                 return
 
             # Create a unique identifier for this proof instance by sanitizing the unique name
-            unique_key = unique_proof_name.replace(" ", "_").replace("/", "_")
+            unique_key = create_unique_proof_key(unique_proof_name)
 
             # Initialize settings with defaults based on the base proof type
             # Font size setting
             font_size_key = f"{unique_key}_fontSize"
             if base_proof_key in [
-                "big_paragraph_proof",
-                "big_diacritics_proof",
-                "big_arabic_text_proof",
-                "big_farsi_text_proof",
+                "basic_paragraph_large",
+                "diacritic_words_large",
+                "ar_paragraph_large",
+                "fa_paragraph_large",
             ]:
                 # Set default font size using registry
                 default_font_size = get_proof_default_font_size(base_proof_key)
@@ -3195,8 +3176,8 @@ class ProofWindow(object):
 
             # Columns setting (if applicable)
             if base_proof_key not in [
-                "character_set_proof",
-                "arabic_contextual_forms_proof",
+                "filtered_character_set",
+                "ar_character_set",
             ]:
                 cols_key = f"{unique_key}_cols"
                 default_cols = proof_info["default_cols"]
@@ -3244,23 +3225,23 @@ class ProofWindow(object):
         try:
             # Map base proof types to internal keys - using unified snake_case format
             proof_name_to_key = {
-                "Character Set Proof": "character_set_proof",
+                "Filtered Character Set": "filtered_character_set",
                 "Spacing Proof": "spacing_proof",
-                "Big Paragraph Proof": "big_paragraph_proof",
-                "Big Diacritics Proof": "big_diacritics_proof",
-                "Small Paragraph Proof": "small_paragraph_proof",
-                "Small Paired Styles Proof": "small_paired_styles_proof",
-                "Small Wordsiv Proof": "small_wordsiv_proof",
-                "Small Diacritics Proof": "small_diacritics_proof",
-                "Small Mixed Text Proof": "small_mixed_text_proof",
-                "Arabic Contextual Forms": "arabic_contextual_forms_proof",
-                "Big Arabic Text Proof": "big_arabic_text_proof",
-                "Big Farsi Text Proof": "big_farsi_text_proof",
-                "Small Arabic Text Proof": "small_arabic_text_proof",
-                "Small Farsi Text Proof": "small_farsi_text_proof",
-                "Arabic Vocalization Proof": "arabic_vocalization_proof",
-                "Arabic-Latin Mixed Proof": "arabic_latin_mixed_proof",
-                "Arabic Numbers Proof": "arabic_numbers_proof",
+                "Basic Paragraph Large": "basic_paragraph_large",
+                "Diacritic Words Large": "diacritic_words_large",
+                "Basic Paragraph Small": "basic_paragraph_small",
+                "Paired Styles Paragraph Small": "paired_styles_paragraph_small",
+                "Generative Text Small": "generative_text_small",
+                "Diacritic Words Small": "diacritic_words_small",
+                "Misc Paragraph Small": "misc_paragraph_small",
+                "Ar Character Set": "ar_character_set",
+                "Ar Paragraph Large": "ar_paragraph_large",
+                "Fa Paragraph Large": "fa_paragraph_large",
+                "Ar Paragraph Small": "ar_paragraph_small",
+                "Fa Paragraph Small": "fa_paragraph_small",
+                "Ar Vocalization Paragraph Small": "ar_vocalization_paragraph_small",
+                "Ar-Lat Mixed Paragraph Small": "ar_lat_mixed_paragraph_small",
+                "Ar Numbers Small": "ar_numbers_small",
             }
 
             base_proof_key = proof_name_to_key.get(base_proof_type)
@@ -3294,8 +3275,8 @@ class ProofWindow(object):
 
             # Columns setting (if applicable)
             if base_proof_key not in [
-                "character_set_proof",
-                "arabic_contextual_forms_proof",
+                "filtered_character_set",
+                "ar_character_set",
             ]:
                 cols_key = f"{unique_proof_key}_cols"
 
@@ -3355,7 +3336,7 @@ class ProofWindow(object):
                 feature_key = f"otf_{unique_proof_key}_{tag}"
 
                 # Special handling for SpacingProof kern feature
-                if base_proof_key == "SpacingProof" and tag == "kern":
+                if base_proof_key == "spacing_proof" and tag == "kern":
                     feature_value = False
                     self.proof_settings[feature_key] = False
                     feature_items.append(

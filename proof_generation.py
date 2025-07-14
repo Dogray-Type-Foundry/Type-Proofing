@@ -544,7 +544,7 @@ def generateSpacingString(characterSet):
 def charsetProof(
     characterSet, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None
 ):
-    """Generate character set proof."""
+    """Generate Filtered Character Set."""
     if not characterSet:
         print("Empty character set, skipping")
         return
@@ -553,10 +553,10 @@ def charsetProof(
     proof_font_size = (
         fontSize
         if fontSize is not None
-        else get_proof_default_font_size("character_set_proof")
+        else get_proof_default_font_size("filtered_character_set")
     )
 
-    sectionName = "Character set proof"
+    sectionName = "Filtered Character Set"
     try:
         if axesProduct:
             axisDict = {}
@@ -824,13 +824,13 @@ def generateArabicContextualProof(cat):
 
 
 def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=None):
-    """Generate Arabic contextual form proof pages."""
+    """Generate Arabic character set proof pages."""
     contextualString = generateArabicContextualProof(cat)
 
     if not contextualString:
         return
 
-    sectionName = "Arabic Contextual Forms"
+    sectionName = "Ar Character Set"
 
     try:
         if axesProduct:
@@ -839,7 +839,7 @@ def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=N
                 axisDict = dict(axisData)
                 formattedString = stringMaker(
                     contextualString,
-                    get_proof_default_font_size("character_set_proof"),
+                    get_proof_default_font_size("ar_character_set"),
                     indFont,
                     axesProduct,
                     pairedStaticStyles,
@@ -859,7 +859,7 @@ def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=N
         elif axesProduct == "":
             formattedString = stringMaker(
                 contextualString,
-                get_proof_default_font_size("character_set_proof"),
+                get_proof_default_font_size("ar_character_set"),
                 indFont,
                 axesProduct,
                 pairedStaticStyles,
@@ -881,7 +881,7 @@ def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=N
 
 
 def generateArabicContextualFormsProof(cat):
-    """Generate Arabic contextual forms proof showing each character in all its forms."""
+    """Generate ARA Character Set proof showing each character in all its forms."""
     contextualProof = ""
 
     # Get Arabic characters
@@ -911,12 +911,12 @@ def generateArabicContextualFormsProof(cat):
 def arabicContextualFormsProof(
     cat, axesProduct, indFont, pairedStaticStyles, otFea=None, fontSize=None
 ):
-    """Generate Arabic contextual forms proof pages using configurable font size."""
+    """Generate ARA Character Set proof pages using configurable font size."""
     # Use provided font size or fall back to character set font size
     proof_font_size = (
         fontSize
         if fontSize is not None
-        else get_proof_default_font_size("character_set_proof")
+        else get_proof_default_font_size("ar_character_set")
     )
 
     contextualString = generateArabicContextualFormsProof(cat)
@@ -924,7 +924,7 @@ def arabicContextualFormsProof(
     if not contextualString:
         return
 
-    sectionName = "Arabic Contextual Forms"
+    sectionName = "Ar Character Set"
 
     try:
         if axesProduct:
