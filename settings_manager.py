@@ -13,6 +13,7 @@ from config import (
     get_proof_settings_mapping,
 )
 from proof_handlers import create_unique_proof_key
+from utils import safe_json_load, safe_json_save, log_error
 
 
 class ProofSettingsManager:
@@ -485,14 +486,17 @@ class AppSettingsManager:
     def load_user_settings_file(self, file_path):
         """Load settings from a user-specified file."""
         try:
-            with open(file_path, "r") as f:
-                user_data = json.load(f)
-            self.settings.data.update(user_data)
-            self.settings.user_settings_file = file_path
-            print(f"Loaded user settings from: {file_path}")
-            return True
+            user_data = safe_json_load(file_path)
+            if user_data:
+                self.settings.data.update(user_data)
+                self.settings.user_settings_file = file_path
+                print(f"Loaded user settings from: {file_path}")
+                return True
+            else:
+                log_error(f"Failed to load user settings file: {file_path}")
+                return False
         except Exception as e:
-            print(f"Error loading user settings file {file_path}: {e}")
+            log_error(f"Error loading user settings file {file_path}: {e}")
             return False
 
     def reset_to_defaults(self):

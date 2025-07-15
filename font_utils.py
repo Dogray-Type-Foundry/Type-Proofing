@@ -3,6 +3,7 @@
 import os
 from fontTools.ttLib import TTFont
 from fontTools.agl import toUnicode
+from utils import safe_font_load, log_error
 
 # Cache for TTFont instances to avoid repeated loading
 _ttfont_cache = {}
@@ -13,12 +14,17 @@ LOWER_TEMPLATE = "abcdefghijklmnopqrstuvwxyz"
 
 
 def get_ttfont(input_font):
-    """Get a cached TTFont instance."""
+    """Get a cached TTFont instance using safe font loading."""
     if input_font in _ttfont_cache:
         return _ttfont_cache[input_font]
-    f = TTFont(input_font)
-    _ttfont_cache[input_font] = f
-    return f
+
+    font = safe_font_load(input_font)
+    if font:
+        _ttfont_cache[input_font] = font
+        return font
+    else:
+        log_error(f"Failed to load font: {input_font}")
+        return None
 
 
 def clear_font_cache():
@@ -29,30 +35,40 @@ def clear_font_cache():
 
 def filteredCharset(input_font):
     """Get charset excluding glyphs without outlines."""
-    f = get_ttfont(input_font)
-    gset = f.getGlyphSet()
-    charset = ""
+    try:
+        f = get_ttfont(input_font)
+        if not f:
+            return ""
 
-    for i in gset:
-        if "." in i:
-            continue
+        gset = f.getGlyphSet()
+        charset = ""
 
-        if "CFF " in f:
-            top_dict = f["CFF "].cff.topDictIndex[0]
-            char_strings = top_dict.CharStrings
-            char_string = char_strings[i]
-            bounds = char_string.calcBounds(char_strings)
-            if bounds is None:
+        for i in gset:
+            if "." in i:
                 continue
+
+            if "CFF " in f:
+                top_dict = f["CFF "].cff.topDictIndex[0]
+                char_strings = top_dict.CharStrings
+                char_string = char_strings[i]
+                bounds = char_string.calcBounds(char_strings)
+                if bounds is None:
+                    continue
+                else:
+                    charset = charset + toUnicode(i)
+            elif "glyf" in f:
+                if f["glyf"][i].numberOfContours == 0:
+                    continue
+                else:
+                    charset = charset + toUnicode(i)
             else:
                 charset = charset + toUnicode(i)
-        elif "glyf" in f:
-            if f["glyf"][i].numberOfContours == 0:
-                continue
-            else:
-                charset = charset + toUnicode(i)
 
-    return charset
+        return charset
+
+    except Exception as e:
+        log_error(f"Error filtering charset for {input_font}: {e}")
+        return ""
 
 
 def normalize_font_path(path):

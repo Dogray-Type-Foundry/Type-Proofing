@@ -6,6 +6,8 @@ import urllib.parse
 import vanilla
 from Foundation import NSObject
 import objc
+from utils import normalize_path, validate_font_path, log_error
+from ui_utils import refresh_path_control, create_font_drop_data, format_table_data
 
 
 class FontListDelegate(NSObject):
@@ -144,7 +146,7 @@ class FilesTab:
             self.current_axes = []
             return
 
-        # Get table data with individual axis columns
+        # Get table data with individual axis columns from font manager
         table_data, all_axes = self.font_manager.get_table_data_with_individual_axes()
 
         # Check if we need to update the table columns
@@ -281,13 +283,25 @@ class FilesTab:
 
     def add_fonts(self, paths):
         """Add fonts to the font manager."""
-        if self.font_manager.add_fonts(paths):
-            self.update_table()
-            self.parent_window.initialize_proof_settings()
-            # Update PDF location UI to populate PathControl with first font's folder
-            self.update_pdf_location_ui()
-        else:
-            print("No new valid font paths found")
+        try:
+            # Normalize and validate paths using utility functions
+            validated_paths = []
+            for path in paths:
+                normalized_path = normalize_path(path)
+                if validate_font_path(normalized_path):
+                    validated_paths.append(normalized_path)
+                else:
+                    print(f"Skipping invalid font file: {path}")
+
+            if validated_paths and self.font_manager.add_fonts(validated_paths):
+                self.update_table()
+                self.parent_window.initialize_proof_settings()
+                # Update PDF location UI to populate PathControl with first font's folder
+                self.update_pdf_location_ui()
+            else:
+                print("No new valid font paths found")
+        except Exception as e:
+            log_error(f"Error adding fonts: {e}", traceback.format_exc())
 
     def removeFontsCallback(self, sender):
         """Handle the Remove Selected button click."""
@@ -446,74 +460,10 @@ class FilesTab:
         """
         if not url:
             path_control.set("")
-            # Clear backup text as well
-            if hasattr(self.group.pdfOutputBox, "pathBackupText"):
-                self.group.pdfOutputBox.pathBackupText.set("")
             return
 
-        # Convert file URL to path for processing
-        if url.startswith("file://"):
-            path = urllib.parse.unquote(url[7:])
-        else:
-            path = url
-
-        # Try to resolve iCloud Drive paths to their actual locations
-        original_path = path
-        try:
-            if "Mobile Documents" in path or "iCloud" in path:
-                # For iCloud Drive paths, try to resolve the real path
-                resolved_path = os.path.realpath(path)
-                if os.path.exists(resolved_path):
-                    path = resolved_path
-        except Exception as e:
-            print(f"Path resolution failed: {e}")
-
-        # Ensure proper URL encoding for app bundles
-        try:
-            # Re-encode the path properly
-            encoded_path = urllib.parse.quote(path, safe="/:")
-            final_url = f"file://{encoded_path}"
-
-            # Try multiple approaches to set the PathControl
-            # Approach 1: Direct set
-            path_control.set(final_url)
-
-            # Approach 2: Force refresh if direct set doesn't work
-            if not path_control.get():  # If PathControl is still empty
-                path_control.set("")  # Clear
-                path_control.set(final_url)  # Reset
-
-            # Approach 3: Try with unencoded URL as fallback
-            if not path_control.get():
-                simple_url = f"file://{path}"
-                path_control.set(simple_url)
-
-            # Set backup text field with user-friendly path
-            if hasattr(self.group.pdfOutputBox, "pathBackupText"):
-                # Show a user-friendly version of the path
-                display_path = original_path
-                if "Mobile Documents/com~apple~CloudDocs" in display_path:
-                    # Make iCloud Drive paths more readable
-                    user_home = os.path.expanduser("~")
-                    icloud_base = (
-                        f"{user_home}/Library/Mobile Documents/com~apple~CloudDocs"
-                    )
-                    if display_path.startswith(icloud_base):
-                        relative_path = display_path[len(icloud_base) :].lstrip("/")
-                        display_path = (
-                            f"iCloud Drive/{relative_path}"
-                            if relative_path
-                            else "iCloud Drive"
-                        )
-
-        except Exception as e:
-            print(f"PathControl setting failed: {e}")
-            # Last resort - try the original URL
-            path_control.set(url)
-
-            # Still set backup text
-            if hasattr(self.group.pdfOutputBox, "pathBackupText"):
-                self.group.pdfOutputBox.pathBackupText.set(f"Selected: {original_path}")
+        # Use utility function for refreshing path control
+        refresh_path_control(path_control, url)
 
     def pdfPathControlCallback(self, sender):
         """Handle PathControl changes for PDF output location."""
