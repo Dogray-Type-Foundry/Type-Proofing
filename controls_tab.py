@@ -18,8 +18,8 @@ class ControlsTab:
 
     def get_proof_options_list(self):
         """Generate dynamic proof options list based on font capabilities and saved custom instances."""
-        # Import the helper functions from config
-        from config import (
+        # Import the helper functions from proof_config
+        from proof_config import (
             get_base_proof_display_names,
             get_arabic_proof_display_names,
             get_proof_settings_mapping,
@@ -120,7 +120,7 @@ class ControlsTab:
     def _extract_base_proof_type(self, custom_display_name):
         """Extract base proof type from a custom display name like 'Diacritic Words Small 2'."""
         # Import helper functions
-        from config import get_proof_display_names
+        from proof_config import get_proof_display_names
 
         base_display_names = get_proof_display_names(include_arabic=True)
 
@@ -214,8 +214,8 @@ class ControlsTab:
             )
 
             # Page format selection
-            # Import PAGE_FORMAT_OPTIONS from config
-            from config import PAGE_FORMAT_OPTIONS
+            # Import PAGE_FORMAT_OPTIONS from core_config
+            from core_config import PAGE_FORMAT_OPTIONS
 
             self.group.pageFormatPopUp = vanilla.PopUpButton(
                 (controls_x + 2, y, 153, 20),
@@ -324,8 +324,8 @@ class ControlsTab:
         # Check if this is a checkbox edit
         edited_index = sender.getEditedIndex()
 
-        # Import helper functions from config
-        from config import get_proof_display_names
+        # Import helper functions from proof_config
+        from proof_config import get_proof_display_names
 
         # Get proofs with settings from registry (all proofs have settings)
         proofs_with_settings = set(get_proof_display_names(include_arabic=True))
@@ -364,7 +364,7 @@ class ControlsTab:
             enabled = item["Enabled"]
 
             # Get the correct proof key from the registry
-            from config import get_proof_settings_mapping
+            from proof_config import get_proof_settings_mapping
 
             proof_settings_mapping = get_proof_settings_mapping()
 
@@ -380,7 +380,7 @@ class ControlsTab:
     def pageFormatCallback(self, sender):
         """Handle page format selection changes."""
         try:
-            from config import PAGE_FORMAT_OPTIONS
+            from core_config import PAGE_FORMAT_OPTIONS
 
             selected_index = sender.get()
             if 0 <= selected_index < len(PAGE_FORMAT_OPTIONS):
@@ -472,8 +472,8 @@ class ControlsTab:
 
     def show_popover_for_option(self, option, row_index):
         """Show popover for the specified option."""
-        # Import the helper function from config
-        from config import get_proof_popover_mapping
+        # Import the helper function from proof_config
+        from proof_config import get_proof_popover_mapping
 
         # Get proof name to key mapping from registry
         proof_name_to_key = get_proof_popover_mapping()
@@ -545,8 +545,11 @@ class ControlsTab:
             (10, 10, -10, 20), "Select Proof Type to Add:"
         )
 
-        # Import helper functions from config
-        from config import get_base_proof_display_names, get_arabic_proof_display_names
+        # Import helper functions from proof_config
+        from proof_config import (
+            get_base_proof_display_names,
+            get_arabic_proof_display_names,
+        )
 
         # Get available proof types from registry
         proof_type_options = get_base_proof_display_names()

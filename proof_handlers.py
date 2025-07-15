@@ -7,7 +7,7 @@ from proof_generation import (
     textProof,
     arabicContextualFormsProof,
 )
-from config import arabicVocalization, arabicLatinMixed, arabicFarsiUrduNumbers
+from script_texts import arabicVocalization, arabicLatinMixed, arabicFarsiUrduNumbers
 
 
 def create_unique_proof_key(proof_name):
@@ -384,11 +384,7 @@ class MiscParagraphSmallHandler(BaseProofHandler):
 
     def generate_proof(self, context):
         try:
-            from importlib import reload
-            import prooftexts
-
-            reload(prooftexts)
-            import prooftexts as pte
+            from proof_generation import pte
         except ImportError:
             pte = None
 

@@ -169,9 +169,9 @@ def setup_page_format(page_format):
             db.size(width, height)
 
             # Update the global pageDimensions variable for compatibility
-            import config
+            import core_config
 
-            config.pageDimensions = (width, height)
+            core_config.pageDimensions = (width, height)
             return True
 
         # If page_format is a string, look it up in the mapping
@@ -180,9 +180,9 @@ def setup_page_format(page_format):
             db.size(width, height)
 
             # Update the global pageDimensions variable for compatibility
-            import config
+            import core_config
 
-            config.pageDimensions = (width, height)
+            core_config.pageDimensions = (width, height)
             return True
 
         log_error(f"Invalid page format: {page_format}")
