@@ -469,6 +469,11 @@ class ProofWindow:
 
     def initialize_proof_settings(self):
         """Initialize proof-specific settings storage using the settings manager."""
+        # Clear handler cache when settings change
+        from proof_handlers import clear_handler_cache
+
+        clear_handler_cache()
+
         # Delegate to the proof settings manager
         self.proof_settings_manager.initialize_proof_settings()
 
@@ -793,110 +798,60 @@ class ProofWindow:
             # Dynamic proof generation based on UI list order
             # Get the current proof options from the UI in their display order
             controls = self.controlsTab
-            if hasattr(controls, "group") and hasattr(
-                controls.group, "proofOptionsList"
+            if not (
+                hasattr(controls, "group")
+                and hasattr(controls.group, "proofOptionsList")
             ):
-                proof_options_items = controls.group.proofOptionsList.get()
+                print("Error: Could not access proof options list")
+                return None
 
-                for item in proof_options_items:
-                    proof_name = item[
-                        "Option"
-                    ]  # Use the actual proof name (may include numbers)
-                    base_proof_type = item.get(
-                        "_original_option", proof_name
-                    )  # Get the base type
-                    enabled = bool(item["Enabled"])
+            proof_options_items = controls.group.proofOptionsList.get()
 
-                    if not enabled:
-                        continue  # Skip disabled proofs
+            # Pre-create context once for efficiency
+            proof_context = ProofContext(
+                full_character_set=fullCharacterSet,
+                axes_product=axesProduct,
+                ind_font=indFont,
+                paired_static_styles=pairedStaticStyles,
+                otfeatures_by_proof=otfeatures_by_proof,
+                cols_by_proof=cols_by_proof,
+                paras_by_proof=paras_by_proof,
+                cat=cat,
+                proof_name=None,  # Will be updated per proof
+            )
 
-                    # Generate each enabled proof using the handler system
-                    # Create proof context with all necessary data
-                    proof_context = ProofContext(
-                        full_character_set=fullCharacterSet,
-                        axes_product=axesProduct,
-                        ind_font=indFont,
-                        paired_static_styles=pairedStaticStyles,
-                        otfeatures_by_proof=otfeatures_by_proof,
-                        cols_by_proof=cols_by_proof,
-                        paras_by_proof=paras_by_proof,
-                        cat=cat,
-                        proof_name=proof_name,
-                    )
+            # Generate each enabled proof using the optimized handler system
+            for item in proof_options_items:
+                if not item["Enabled"]:
+                    continue
 
-                    # Get the appropriate handler for this proof type
-                    handler = get_proof_handler(
-                        base_proof_type,
-                        proof_name,
-                        self.proof_settings,
-                        self.get_proof_font_size,
-                    )
+                proof_name = item["Option"]
+                base_proof_type = item.get("_original_option", proof_name)
 
-                    if handler:
-                        try:
-                            handler.generate_proof(proof_context)
-                        except Exception as e:
-                            print(f"Error generating proof '{proof_name}': {e}")
-                            import traceback
+                # Update context for this specific proof
+                proof_context.proof_name = proof_name
 
-                            traceback.print_exc()
-                    else:
-                        print(
-                            f"Warning: No handler found for proof type '{base_proof_type}'"
-                        )
-            else:
-                # Fallback to old hardcoded order if UI list is not available
-                print(
-                    "Warning: Could not access proof options list, using fallback order"
+                # Get handler and generate proof
+                handler = get_proof_handler(
+                    base_proof_type,
+                    proof_name,
+                    self.proof_settings,
+                    self.get_proof_font_size,
                 )
 
-                # Generate proofs in default order using proof_options dict
-                if proof_options.get("filtered_character_set"):
-                    charset_font_size = self.get_proof_font_size(
-                        "filtered_character_set"
+                if handler:
+                    try:
+                        handler.generate_proof(proof_context)
+                    except Exception as e:
+                        print(f"Error generating proof '{proof_name}': {e}")
+                        import traceback
+
+                        traceback.print_exc()
+                        continue  # Continue with next proof
+                else:
+                    print(
+                        f"Warning: No handler found for proof type '{base_proof_type}'"
                     )
-                    section_name = f"Filtered Character Set {charset_font_size}pt"
-
-                    # Get tracking value
-                    tracking_value = self.proof_settings.get(
-                        "filtered_character_set_tracking", 0
-                    )
-
-                    charsetProof(
-                        fullCharacterSet,
-                        axesProduct,
-                        indFont,
-                        None,  # pairedStaticStyles
-                        otfeatures_by_proof.get("filtered_character_set", {}),
-                        charset_font_size,
-                        sectionName=section_name,
-                        tracking=tracking_value,
-                    )
-
-                if proof_options.get("spacing_proof"):
-                    spacing_font_size = self.get_proof_font_size("spacing_proof")
-                    spacing_columns = cols_by_proof.get("spacing_proof", 2)
-                    section_name = f"Spacing proof {spacing_font_size}pt"
-
-                    # Get tracking value
-                    tracking_value = self.proof_settings.get(
-                        "spacing_proof_tracking", 0
-                    )
-
-                    spacingProof(
-                        fullCharacterSet,
-                        axesProduct,
-                        indFont,
-                        None,  # pairedStaticStyles
-                        otfeatures_by_proof.get("spacing_proof", {}),
-                        spacing_font_size,
-                        spacing_columns,
-                        sectionName=section_name,
-                        tracking=tracking_value,
-                    )
-
-                # Add other proofs in the same pattern if needed...
-                # (This is a simplified fallback - the main path uses the UI order)
 
         # Finalize PDF generation and save
         pdf_path = self.pdf_manager.end_pdf_generation(self.font_manager, now)

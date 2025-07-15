@@ -27,17 +27,32 @@ class BaseProofHandler(ABC):
         self.get_proof_font_size = get_proof_font_size_func
         self.unique_proof_key = create_unique_proof_key(proof_name)
 
+        # Cache commonly accessed settings for performance
+        self._cached_font_size = None
+        self._cached_tracking = None
+        self._cached_align = None
+
     def get_font_size(self):
         """Get font size for this proof."""
-        return self.get_proof_font_size(self.proof_name)
+        if self._cached_font_size is None:
+            self._cached_font_size = self.get_proof_font_size(self.proof_name)
+        return self._cached_font_size
 
     def get_tracking_value(self):
         """Get tracking value for this proof."""
-        return self.proof_settings.get(f"{self.unique_proof_key}_tracking", 0)
+        if self._cached_tracking is None:
+            self._cached_tracking = self.proof_settings.get(
+                f"{self.unique_proof_key}_tracking", 0
+            )
+        return self._cached_tracking
 
     def get_align_value(self):
         """Get alignment value for this proof."""
-        return self.proof_settings.get(f"{self.unique_proof_key}_align", "left")
+        if self._cached_align is None:
+            self._cached_align = self.proof_settings.get(
+                f"{self.unique_proof_key}_align", "left"
+            )
+        return self._cached_align
 
     def get_section_name(self, font_size):
         """Get section name for this proof."""
@@ -51,6 +66,50 @@ class BaseProofHandler(ABC):
             context: ProofContext object containing all necessary data
         """
         pass
+
+    def generate_text_proof(
+        self,
+        context,
+        character_set,
+        default_columns=2,
+        default_paragraphs=3,
+        mixed_styles=False,
+        force_wordsiv=False,
+        inject_text=None,
+        accents=0,
+        language=None,
+    ):
+        """Template method for generating text-based proofs."""
+        font_size = self.get_font_size()
+        columns = context.cols_by_proof.get(context.proof_name, default_columns)
+        section_name = self.get_section_name(font_size)
+        tracking_value = self.get_tracking_value()
+        align_value = self.get_align_value()
+
+        # Use provided paragraphs or get from context
+        paragraphs = context.paras_by_proof.get(context.proof_name, default_paragraphs)
+
+        textProof(
+            character_set,
+            context.axes_product,
+            context.ind_font,
+            context.paired_static_styles if mixed_styles else None,
+            columns,
+            paragraphs,
+            False,  # casing
+            font_size,
+            section_name,
+            mixed_styles,
+            force_wordsiv,
+            inject_text,
+            context.otfeatures_by_proof.get(context.proof_name, {}),
+            accents,
+            context.cat,
+            context.full_character_set,
+            language,
+            tracking_value,
+            align_value,
+        )
 
 
 class ProofContext:
@@ -666,8 +725,12 @@ PROOF_HANDLER_REGISTRY = {
 }
 
 
+# Handler cache for performance optimization
+_handler_cache = {}
+
+
 def get_proof_handler(proof_type, proof_name, proof_settings, get_proof_font_size_func):
-    """Factory function to create the appropriate proof handler.
+    """Factory function to create the appropriate proof handler with caching.
 
     Args:
         proof_type: The base proof type (e.g., "Basic Paragraph Large")
@@ -678,7 +741,35 @@ def get_proof_handler(proof_type, proof_name, proof_settings, get_proof_font_siz
     Returns:
         Instance of the appropriate proof handler, or None if not found
     """
+    # Create cache key based on proof type and name
+    cache_key = f"{proof_type}::{proof_name}"
+
+    # Check cache first
+    if cache_key in _handler_cache:
+        # Update settings in cached handler (they may have changed)
+        cached_handler = _handler_cache[cache_key]
+        cached_handler.proof_settings = proof_settings
+        cached_handler._cached_tracking = None  # Reset cache
+        cached_handler._cached_align = None
+        cached_handler._cached_font_size = None
+        return cached_handler
+
+    # Create new handler if not in cache
     handler_class = PROOF_HANDLER_REGISTRY.get(proof_type)
     if handler_class:
-        return handler_class(proof_name, proof_settings, get_proof_font_size_func)
+        try:
+            handler = handler_class(
+                proof_name, proof_settings, get_proof_font_size_func
+            )
+            _handler_cache[cache_key] = handler
+            return handler
+        except Exception as e:
+            print(f"Error creating handler for '{proof_type}': {e}")
+            return None
     return None
+
+
+def clear_handler_cache():
+    """Clear the handler cache. Call when settings change significantly."""
+    global _handler_cache
+    _handler_cache.clear()
