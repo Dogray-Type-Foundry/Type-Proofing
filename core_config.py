@@ -112,17 +112,18 @@ POS_FORMS = ("init", "medi", "fina")
 
 
 def load_arabic_texts():
-    """Load Arabic text constants from prooftexts module."""
+    """Load Arabic text constants from script_texts module."""
     try:
-        from importlib import reload
-        import prooftexts
-
-        reload(prooftexts)
+        from script_texts import (
+            arabicVocalization,
+            arabicLatinMixed,
+            arabicFarsiUrduNumbers,
+        )
 
         return {
-            "arabic_vocalization": prooftexts.arabicVocalization,
-            "arabic_latin_mixed": prooftexts.arabicLatinMixed,
-            "arabic_farsi_urdu_numbers": prooftexts.arabicFarsiUrduNumbers,
+            "arabic_vocalization": arabicVocalization,
+            "arabic_latin_mixed": arabicLatinMixed,
+            "arabic_farsi_urdu_numbers": arabicFarsiUrduNumbers,
         }
     except ImportError:
         print(

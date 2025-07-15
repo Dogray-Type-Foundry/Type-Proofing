@@ -74,14 +74,14 @@ class PDFManager:
                 return pdf_directory, family_name
             else:
                 # Fallback to script directory if no fonts loaded
-                from config import SCRIPT_DIR
+                from core_config import SCRIPT_DIR
 
                 return normalize_path(SCRIPT_DIR), "proof"
 
         except Exception as e:
             error_msg = f"Error determining PDF output directory: {e}"
             log_error(error_msg)
-            from config import SCRIPT_DIR
+            from core_config import SCRIPT_DIR
 
             return normalize_path(SCRIPT_DIR), "proof"
 

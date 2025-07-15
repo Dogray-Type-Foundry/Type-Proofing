@@ -10,23 +10,25 @@ import vanilla
 import AppKit
 from PyObjCTools import AppHelper
 
-from config import (
+from core_config import (
     WINDOW_TITLE,
     SETTINGS_PATH,
     SCRIPT_DIR,
     DEFAULT_ON_FEATURES,
     HIDDEN_FEATURES,
+)
+from proof_config import (
     get_proof_default_font_size,
     proof_supports_formatting,
 )
-from font_analysis import (
-    FontManager,
+from font_manager import FontManager
+from variable_font_utils import (
     product_dict,
-    filteredCharset,
-    categorize,
     variableFont,
     pairStaticStyles,
 )
+from font_utils import filteredCharset
+from character_analysis import categorize
 from proof_generation import (
     charsetProof,
     spacingProof,
@@ -90,8 +92,8 @@ class ProofWindow:
         self.pdf_manager = PDFManager(self.settings)
 
         # Initialize proof-specific settings storage (deprecated - use proof_settings_manager)
-        # Import the helper function from config
-        from config import get_proof_settings_mapping
+        # Import the helper function from proof_config
+        from proof_config import get_proof_settings_mapping
 
         # Get proof types with settings keys from registry
         settings_mapping = get_proof_settings_mapping()
@@ -385,8 +387,8 @@ class ProofWindow:
                 cols_by_proof = {}
                 paras_by_proof = {}
 
-                # Get mapping from config
-                from config import get_proof_settings_mapping
+                # Get mapping from proof_config
+                from proof_config import get_proof_settings_mapping
 
                 display_name_to_settings_key = get_proof_settings_mapping()
 
@@ -593,8 +595,8 @@ class ProofWindow:
         if proof_key not in ["filtered_character_set", "ar_character_set"]:
             cols_key = f"{proof_key}_cols"
 
-            # Import helper functions from config
-            from config import get_proof_by_storage_key
+            # Import helper functions from proof_config
+            from proof_config import get_proof_by_storage_key
 
             # Get proof info from registry
             proof_info = get_proof_by_storage_key(proof_key)
@@ -609,8 +611,8 @@ class ProofWindow:
             )
 
         # Paragraphs setting (only for proofs that have paragraphs)
-        # Import helper functions from config
-        from config import get_proof_by_settings_key
+        # Import helper functions from proof_config
+        from proof_config import get_proof_by_settings_key
 
         # Get proof info from registry
         proof_info = get_proof_by_settings_key(proof_key)
@@ -937,7 +939,7 @@ class ProofWindow:
 
             # Update page format selection
             if hasattr(self.controlsTab.group, "pageFormatPopUp"):
-                from config import PAGE_FORMAT_OPTIONS
+                from core_config import PAGE_FORMAT_OPTIONS
 
                 current_format = self.settings.get_page_format()
                 if current_format in PAGE_FORMAT_OPTIONS:
@@ -1027,8 +1029,8 @@ class ProofWindow:
             ]:
                 cols_key = f"{unique_proof_key}_cols"
 
-                # Import helper functions from config
-                from config import get_proof_by_storage_key
+                # Import helper functions from proof_config
+                from proof_config import get_proof_by_storage_key
 
                 # Get proof info from registry
                 proof_info = get_proof_by_storage_key(base_proof_key)
@@ -1043,8 +1045,8 @@ class ProofWindow:
                 )
 
             # Paragraphs setting (only for proofs that have paragraphs)
-            # Import helper functions from config
-            from config import get_proof_by_settings_key
+            # Import helper functions from proof_config
+            from proof_config import get_proof_by_settings_key
 
             # Get proof info from registry
             proof_info = get_proof_by_settings_key(base_proof_key)

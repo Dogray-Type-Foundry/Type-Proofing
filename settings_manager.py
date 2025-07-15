@@ -2,10 +2,9 @@
 
 import json
 import os
-from config import (
-    Settings,
-    DEFAULT_ON_FEATURES,
-    HIDDEN_FEATURES,
+from ui_config import Settings
+from core_config import DEFAULT_ON_FEATURES, HIDDEN_FEATURES
+from proof_config import (
     get_proof_default_font_size,
     get_proof_by_settings_key,
     get_proof_by_storage_key,
