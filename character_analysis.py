@@ -2,7 +2,7 @@
 
 import unicodedata
 from fontTools.unicodedata import script, block
-from script_config import AR_TEMPLATE, FA_TEMPLATE, ARFA_DUAL_JOIN, ARFA_RIGHT_JOIN
+from core_config import AR_TEMPLATE, FA_TEMPLATE, ARFA_DUAL_JOIN, ARFA_RIGHT_JOIN
 from font_utils import UPPER_TEMPLATE, LOWER_TEMPLATE
 
 

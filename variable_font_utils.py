@@ -3,8 +3,7 @@
 from itertools import product
 import drawBot as db
 from font_utils import get_ttfont
-from app_config import FsSelection
-from format_config import AXES_VALUES
+from core_config import FsSelection, AXES_VALUES
 
 
 def product_dict(**kwargs):

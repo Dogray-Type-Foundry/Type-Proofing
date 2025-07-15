@@ -1,10 +1,9 @@
-# Settings Configuration - Unified settings management
+# UI Configuration - Consolidated from settings_config.py and UI-related configurations
 
 import json
 import os
-from app_config import SETTINGS_PATH
+from core_config import SETTINGS_PATH, DEFAULT_PAGE_FORMAT
 from proof_config import PROOF_REGISTRY, get_proof_display_names
-from format_config import DEFAULT_PAGE_FORMAT
 
 
 class Settings:
@@ -82,8 +81,6 @@ class Settings:
                     print(
                         f"Some fonts in {file_path} no longer exist. Keeping paths for user reference."
                     )
-                    # For user-loaded settings, keep the font paths even if they don't exist
-                    # This allows users to load settings on different systems
                     return merged_data
         except Exception as e:
             print(f"Error loading settings file {file_path}: {e}")
@@ -142,7 +139,7 @@ class Settings:
 
     def _get_defaults(self):
         """Get default settings structure using the centralized proof registry."""
-        from app_config import APP_VERSION
+        from core_config import APP_VERSION
 
         # Generate proof options dynamically from registry
         proof_options = {}
@@ -165,20 +162,58 @@ class Settings:
             "page_format": DEFAULT_PAGE_FORMAT,
         }
 
-    def set_pdf_output_custom_location(self, location):
-        """Set custom PDF output location."""
-        if "pdf_output" not in self.data:
-            self.data["pdf_output"] = {
-                "use_custom_location": False,
-                "custom_location": "",
-            }
-        self.data["pdf_output"]["custom_location"] = location
+    def save(self):
+        """Save current settings to file."""
+        try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
+
+            # If we're using a user settings file, save to that instead
+            save_path = (
+                self.user_settings_file
+                if self.user_settings_file
+                else self.settings_path
+            )
+
+            with open(save_path, "w") as f:
+                json.dump(self.data, f, indent=2)
+
+            # If we're using a user settings file, also update the auto-save file
+            # to remember which user file was loaded
+            if self.user_settings_file and save_path != self.settings_path:
+                auto_save_data = {"user_settings_file": self.user_settings_file}
+                with open(self.settings_path, "w") as f:
+                    json.dump(auto_save_data, f, indent=2)
+        except Exception as e:
+            print(f"Error saving settings: {e}")
+
+    def get(self, key, default=None):
+        """Get a setting value."""
+        return self.data.get(key, default)
+
+    def set(self, key, value):
+        """Set a setting value."""
+        self.data[key] = value
+
+    def update(self, updates):
+        """Update multiple settings at once."""
+        self.data.update(updates)
+
+    def get_proof_option(self, option_key):
+        """Get a proof option value."""
+        return self.data.get("proof_options", {}).get(option_key, False)
+
+    def set_proof_option(self, option_key, value):
+        """Set a proof option value."""
+        if "proof_options" not in self.data:
+            self.data["proof_options"] = {}
+        self.data["proof_options"][option_key] = value
+        self.save()
 
     def get_proof_order(self):
         """Get the current proof order."""
         # Generate default order from registry if not set (excluding show_baselines)
         default_order = get_proof_display_names(include_arabic=True)
-
         return self.data.get("proof_order", default_order)
 
     def set_proof_order(self, proof_order):
@@ -217,17 +252,6 @@ class Settings:
         self.data["fonts"]["axis_values"][font_path] = dict(axis_values)
         self.save()
 
-    def get_proof_option(self, option_key):
-        """Get a proof option value."""
-        return self.data.get("proof_options", {}).get(option_key, False)
-
-    def set_proof_option(self, option_key, value):
-        """Set a proof option value."""
-        if "proof_options" not in self.data:
-            self.data["proof_options"] = {}
-        self.data["proof_options"][option_key] = value
-        self.save()
-
     def get_proof_settings(self):
         """Get the proof settings dictionary."""
         return self.data.get("proof_settings", {})
@@ -239,33 +263,62 @@ class Settings:
         self.data["proof_settings"] = dict(proof_settings)
         self.save()
 
+    def set_pdf_output_custom_location(self, location):
+        """Set custom PDF output location."""
+        if "pdf_output" not in self.data:
+            self.data["pdf_output"] = {
+                "use_custom_location": False,
+                "custom_location": "",
+            }
+        self.data["pdf_output"]["custom_location"] = location
+
     def reset_to_defaults(self):
         """Reset all settings to default values."""
         self.data = self._get_defaults()
         self.user_settings_file = None
         self.save()
 
-    def save(self):
-        """Save current settings to file."""
+    def load_from_file(self, file_path):
+        """Load settings from a specific file."""
+        if os.path.exists(file_path):
+            self.user_settings_file = file_path
+            self.data = self._load_settings_file(file_path)
+            return True
+        return False
+
+    def export_to_file(self, file_path):
+        """Export current settings to a file."""
         try:
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
-
-            # If we're using a user settings file, save to that instead
-            save_path = (
-                self.user_settings_file
-                if self.user_settings_file
-                else self.settings_path
-            )
-
-            with open(save_path, "w") as f:
+            with open(file_path, "w") as f:
                 json.dump(self.data, f, indent=2)
+            return True
+        except IOError:
+            return False
 
-            # If we're using a user settings file, also update the auto-save file
-            # to remember which user file was loaded
-            if self.user_settings_file and save_path != self.settings_path:
-                auto_save_data = {"user_settings_file": self.user_settings_file}
-                with open(self.settings_path, "w") as f:
-                    json.dump(auto_save_data, f, indent=2)
-        except Exception as e:
-            print(f"Error saving settings: {e}")
+
+# =============================================================================
+# UI Layout Constants
+# =============================================================================
+
+# Table column configurations
+FONT_TABLE_COLUMNS = [
+    {"title": "Font", "key": "font", "width": 200},
+    {"title": "Weight", "key": "weight", "width": 80},
+    {"title": "Style", "key": "style", "width": 80},
+    {"title": "Axes", "key": "axes", "width": 150},
+]
+
+# UI spacing and sizing constants
+DEFAULT_BUTTON_HEIGHT = 22
+DEFAULT_TEXT_HEIGHT = 17
+DEFAULT_POPUP_WIDTH = 120
+DEFAULT_COLUMN_SPACING = 10
+DEFAULT_ROW_SPACING = 8
+
+# Preview pane dimensions
+PREVIEW_MIN_WIDTH = 400
+PREVIEW_MIN_HEIGHT = 300
+
+# Popover dimensions
+SETTINGS_POPOVER_WIDTH = 300
+SETTINGS_POPOVER_HEIGHT = 200

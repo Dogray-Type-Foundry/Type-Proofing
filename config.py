@@ -1,48 +1,53 @@
 # Configuration and Constants for Font Proofing Application
-# This file provides backward compatibility by re-exporting from modular config files
+# This file provides backward compatibility by re-exporting from consolidated config files
 
-# Import from modular configuration files
-from app_config import (
+# Import from consolidated configuration files
+from core_config import (
+    # Application constants
     SCRIPT_DIR,
     SETTINGS_PATH,
     WINDOW_TITLE,
-    FALLBACK_FONT as myFallbackFont,  # Keep old name for compatibility
-    USE_FONT_CONTAINS_CHARACTERS as useFontContainsCharacters,  # Keep old name
-    WORDSIV_SEED as wordsivSeed,  # Keep old name
-    DUAL_STYLE_SEED as dualStyleSeed,  # Keep old name
-    FsSelection,
     APP_VERSION,
-)
-
-from format_config import (
+    FALLBACK_FONT,
+    USE_FONT_CONTAINS_CHARACTERS,
+    WORDSIV_SEED,
+    DUAL_STYLE_SEED,
+    FsSelection,
+    # Page format settings
     PAGE_FORMAT_OPTIONS,
     DEFAULT_PAGE_FORMAT,
-    MARGIN_VERTICAL as marginVertical,  # Keep old name
-    MARGIN_HORIZONTAL as marginHorizontal,  # Keep old name
-    AXES_VALUES as axesValues,  # Keep old name
-)
-
-from format_config import DEFAULT_PAGE_FORMAT as pageDimensions  # Legacy alias
-
-from feature_config import (
+    MARGIN_VERTICAL,
+    MARGIN_HORIZONTAL,
+    AXES_VALUES,
+    # OpenType features
     DEFAULT_ON_FEATURES,
     HIDDEN_FEATURES,
     filter_visible_features,
-)
-
-from script_config import (
-    AR_TEMPLATE as arTemplate,  # Keep old name
-    FA_TEMPLATE as faTemplate,  # Keep old name
-    ARFA_DUAL_JOIN as arfaDualJoin,  # Keep old name
-    ARFA_RIGHT_JOIN as arfaRightJoin,  # Keep old name
-    POS_FORMS as posForms,  # Keep old name
+    # Script configuration
+    AR_TEMPLATE,
+    FA_TEMPLATE,
+    ARFA_DUAL_JOIN,
+    ARFA_RIGHT_JOIN,
+    POS_FORMS,
     ARABIC_TEXTS,
+    # Backward compatibility aliases
+    myFallbackFont,
+    useFontContainsCharacters,
+    wordsivSeed,
+    dualStyleSeed,
+    marginVertical,
+    marginHorizontal,
+    axesValues,
+    pageDimensions,
+    arTemplate,
+    faTemplate,
+    arfaDualJoin,
+    arfaRightJoin,
+    posForms,
+    arabicVocalization,
+    arabicLatinMixed,
+    arabicFarsiUrduNumbers,
 )
-
-# Extract individual Arabic texts for backward compatibility
-arabicVocalization = ARABIC_TEXTS["arabic_vocalization"]
-arabicLatinMixed = ARABIC_TEXTS["arabic_latin_mixed"]
-arabicFarsiUrduNumbers = ARABIC_TEXTS["arabic_farsi_urdu_numbers"]
 
 from proof_config import (
     PROOF_REGISTRY,
@@ -64,4 +69,4 @@ from proof_config import (
     get_otf_prefix,
 )
 
-from settings_config import Settings
+from ui_config import Settings
