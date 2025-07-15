@@ -28,6 +28,7 @@ from variable_font_utils import (
     pairStaticStyles,
 )
 from font_utils import filteredCharset
+from stepper_cell import StepperList2Cell, get_stepper_config_for_setting
 from character_analysis import categorize
 from proof_generation import (
     charsetProof,
@@ -521,6 +522,7 @@ class ProofWindow:
                     "key": "Value",
                     "width": 100,
                     "editable": True,
+                    "cellClass": StepperList2Cell,
                 },
             ],
             editCallback=self.numericSettingsEditCallback,
@@ -633,6 +635,9 @@ class ProofWindow:
 
         popover.numericList.set(numeric_items)
 
+        # Configure steppers for the numeric settings
+        self.configureSteppersForNumericList(popover.numericList, numeric_items)
+
         # Update features settings
         if self.font_manager.fonts:
             try:
@@ -702,6 +707,55 @@ class ProofWindow:
             align_value = align_options[selected_idx]
             align_key = f"{self.current_proof_key}_align"
             self.proof_settings[align_key] = align_value
+
+    def stepperChangeCallback(self, setting_key, value):
+        """Handle stepper value changes."""
+        try:
+            # Handle tracking values (can be float) vs other settings (must be positive int)
+            if "_tracking" in setting_key:
+                numeric_value = float(value)
+                self.proof_settings[setting_key] = numeric_value
+            else:
+                numeric_value = int(float(value))
+                if numeric_value <= 0:
+                    print(f"Invalid value for setting: must be > 0")
+                    return
+                self.proof_settings[setting_key] = numeric_value
+        except (ValueError, TypeError):
+            print(f"Invalid value for setting: {value}")
+
+    def configureSteppersForNumericList(self, numeric_list, items):
+        """Configure stepper cells in the numeric list with appropriate min/max/increment values."""
+
+        # Use a delayed call to allow the table to be fully rendered first
+        def configure_delayed():
+            # Get the NSTableView from the List2 object
+            table_view = numeric_list.getNSTableView()
+
+            # Configure steppers for each row
+            for row_index, item in enumerate(items):
+                if "Setting" in item:
+                    setting_name = item["Setting"]
+                    stepper_config = get_stepper_config_for_setting(setting_name)
+
+                    # Get the cell view for the "Value" column (column index 1)
+                    cell_view = table_view.viewAtColumn_row_(
+                        1, row_index, makeIfNecessary=True
+                    )
+
+                    if cell_view and hasattr(cell_view, "setStepperConfiguration_"):
+                        cell_view.setStepperConfiguration_(stepper_config)
+
+                        # Set the callback for this specific cell
+                        if "_key" in item:
+                            cell_view.setChangeCallback_withKey_(
+                                self.stepperChangeCallback, item["_key"]
+                            )
+
+        # Use performSelector to delay the configuration
+        from PyObjCTools.AppHelper import callAfter
+
+        callAfter(configure_delayed)
 
     def numericSettingsEditCallback(self, sender):
         """Handle edits to numeric settings in popover."""
@@ -1070,6 +1124,9 @@ class ProofWindow:
                 )
 
             popover.numericList.set(numeric_items)
+
+            # Configure steppers for the numeric settings
+            self.configureSteppersForNumericList(popover.numericList, numeric_items)
 
             # Update OpenType features for this specific instance
             if self.font_manager.fonts:
