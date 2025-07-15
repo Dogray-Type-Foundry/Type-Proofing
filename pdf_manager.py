@@ -6,6 +6,15 @@ import traceback
 import AppKit
 import Quartz.PDFKit as PDFKit
 import drawBot as db
+from utils import (
+    normalize_path,
+    ensure_directory_exists,
+    format_timestamp,
+    make_safe_filename,
+    log_error,
+    get_file_size_formatted,
+)
+from ui_utils import setup_page_format, add_footer_info
 
 
 class PDFManager:
@@ -35,7 +44,7 @@ class PDFManager:
         """Determine the appropriate PDF output directory."""
         try:
             if font_manager.fonts:
-                first_font_path = font_manager.fonts[0]
+                first_font_path = normalize_path(font_manager.fonts[0])
                 family_name = os.path.splitext(os.path.basename(first_font_path))[
                     0
                 ].split("-")[0]
@@ -57,7 +66,7 @@ class PDFManager:
 
                 if use_custom and custom_location and os.path.exists(custom_location):
                     # Use custom location
-                    pdf_directory = custom_location
+                    pdf_directory = normalize_path(custom_location)
                 else:
                     # Use default: first font's directory
                     pdf_directory = os.path.dirname(first_font_path)
@@ -67,20 +76,22 @@ class PDFManager:
                 # Fallback to script directory if no fonts loaded
                 from config import SCRIPT_DIR
 
-                return SCRIPT_DIR, "proof"
+                return normalize_path(SCRIPT_DIR), "proof"
 
         except Exception as e:
-            print(f"Error determining PDF output directory: {e}")
+            error_msg = f"Error determining PDF output directory: {e}"
+            log_error(error_msg)
             from config import SCRIPT_DIR
 
-            return SCRIPT_DIR, "proof"
+            return normalize_path(SCRIPT_DIR), "proof"
 
     def generate_pdf_filename(self, family_name, now=None):
         """Generate a unique PDF filename with timestamp."""
         if now is None:
             now = datetime.datetime.now()
-        nowformat = now.strftime("%Y-%m-%d_%H%M")
-        return f"{nowformat}_{family_name}-proof.pdf"
+        timestamp = format_timestamp(now)
+        safe_name = make_safe_filename(f"{timestamp}_{family_name}-proof", ".pdf")
+        return safe_name
 
     def save_pdf_document(self, font_manager, now=None):
         """Save the current drawBot document as a PDF."""
@@ -89,16 +100,21 @@ class PDFManager:
             pdf_filename = self.generate_pdf_filename(family_name, now)
             pdf_path = os.path.join(pdf_directory, pdf_filename)
 
+            # Ensure output directory exists
+            ensure_directory_exists(pdf_directory)
+
             # Save the PDF using drawBot
             db.saveImage(pdf_path)
             self.current_pdf_path = pdf_path
 
-            print(f"Proof PDF was saved: {pdf_path}")
+            # Log with file size
+            file_size = get_file_size_formatted(pdf_path)
+            print(f"Proof PDF was saved: {pdf_path} ({file_size})")
             return pdf_path
 
         except Exception as e:
-            print(f"Error saving PDF: {e}")
-            traceback.print_exc()
+            error_msg = f"Error saving PDF: {e}"
+            log_error(error_msg, traceback.format_exc())
             return None
 
     def display_pdf(self, pdf_path=None):
@@ -199,7 +215,9 @@ class PDFManager:
                         new_doc.insertPage_atIndex_(page, 0)
 
                         # Save the single page
-                        output_filename = f"{base_name}_page_{page_index + 1}.pdf"
+                        output_filename = make_safe_filename(
+                            f"{base_name}_page_{page_index + 1}", ".pdf"
+                        )
                         output_path = os.path.join(output_directory, output_filename)
                         new_doc.writeToFile_(output_path)
                         exported_files.append(output_path)
@@ -208,20 +226,19 @@ class PDFManager:
             return exported_files
 
         except Exception as e:
-            print(f"Error exporting PDF pages: {e}")
-            traceback.print_exc()
+            error_msg = f"Error exporting PDF pages: {e}"
+            log_error(error_msg, traceback.format_exc())
             return False
 
     def setup_page_format(self):
         """Set up the page format for PDF generation based on user settings."""
         try:
-            # Update the global pageDimensions variable with user setting
-            import config
-
-            config.pageDimensions = self.settings.get_page_format()
-            print(f"Page format set to: {config.pageDimensions}")
+            # Use utility function for page format setup
+            page_format = self.settings.get_page_format()
+            setup_page_format(page_format)
+            print(f"Page format set to: {page_format}")
         except Exception as e:
-            print(f"Error setting page format: {e}")
+            log_error(f"Error setting page format: {e}")
 
     def begin_pdf_generation(self):
         """Initialize a new PDF document for generation."""
@@ -230,7 +247,7 @@ class PDFManager:
             db.newDrawing()
             return True
         except Exception as e:
-            print(f"Error beginning PDF generation: {e}")
+            log_error(f"Error beginning PDF generation: {e}")
             return False
 
     def end_pdf_generation(self, font_manager, now=None):
@@ -239,7 +256,7 @@ class PDFManager:
             db.endDrawing()
             return self.save_pdf_document(font_manager, now)
         except Exception as e:
-            print(f"Error ending PDF generation: {e}")
+            log_error(f"Error ending PDF generation: {e}")
             return None
 
     def get_current_pdf_path(self):
