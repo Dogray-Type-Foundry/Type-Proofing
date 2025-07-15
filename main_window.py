@@ -8,7 +8,6 @@ import datetime
 from itertools import product
 import vanilla
 import AppKit
-import Quartz.PDFKit as PDFKit
 from PyObjCTools import AppHelper
 
 from config import (
@@ -36,6 +35,7 @@ from proof_handlers import ProofContext, get_proof_handler, create_unique_proof_
 from settings_manager import Settings, ProofSettingsManager, AppSettingsManager
 from files_tab import FilesTab
 from controls_tab import ControlsTab
+from pdf_manager import PDFManager
 import drawBot as db
 
 
@@ -86,6 +86,9 @@ class ProofWindow:
         )
         self.app_settings_manager = AppSettingsManager(self.settings)
 
+        # Initialize PDF manager
+        self.pdf_manager = PDFManager(self.settings)
+
         # Initialize proof-specific settings storage (deprecated - use proof_settings_manager)
         # Import the helper function from config
         from config import get_proof_settings_mapping
@@ -122,9 +125,6 @@ class ProofWindow:
         self.filesTab = FilesTab(self, self.font_manager)
         self.controlsTab = ControlsTab(self, self.settings)
 
-        # Create preview components that will be integrated into Controls tab
-        self.preview_components = self.create_preview_components()
-
         # Refresh proof options list after tabs are created
         if hasattr(self, "controlsTab") and self.controlsTab:
             self.controlsTab.refresh_proof_options_list()
@@ -137,7 +137,7 @@ class ProofWindow:
         self.controlsTab.group.show(False)
 
         # Integrate preview into controls tab
-        self.controlsTab.integrate_preview_view(self.preview_components["pdfView"])
+        self.controlsTab.integrate_preview_view(self.pdf_manager.get_preview_view())
 
         # --- Debug Text Editor ---
         self.debugTextEditor = vanilla.TextEditor(
@@ -746,12 +746,11 @@ class ProofWindow:
         paras_by_proof=None,
     ):
         """Run the proof generation process."""
-        # Update the global pageDimensions variable with user setting
-        import config
+        # Initialize PDF generation
+        if not self.pdf_manager.begin_pdf_generation():
+            print("Error: Failed to initialize PDF generation")
+            return None
 
-        config.pageDimensions = self.settings.get_page_format()
-
-        db.newDrawing()
         pairedStaticStyles = pairStaticStyles(self.font_manager.fonts)
         if otfeatures_by_proof is None:
             otfeatures_by_proof = {}
@@ -899,51 +898,10 @@ class ProofWindow:
                 # Add other proofs in the same pattern if needed...
                 # (This is a simplified fallback - the main path uses the UI order)
 
-        db.endDrawing()
-        # Save the proof doc
-        try:
-            if self.font_manager.fonts:
-                first_font_path = self.font_manager.fonts[0]
-                family_name = os.path.splitext(os.path.basename(first_font_path))[
-                    0
-                ].split("-")[0]
-
-                # Check if user wants to use custom PDF output location
-                # Ensure pdf_output key exists with defaults
-                if "pdf_output" not in self.settings.data:
-                    self.settings.data["pdf_output"] = {
-                        "use_custom_location": False,
-                        "custom_location": "",
-                    }
-
-                use_custom = self.settings.data["pdf_output"].get(
-                    "use_custom_location", False
-                )
-                custom_location = self.settings.data["pdf_output"].get(
-                    "custom_location", ""
-                )
-
-                if use_custom and custom_location and os.path.exists(custom_location):
-                    # Use custom location
-                    pdf_directory = custom_location
-                else:
-                    # Use default: first font's directory
-                    pdf_directory = os.path.dirname(first_font_path)
-            else:
-                # Fallback to script directory if no fonts loaded
-                pdf_directory = SCRIPT_DIR
-                family_name = "proof"
-
-            proofPath = os.path.join(
-                pdf_directory, f"{nowformat}_{family_name}-proof.pdf"
-            )
-            db.saveImage(proofPath)
-            print(f"Proof PDF was saved: {proofPath}")
-        except Exception as e:
-            print(f"Error saving proof: {e}")
-            print("Use UI to select which proofs to generate")
+        # Finalize PDF generation and save
+        pdf_path = self.pdf_manager.end_pdf_generation(self.font_manager, now)
         print(datetime.datetime.now() - now)
-        return proofPath
+        return pdf_path
 
     def addSettingsFileCallback(self, sender):
         """Handle the Add Settings File button click."""
@@ -1038,30 +996,9 @@ class ProofWindow:
 
             traceback.print_exc()
 
-    def create_preview_components(self):
-        """Create preview components that will be integrated into Controls tab."""
-        components = {}
-
-        # Create PDFView for preview
-        pdfView = PDFKit.PDFView.alloc().initWithFrame_(((0, 0), (100, 100)))
-        pdfView.setAutoresizingMask_(1 << 1 | 1 << 4)
-        pdfView.setAutoScales_(True)
-        pdfView.setDisplaysPageBreaks_(True)
-        pdfView.setDisplayMode_(1)
-        pdfView.setDisplayBox_(0)
-
-        components["pdfView"] = pdfView
-        return components
-
     def display_pdf(self, pdf_path):
         """Display a PDF in the preview."""
-        if pdf_path and os.path.exists(pdf_path):
-            pdfDoc = PDFKit.PDFDocument.alloc().initWithURL_(
-                AppKit.NSURL.fileURLWithPath_(pdf_path)
-            )
-            self.preview_components["pdfView"].setDocument_(pdfDoc)
-            return True
-        return False
+        return self.pdf_manager.display_pdf(pdf_path)
 
     def initialize_settings_for_proof(self, unique_proof_name, base_proof_type):
         """Initialize settings for a newly added proof instance."""
