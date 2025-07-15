@@ -28,7 +28,12 @@ from variable_font_utils import (
     pairStaticStyles,
 )
 from font_utils import filteredCharset
-from stepper_cell import StepperList2Cell, get_stepper_config_for_setting
+from stepper_cell import (
+    StepperList2Cell,
+    get_stepper_config_for_setting,
+    register_row_setting,
+    clear_row_settings,
+)
 from character_analysis import categorize
 from proof_generation import (
     charsetProof,
@@ -635,6 +640,12 @@ class ProofWindow:
 
         popover.numericList.set(numeric_items)
 
+        # Populate the row setting registry for stepper auto-configuration
+        clear_row_settings()
+        for row_index, item in enumerate(numeric_items):
+            if "Setting" in item:
+                register_row_setting(row_index, item["Setting"])
+
         # Configure steppers for the numeric settings
         self.configureSteppersForNumericList(popover.numericList, numeric_items)
 
@@ -732,23 +743,61 @@ class ProofWindow:
             # Get the NSTableView from the List2 object
             table_view = numeric_list.getNSTableView()
 
+            # Access the data source to get cell wrappers
+            data_source = table_view.dataSource()
+
             # Configure steppers for each row
             for row_index, item in enumerate(items):
                 if "Setting" in item:
                     setting_name = item["Setting"]
                     stepper_config = get_stepper_config_for_setting(setting_name)
 
-                    # Get the cell view for the "Value" column (column index 1)
-                    cell_view = table_view.viewAtColumn_row_(
-                        1, row_index, makeIfNecessary=True
-                    )
+                    # Get the NSView for the "Value" column (column index 1)
+                    try:
+                        ns_cell_view = table_view.viewAtColumn_row_(
+                            1, row_index, makeIfNecessary=True
+                        )
+                    except AttributeError:
+                        # Try alternative method names
+                        try:
+                            ns_cell_view = table_view.makeViewWithIdentifier_owner_(
+                                "Value", data_source
+                            )
+                        except:
+                            continue
 
-                    if cell_view and hasattr(cell_view, "setStepperConfiguration_"):
-                        cell_view.setStepperConfiguration_(stepper_config)
+                    # Try multiple approaches to get the vanilla wrapper
+                    vanilla_wrapper = None
+
+                    # Approach 1: Get from data source cell wrappers
+                    if ns_cell_view and hasattr(data_source, "_cellWrappers"):
+                        vanilla_wrapper = data_source._cellWrappers.get(ns_cell_view)
+
+                    # Approach 2: Check if the NSView has a vanillaWrapper method
+                    if (
+                        not vanilla_wrapper
+                        and ns_cell_view
+                        and hasattr(ns_cell_view, "vanillaWrapper")
+                    ):
+                        try:
+                            vanilla_wrapper = ns_cell_view.vanillaWrapper()
+                        except:
+                            pass
+
+                    # Approach 3: Check if NSView is actually the vanilla wrapper
+                    if not vanilla_wrapper and hasattr(
+                        ns_cell_view, "setStepperConfiguration_"
+                    ):
+                        vanilla_wrapper = ns_cell_view
+
+                    if vanilla_wrapper and hasattr(
+                        vanilla_wrapper, "setStepperConfiguration_"
+                    ):
+                        vanilla_wrapper.setStepperConfiguration_(stepper_config)
 
                         # Set the callback for this specific cell
                         if "_key" in item:
-                            cell_view.setChangeCallback_withKey_(
+                            vanilla_wrapper.setChangeCallback_withKey_(
                                 self.stepperChangeCallback, item["_key"]
                             )
 
@@ -756,6 +805,9 @@ class ProofWindow:
         from PyObjCTools.AppHelper import callAfter
 
         callAfter(configure_delayed)
+
+        # Try immediate configuration as well
+        configure_delayed()
 
     def numericSettingsEditCallback(self, sender):
         """Handle edits to numeric settings in popover."""
@@ -1124,6 +1176,12 @@ class ProofWindow:
                 )
 
             popover.numericList.set(numeric_items)
+
+            # Populate the row setting registry for stepper auto-configuration
+            clear_row_settings()
+            for row_index, item in enumerate(numeric_items):
+                if "Setting" in item:
+                    register_row_setting(row_index, item["Setting"])
 
             # Configure steppers for the numeric settings
             self.configureSteppersForNumericList(popover.numericList, numeric_items)

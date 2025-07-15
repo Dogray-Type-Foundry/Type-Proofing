@@ -51,6 +51,10 @@ class StepperList2Cell(vanilla.Group):
         self._settingKey = None
         self._changeCallback = None
 
+        # Try to get stepper config from kwargs (if passed during cell creation)
+        if "stepperConfig" in kwargs:
+            self._stepperConfig = kwargs["stepperConfig"]
+
         # Create the actual NSStepper with a wrapper target
         self._stepperTarget = StepperTarget.alloc().initWithCallback_(
             self._stepperChangedInternal
@@ -60,9 +64,12 @@ class StepperList2Cell(vanilla.Group):
         )
         self._nsStepper.setTarget_(self._stepperTarget)
         self._nsStepper.setAction_("stepperAction:")
-        self._nsStepper.setMinValue_(0)
-        self._nsStepper.setMaxValue_(100)
-        self._nsStepper.setIncrement_(1)
+
+        # Apply initial configuration
+        self._nsStepper.setMinValue_(self._stepperConfig.get("min_value", 0))
+        self._nsStepper.setMaxValue_(self._stepperConfig.get("max_value", 100))
+        self._nsStepper.setIncrement_(self._stepperConfig.get("increment", 1))
+        self._nsStepper.setValueWraps_(False)  # Don't wrap around at limits
 
         # Layout - text field takes most space minus stepper width
         rules = [
@@ -84,10 +91,6 @@ class StepperList2Cell(vanilla.Group):
                 self._nsStepper.setFrame_(
                     AppKit.NSMakeRect(stepper_x, stepper_y, 19, 22)
                 )
-                # Debug output
-                print(
-                    f"Positioning stepper at ({stepper_x}, {stepper_y}) in container {container_frame.size.width}x{container_frame.size.height}"
-                )
 
         # Store positioning function
         self._positionStepper = _positionStepper
@@ -102,17 +105,27 @@ class StepperList2Cell(vanilla.Group):
         """Internal stepper callback - called by StepperTarget."""
         value = sender.doubleValue()
 
+        # Handle floating-point precision issues by rounding to the increment precision
+        increment = self._stepperConfig.get("increment", 1)
+        if increment < 1:
+            # For decimal increments, round to the appropriate number of decimal places
+            decimal_places = (
+                len(str(increment).split(".")[-1]) if "." in str(increment) else 0
+            )
+            value = round(value, decimal_places)
+
+            # Special case: if we're very close to zero, make it exactly zero
+            if abs(value) < increment / 2:
+                value = 0.0
+
         # Format based on increment (integer vs float)
-        if self._stepperConfig.get("increment", 1) >= 1:
+        if increment >= 1:
             formatted_value = str(int(value))
         else:
             formatted_value = f"{value:g}"
 
         # Update text field
         self.textField.set(formatted_value)
-
-        # Debug output
-        print(f"Stepper changed to: {value} -> {formatted_value}")
 
         # Call external callback if present (vanilla.List2 pattern)
         if self._externalCallback is not None:
@@ -126,15 +139,12 @@ class StepperList2Cell(vanilla.Group):
         """Handle text field changes."""
         value_str = sender.get()
 
-        # Debug output
-        print(f"Text field changed to: {value_str}")
-
         try:
             numeric_value = float(value_str)
             self._nsStepper.setDoubleValue_(numeric_value)
         except (ValueError, TypeError):
-            print(f"Invalid numeric input: {value_str}")
             # Don't return - still call callbacks for validation/feedback
+            pass
 
         # Call external callback if present (vanilla.List2 pattern)
         if self._externalCallback is not None:
@@ -154,7 +164,18 @@ class StepperList2Cell(vanilla.Group):
                 # Set stepper
                 numeric_value = float(value)
                 self._nsStepper.setDoubleValue_(numeric_value)
-            except (ValueError, TypeError):
+
+                # Auto-configure stepper based on the row position if we have _representedColumnRow
+                if hasattr(self, "_representedColumnRow"):
+                    identifier, row = self._representedColumnRow
+
+                    # Check the global registry for this row
+                    if row in _ROW_SETTING_REGISTRY:
+                        setting_name = _ROW_SETTING_REGISTRY[row]
+                        stepper_config = get_stepper_config_for_setting(setting_name)
+                        self.setStepperConfiguration_(stepper_config)
+
+            except (ValueError, TypeError) as e:
                 self.textField.set(str(value))
 
     def get(self):
@@ -168,6 +189,13 @@ class StepperList2Cell(vanilla.Group):
             self._nsStepper.setMinValue_(config.get("min_value", 0))
             self._nsStepper.setMaxValue_(config.get("max_value", 100))
             self._nsStepper.setIncrement_(config.get("increment", 1))
+            self._nsStepper.setValueWraps_(False)  # Ensure no wrapping
+
+    def setSettingName_(self, setting_name):
+        """Set the setting name and auto-configure stepper."""
+        self._settingName = setting_name
+        stepper_config = get_stepper_config_for_setting(setting_name)
+        self.setStepperConfiguration_(stepper_config)
 
     def setChangeCallback_withKey_(self, callback, setting_key):
         """Set the callback function and setting key."""
@@ -204,11 +232,26 @@ class StepperList2Cell(vanilla.Group):
 
 # Configuration for different numeric settings
 STEPPER_CONFIGURATIONS = {
-    "Font Size": {"min_value": 6, "max_value": 144, "increment": 1},
-    "Columns": {"min_value": 1, "max_value": 6, "increment": 1},
+    "Font Size": {"min_value": 4, "max_value": 100, "increment": 1},
+    "Columns": {"min_value": 1, "max_value": 5, "increment": 1},
     "Paragraphs": {"min_value": 1, "max_value": 20, "increment": 1},
-    "Tracking": {"min_value": -100, "max_value": 100, "increment": 5},
+    "Tracking": {"min_value": -10, "max_value": 10, "increment": 0.1},
 }
+
+# Global registry to map row indices to setting names
+# This will be populated by the main window when the list is set up
+_ROW_SETTING_REGISTRY = {}
+
+
+def register_row_setting(row_index, setting_name):
+    """Register a setting name for a specific row index."""
+    _ROW_SETTING_REGISTRY[row_index] = setting_name
+
+
+def clear_row_settings():
+    """Clear the row settings registry."""
+    global _ROW_SETTING_REGISTRY
+    _ROW_SETTING_REGISTRY = {}
 
 
 def get_stepper_config_for_setting(setting_name):

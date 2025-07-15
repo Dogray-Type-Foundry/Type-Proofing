@@ -236,7 +236,6 @@ class PDFManager:
             # Use utility function for page format setup
             page_format = self.settings.get_page_format()
             setup_page_format(page_format)
-            print(f"Page format set to: {page_format}")
         except Exception as e:
             log_error(f"Error setting page format: {e}")
 
