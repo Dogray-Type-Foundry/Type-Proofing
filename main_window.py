@@ -1221,7 +1221,6 @@ class ProofWindow:
             print(f"Error updating proof settings popover: {e}")
             traceback.print_exc()
 
-    # Validation and error handling utilities (Phase B)
     def _validate_setting_value(self, key, value):
         # Validate and convert setting values based on key type
         try:
