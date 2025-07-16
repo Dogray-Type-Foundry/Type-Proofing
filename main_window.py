@@ -301,7 +301,8 @@ class ProofWindow:
 
     def save_all_settings(self):
         """Save all current settings to the settings file."""
-        try:
+
+        def _save_operation():
             # Save proof options
             proof_options_items = self.controlsTab.group.proofOptionsList.get()
             for item in proof_options_items:
@@ -326,15 +327,12 @@ class ProofWindow:
             # Save the settings file
             self.settings.save()
 
-        except Exception as e:
-            print(f"Error saving settings: {e}")
-            import traceback
-
-            traceback.print_exc()
+        self._safe_execute("save_all_settings", _save_operation)
 
     def resetSettingsCallback(self, sender):
         """Handle the Reset Settings button click."""
-        try:
+
+        def _reset_operation():
             # Show confirmation dialog
             message_text = (
                 "This will reset all settings to defaults and clear all loaded fonts."
@@ -395,9 +393,7 @@ class ProofWindow:
 
                 print("Settings reset to defaults.")
 
-        except Exception as e:
-            print(f"Error resetting settings: {e}")
-            traceback.print_exc()
+        self._safe_execute("resetSettingsCallback", _reset_operation)
 
     def closeWindowCallback(self, sender):
         """Handle the Close Window button click."""
@@ -419,7 +415,7 @@ class ProofWindow:
             return
         self._exiting = True
 
-        try:
+        def _cleanup_operation():
             # Try to save settings quickly without full validation
             if hasattr(self, "settings"):
                 try:
@@ -442,6 +438,9 @@ class ProofWindow:
             except:
                 pass
 
+        # Use silent error handling for cleanup
+        try:
+            _cleanup_operation()
         except:
             pass  # Don't let any error prevent exit
 
@@ -452,7 +451,8 @@ class ProofWindow:
 
     def generateCallback(self, sender):
         """Handle the Generate Proof button click."""
-        try:
+
+        def _generate_operation():
             # Save all current settings before generating
             self.save_all_settings()
 
@@ -579,9 +579,7 @@ class ProofWindow:
             sys.stderr = old_stderr
             self.debugTextEditor.set(buffer.getvalue())
 
-        except Exception as e:
-            print(f"Error in generate callback: {e}")
-            traceback.print_exc()
+        self._safe_execute("generateCallback", _generate_operation)
 
     def initialize_proof_settings(self):
         """Initialize proof-specific settings storage using the settings manager."""
@@ -785,19 +783,13 @@ class ProofWindow:
 
     def stepperChangeCallback(self, setting_key, value):
         """Handle stepper value changes."""
-        try:
-            # Handle tracking values (can be float) vs other settings (must be positive int)
-            if "_tracking" in setting_key:
-                numeric_value = float(value)
-                self.proof_settings[setting_key] = numeric_value
-            else:
-                numeric_value = int(float(value))
-                if numeric_value <= 0:
-                    print(f"Invalid value for setting: must be > 0")
-                    return
-                self.proof_settings[setting_key] = numeric_value
-        except (ValueError, TypeError):
-            print(f"Invalid value for setting: {value}")
+        is_valid, converted_value, error_msg = self._validate_setting_value(
+            setting_key, value
+        )
+        if not is_valid:
+            print(f"Invalid value for setting: {error_msg}")
+            return
+        self.proof_settings[setting_key] = converted_value
 
     def configureSteppersForNumericList(self, numeric_list, items):
         """Configure stepper cells in the numeric list with appropriate min/max/increment values."""
@@ -878,19 +870,13 @@ class ProofWindow:
             if "_key" in item:
                 key = item["_key"]
                 value = item["Value"]
-                try:
-                    # Handle tracking values (can be float) vs other settings (must be positive int)
-                    if "_tracking" in key:
-                        value = float(value)
-                        self.proof_settings[key] = value
-                    else:
-                        value = int(value)
-                        if value <= 0:
-                            print(f"Invalid value for {item['Setting']}: must be > 0")
-                            continue
-                        self.proof_settings[key] = value
-                except (ValueError, TypeError):
-                    print(f"Invalid value for {item['Setting']}: {value}")
+                is_valid, converted_value, error_msg = self._validate_setting_value(
+                    key, item["Value"]
+                )
+                if not is_valid:
+                    print(f"Invalid value for {item['Setting']}: {error_msg}")
+                    continue
+                self.proof_settings[key] = converted_value
 
     def featuresEditCallback(self, sender):
         """Handle edits to OpenType features in popover."""
@@ -1014,8 +1000,6 @@ class ProofWindow:
                         handler.generate_proof(proof_context)
                     except Exception as e:
                         print(f"Error generating proof '{proof_name}': {e}")
-                        import traceback
-
                         traceback.print_exc()
                         continue  # Continue with next proof
                 else:
@@ -1107,8 +1091,6 @@ class ProofWindow:
 
         except Exception as e:
             print(f"Error refreshing controls tab: {e}")
-            import traceback
-
             traceback.print_exc()
 
     def display_pdf(self, pdf_path):
@@ -1237,6 +1219,31 @@ class ProofWindow:
 
         except Exception as e:
             print(f"Error updating proof settings popover: {e}")
-            import traceback
-
             traceback.print_exc()
+
+    # Validation and error handling utilities (Phase B)
+    def _validate_setting_value(self, key, value):
+        # Validate and convert setting values based on key type
+        try:
+            if "_tracking" in key:
+                # Tracking values can be float (including negative)
+                converted_value = float(value)
+                return True, converted_value, None
+            else:
+                # Other settings must be positive integers
+                converted_value = int(float(value))
+                if converted_value <= 0:
+                    return False, None, "must be > 0"
+                return True, converted_value, None
+        except (ValueError, TypeError):
+            return False, None, f"invalid value: {value}"
+
+    def _safe_execute(self, operation_name, func, *args, **kwargs):
+        # Safely execute an operation with standardized error handling
+        try:
+            func(*args, **kwargs)
+            return True
+        except Exception as e:
+            print(f"Error in {operation_name}: {e}")
+            traceback.print_exc()
+            return False
