@@ -39,11 +39,24 @@ from proof_generation import (
     charsetProof,
     spacingProof,
 )
-from proof_handlers import ProofContext, get_proof_handler, create_unique_proof_key
+from proof_handlers import (
+    ProofContext,
+    get_proof_handler,
+    create_unique_proof_key,
+    clear_handler_cache,
+)
 from settings_manager import Settings, ProofSettingsManager, AppSettingsManager
 from files_tab import FilesTab
 from controls_tab import ControlsTab
 from pdf_manager import PDFManager
+from proof_config import (
+    get_proof_settings_mapping,
+    get_proof_by_storage_key,
+    get_proof_by_settings_key,
+)
+from PyObjCTools.AppHelper import callAfter
+from vanilla.dialogs import askYesNo, getFile, message
+from core_config import PAGE_FORMAT_OPTIONS
 import drawBot as db
 
 
@@ -77,8 +90,71 @@ class TextBoxOutput:
         pass
 
 
+class ProofSettingsKeyGenerator:
+    """Centralized generator for all proof settings keys."""
+
+    @staticmethod
+    def font_size_key(proof_key):
+        """Generate font size key."""
+        return f"{proof_key}_fontSize"
+
+    @staticmethod
+    def columns_key(proof_key):
+        """Generate columns key."""
+        return f"{proof_key}_cols"
+
+    @staticmethod
+    def paragraphs_key(proof_key):
+        """Generate paragraphs key."""
+        return f"{proof_key}_para"
+
+    @staticmethod
+    def tracking_key(proof_key):
+        """Generate tracking key."""
+        return f"{proof_key}_tracking"
+
+    @staticmethod
+    def alignment_key(proof_key):
+        """Generate alignment key."""
+        return f"{proof_key}_align"
+
+    @staticmethod
+    def otf_prefix(proof_key):
+        """Generate OpenType feature prefix."""
+        return f"otf_{proof_key}_"
+
+    @staticmethod
+    def otf_feature_key(proof_key, feature_tag):
+        """Generate OpenType feature key."""
+        return f"otf_{proof_key}_{feature_tag}"
+
+
 class ProofWindow:
     """Main application window and controller."""
+
+    # Class constants
+    ALIGNMENT_OPTIONS = ["left", "center", "right"]
+
+    # Proof name to key mapping - centralized constant
+    PROOF_NAME_TO_KEY = {
+        "Filtered Character Set": "filtered_character_set",
+        "Spacing Proof": "spacing_proof",
+        "Basic Paragraph Large": "basic_paragraph_large",
+        "Diacritic Words Large": "diacritic_words_large",
+        "Basic Paragraph Small": "basic_paragraph_small",
+        "Paired Styles Paragraph Small": "paired_styles_paragraph_small",
+        "Generative Text Small": "generative_text_small",
+        "Diacritic Words Small": "diacritic_words_small",
+        "Misc Paragraph Small": "misc_paragraph_small",
+        "Ar Character Set": "ar_character_set",
+        "Ar Paragraph Large": "ar_paragraph_large",
+        "Fa Paragraph Large": "fa_paragraph_large",
+        "Ar Paragraph Small": "ar_paragraph_small",
+        "Fa Paragraph Small": "fa_paragraph_small",
+        "Ar Vocalization Paragraph Small": "ar_vocalization_paragraph_small",
+        "Ar-Lat Mixed Paragraph Small": "ar_lat_mixed_paragraph_small",
+        "Ar Numbers Small": "ar_numbers_small",
+    }
 
     def __init__(self):
         # Close any existing windows with the same title
@@ -98,9 +174,6 @@ class ProofWindow:
         self.pdf_manager = PDFManager(self.settings)
 
         # Initialize proof-specific settings storage (deprecated - use proof_settings_manager)
-        # Import the helper function from proof_config
-        from proof_config import get_proof_settings_mapping
-
         # Get proof types with settings keys from registry
         settings_mapping = get_proof_settings_mapping()
         self.proof_types_with_otf = [
@@ -187,6 +260,45 @@ class ProofWindow:
         """Get font size for a specific proof from its settings."""
         return self.proof_settings_manager.get_proof_font_size(proof_identifier)
 
+    def _get_font_features(self):
+        """Get OpenType features from the first loaded font."""
+        if self.font_manager.fonts:
+            try:
+                return db.listOpenTypeFeatures(self.font_manager.fonts[0])
+            except Exception:
+                return []
+        return []
+
+    def _build_feature_settings(self, proof_key, feature_tags):
+        """Build feature settings list for a given proof and feature tags."""
+        feature_items = []
+        for tag in feature_tags:
+            # Skip hidden features
+            if tag in HIDDEN_FEATURES:
+                continue
+
+            feature_key = ProofSettingsKeyGenerator.otf_feature_key(proof_key, tag)
+
+            # Special handling for Spacing_Proof kern feature
+            if proof_key == "spacing_proof" and tag == "kern":
+                feature_value = False
+                self.proof_settings[feature_key] = False
+                feature_items.append(
+                    {
+                        "Feature": f"{tag} (always off)",
+                        "Enabled": feature_value,
+                        "_key": feature_key,
+                        "_readonly": True,
+                    }
+                )
+            else:
+                default_value = tag in self.default_on_features
+                feature_value = self.proof_settings.get(feature_key, default_value)
+                feature_items.append(
+                    {"Feature": tag, "Enabled": feature_value, "_key": feature_key}
+                )
+        return feature_items
+
     def save_all_settings(self):
         """Save all current settings to the settings file."""
         try:
@@ -224,8 +336,6 @@ class ProofWindow:
         """Handle the Reset Settings button click."""
         try:
             # Show confirmation dialog
-            from vanilla.dialogs import askYesNo
-
             message_text = (
                 "This will reset all settings to defaults and clear all loaded fonts."
             )
@@ -394,8 +504,6 @@ class ProofWindow:
                 paras_by_proof = {}
 
                 # Get mapping from proof_config
-                from proof_config import get_proof_settings_mapping
-
                 display_name_to_settings_key = get_proof_settings_mapping()
 
                 # Process settings for both old-style and new unique proof identifiers
@@ -423,10 +531,10 @@ class ProofWindow:
                     if not settings_key:
                         settings_key = "basic_paragraph_small"
 
-                    # Always use unique identifier for all settings keys
-                    cols_key = f"{unique_key}_cols"
-                    para_key = f"{unique_key}_para"
-                    otf_prefix = f"otf_{unique_key}_"
+                    # Use centralized key generation
+                    cols_key = ProofSettingsKeyGenerator.columns_key(unique_key)
+                    para_key = ProofSettingsKeyGenerator.paragraphs_key(unique_key)
+                    otf_prefix = ProofSettingsKeyGenerator.otf_prefix(unique_key)
 
                     # Get columns setting
                     if cols_key in self.proof_settings:
@@ -478,8 +586,6 @@ class ProofWindow:
     def initialize_proof_settings(self):
         """Initialize proof-specific settings storage using the settings manager."""
         # Clear handler cache when settings change
-        from proof_handlers import clear_handler_cache
-
         clear_handler_cache()
 
         # Delegate to the proof settings manager
@@ -537,7 +643,7 @@ class ProofWindow:
         popover.alignLabel = vanilla.TextBox((10, 245, 100, 20), "Alignment:")
         popover.alignPopUp = vanilla.PopUpButton(
             (120, 245, 100, 20),
-            ["left", "center", "right"],
+            self.ALIGNMENT_OPTIONS,
             callback=self.alignPopUpCallback,
         )
 
@@ -589,7 +695,7 @@ class ProofWindow:
         numeric_items = []
 
         # Font size setting for all proofs (always first)
-        font_size_key = f"{proof_key}_fontSize"
+        font_size_key = ProofSettingsKeyGenerator.font_size_key(proof_key)
         # Set default font size based on proof type using registry
         default_font_size = get_proof_default_font_size(proof_key)
 
@@ -600,10 +706,7 @@ class ProofWindow:
 
         # Columns setting with appropriate defaults (skip for certain proofs)
         if proof_key not in ["filtered_character_set", "ar_character_set"]:
-            cols_key = f"{proof_key}_cols"
-
-            # Import helper functions from proof_config
-            from proof_config import get_proof_by_storage_key
+            cols_key = ProofSettingsKeyGenerator.columns_key(proof_key)
 
             # Get proof info from registry
             proof_info = get_proof_by_storage_key(proof_key)
@@ -618,13 +721,10 @@ class ProofWindow:
             )
 
         # Paragraphs setting (only for proofs that have paragraphs)
-        # Import helper functions from proof_config
-        from proof_config import get_proof_by_settings_key
-
         # Get proof info from registry
         proof_info = get_proof_by_settings_key(proof_key)
         if proof_info and proof_info["has_paragraphs"]:
-            para_key = f"{proof_key}_para"
+            para_key = ProofSettingsKeyGenerator.paragraphs_key(proof_key)
             para_value = self.proof_settings.get(para_key, 5)
             numeric_items.append(
                 {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
@@ -632,7 +732,7 @@ class ProofWindow:
 
         # Add tracking for supported proof types
         if proof_supports_formatting(proof_key):
-            tracking_key = f"{proof_key}_tracking"
+            tracking_key = ProofSettingsKeyGenerator.tracking_key(proof_key)
             tracking_value = self.proof_settings.get(tracking_key, 0)
             numeric_items.append(
                 {"Setting": "Tracking", "Value": tracking_value, "_key": tracking_key}
@@ -649,53 +749,18 @@ class ProofWindow:
         # Configure steppers for the numeric settings
         self.configureSteppersForNumericList(popover.numericList, numeric_items)
 
-        # Update features settings
-        if self.font_manager.fonts:
-            try:
-                feature_tags = db.listOpenTypeFeatures(self.font_manager.fonts[0])
-
-            except Exception:
-                feature_tags = []
-        else:
-            feature_tags = []
-
-        feature_items = []
-        for tag in feature_tags:
-            # Skip hidden features
-            if tag in HIDDEN_FEATURES:
-                continue
-
-            feature_key = f"otf_{proof_key}_{tag}"
-
-            # Special handling for Spacing_Proof kern feature
-            if proof_key == "spacing_proof" and tag == "kern":
-                feature_value = False
-                self.proof_settings[feature_key] = False
-                feature_items.append(
-                    {
-                        "Feature": f"{tag} (always off)",
-                        "Enabled": feature_value,
-                        "_key": feature_key,
-                        "_readonly": True,
-                    }
-                )
-            else:
-                default_value = tag in self.default_on_features
-                feature_value = self.proof_settings.get(feature_key, default_value)
-                feature_items.append(
-                    {"Feature": tag, "Enabled": feature_value, "_key": feature_key}
-                )
-
+        # Update features settings using helper method
+        feature_tags = self._get_font_features()
+        feature_items = self._build_feature_settings(proof_key, feature_tags)
         popover.featuresList.set(feature_items)
 
         # Update alignment control for supported proof types
         if proof_supports_formatting(proof_key):
             # Update align control
-            align_key = f"{proof_key}_align"
+            align_key = ProofSettingsKeyGenerator.alignment_key(proof_key)
             align_value = self.proof_settings.get(align_key, "left")
-            align_options = ["left", "center", "right"]
-            if align_value in align_options:
-                popover.alignPopUp.set(align_options.index(align_value))
+            if align_value in self.ALIGNMENT_OPTIONS:
+                popover.alignPopUp.set(self.ALIGNMENT_OPTIONS.index(align_value))
             else:
                 popover.alignPopUp.set(0)  # Default to "left"
 
@@ -713,10 +778,9 @@ class ProofWindow:
             return
 
         selected_idx = sender.get()
-        align_options = ["left", "center", "right"]
-        if 0 <= selected_idx < len(align_options):
-            align_value = align_options[selected_idx]
-            align_key = f"{self.current_proof_key}_align"
+        if 0 <= selected_idx < len(self.ALIGNMENT_OPTIONS):
+            align_value = self.ALIGNMENT_OPTIONS[selected_idx]
+            align_key = ProofSettingsKeyGenerator.alignment_key(self.current_proof_key)
             self.proof_settings[align_key] = align_value
 
     def stepperChangeCallback(self, setting_key, value):
@@ -802,8 +866,6 @@ class ProofWindow:
                             )
 
         # Use performSelector to delay the configuration
-        from PyObjCTools.AppHelper import callAfter
-
         callAfter(configure_delayed)
 
         # Try immediate configuration as well
@@ -969,8 +1031,6 @@ class ProofWindow:
     def addSettingsFileCallback(self, sender):
         """Handle the Add Settings File button click."""
         try:
-            from vanilla.dialogs import getFile
-
             # Show file dialog to select settings file
             result = getFile(
                 title="Select Settings File",
@@ -1013,8 +1073,6 @@ class ProofWindow:
                     print(f"Settings loaded from: {settings_file_path}")
 
                     # Show information dialog
-                    from vanilla.dialogs import message
-
                     message(
                         "Settings Loaded",
                         f"Settings have been loaded from:\n{settings_file_path}\n\n"
@@ -1022,8 +1080,6 @@ class ProofWindow:
                         informativeText="You can use 'Reset Settings' to clear this file and return to auto-save mode.",
                     )
                 else:
-                    from vanilla.dialogs import message
-
                     message(
                         "Error Loading Settings",
                         f"Failed to load settings from:\n{settings_file_path}\n\n"
@@ -1033,8 +1089,6 @@ class ProofWindow:
         except Exception as e:
             print(f"Error loading settings file: {e}")
             traceback.print_exc()
-            from vanilla.dialogs import message
-
             message("Error", f"An error occurred while loading the settings file:\n{e}")
 
     def refresh_controls_tab(self):
@@ -1045,8 +1099,6 @@ class ProofWindow:
 
             # Update page format selection
             if hasattr(self.controlsTab.group, "pageFormatPopUp"):
-                from core_config import PAGE_FORMAT_OPTIONS
-
                 current_format = self.settings.get_page_format()
                 if current_format in PAGE_FORMAT_OPTIONS:
                     self.controlsTab.group.pageFormatPopUp.set(
@@ -1078,28 +1130,8 @@ class ProofWindow:
     ):
         """Update the proof settings popover for a specific proof instance."""
         try:
-            # Map base proof types to internal keys - using unified snake_case format
-            proof_name_to_key = {
-                "Filtered Character Set": "filtered_character_set",
-                "Spacing Proof": "spacing_proof",
-                "Basic Paragraph Large": "basic_paragraph_large",
-                "Diacritic Words Large": "diacritic_words_large",
-                "Basic Paragraph Small": "basic_paragraph_small",
-                "Paired Styles Paragraph Small": "paired_styles_paragraph_small",
-                "Generative Text Small": "generative_text_small",
-                "Diacritic Words Small": "diacritic_words_small",
-                "Misc Paragraph Small": "misc_paragraph_small",
-                "Ar Character Set": "ar_character_set",
-                "Ar Paragraph Large": "ar_paragraph_large",
-                "Fa Paragraph Large": "fa_paragraph_large",
-                "Ar Paragraph Small": "ar_paragraph_small",
-                "Fa Paragraph Small": "fa_paragraph_small",
-                "Ar Vocalization Paragraph Small": "ar_vocalization_paragraph_small",
-                "Ar-Lat Mixed Paragraph Small": "ar_lat_mixed_paragraph_small",
-                "Ar Numbers Small": "ar_numbers_small",
-            }
-
-            base_proof_key = proof_name_to_key.get(base_proof_type)
+            # Use centralized mapping
+            base_proof_key = self.PROOF_NAME_TO_KEY.get(base_proof_type)
             if not base_proof_key:
                 return
 
@@ -1115,7 +1147,7 @@ class ProofWindow:
             numeric_items = []
 
             # Font size setting
-            font_size_key = f"{unique_proof_key}_fontSize"
+            font_size_key = ProofSettingsKeyGenerator.font_size_key(unique_proof_key)
             # Set default font size using registry
             default_font_size = get_proof_default_font_size(base_proof_key)
 
@@ -1133,10 +1165,7 @@ class ProofWindow:
                 "filtered_character_set",
                 "ar_character_set",
             ]:
-                cols_key = f"{unique_proof_key}_cols"
-
-                # Import helper functions from proof_config
-                from proof_config import get_proof_by_storage_key
+                cols_key = ProofSettingsKeyGenerator.columns_key(unique_proof_key)
 
                 # Get proof info from registry
                 proof_info = get_proof_by_storage_key(base_proof_key)
@@ -1151,13 +1180,10 @@ class ProofWindow:
                 )
 
             # Paragraphs setting (only for proofs that have paragraphs)
-            # Import helper functions from proof_config
-            from proof_config import get_proof_by_settings_key
-
             # Get proof info from registry
             proof_info = get_proof_by_settings_key(base_proof_key)
             if proof_info and proof_info["has_paragraphs"]:
-                para_key = f"{unique_proof_key}_para"
+                para_key = ProofSettingsKeyGenerator.paragraphs_key(unique_proof_key)
                 para_value = self.proof_settings.get(para_key, 5)
                 numeric_items.append(
                     {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
@@ -1165,7 +1191,7 @@ class ProofWindow:
 
             # Add tracking for supported proof types
             if proof_supports_formatting(base_proof_key):
-                tracking_key = f"{unique_proof_key}_tracking"
+                tracking_key = ProofSettingsKeyGenerator.tracking_key(unique_proof_key)
                 tracking_value = self.proof_settings.get(tracking_key, 0)
                 numeric_items.append(
                     {
@@ -1186,52 +1212,18 @@ class ProofWindow:
             # Configure steppers for the numeric settings
             self.configureSteppersForNumericList(popover.numericList, numeric_items)
 
-            # Update OpenType features for this specific instance
-            if self.font_manager.fonts:
-                try:
-                    feature_tags = db.listOpenTypeFeatures(self.font_manager.fonts[0])
-                except Exception:
-                    feature_tags = []
-            else:
-                feature_tags = []
-
-            feature_items = []
-            for tag in feature_tags:
-                # Skip hidden features
-                if tag in HIDDEN_FEATURES:
-                    continue
-
-                feature_key = f"otf_{unique_proof_key}_{tag}"
-
-                # Special handling for SpacingProof kern feature
-                if base_proof_key == "spacing_proof" and tag == "kern":
-                    feature_value = False
-                    self.proof_settings[feature_key] = False
-                    feature_items.append(
-                        {
-                            "Feature": f"{tag} (always off)",
-                            "Enabled": feature_value,
-                            "_key": feature_key,
-                            "_readonly": True,
-                        }
-                    )
-                else:
-                    default_value = tag in self.default_on_features
-                    feature_value = self.proof_settings.get(feature_key, default_value)
-                    feature_items.append(
-                        {"Feature": tag, "Enabled": feature_value, "_key": feature_key}
-                    )
-
+            # Update OpenType features for this specific instance using helper method
+            feature_tags = self._get_font_features()
+            feature_items = self._build_feature_settings(unique_proof_key, feature_tags)
             popover.featuresList.set(feature_items)
 
             # Update alignment control for supported proof types
             if proof_supports_formatting(base_proof_key):
                 # Update align control
-                align_key = f"{unique_proof_key}_align"
+                align_key = ProofSettingsKeyGenerator.alignment_key(unique_proof_key)
                 align_value = self.proof_settings.get(align_key, "left")
-                align_options = ["left", "center", "right"]
-                if align_value in align_options:
-                    popover.alignPopUp.set(align_options.index(align_value))
+                if align_value in self.ALIGNMENT_OPTIONS:
+                    popover.alignPopUp.set(self.ALIGNMENT_OPTIONS.index(align_value))
                 else:
                     popover.alignPopUp.set(0)  # Default to "left"
 
