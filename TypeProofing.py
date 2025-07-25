@@ -9,6 +9,8 @@ The application has been modularized into the following components:
 - font_analysis.py: Font processing and character set analysis
 - proof_generation.py: Proof generation functions and text processing
 - ui_interface.py: User interface components and main application window
+- utils.py: Core utility functions for file operations, validation, error handling
+- ui_utils.py: UI-specific utilities and drawing helpers
 
 Usage:
     python "Type Proofing.py"
@@ -24,6 +26,7 @@ Dependencies:
 """
 
 import logging
+from utils import log_error
 
 # Configure logging
 log = logging.getLogger("wordsiv")
@@ -42,11 +45,11 @@ if __name__ == "__main__":
         AppHelper.runEventLoop()
 
     except ImportError as e:
-        print(f"Import error: {e}")
+        log_error(f"Import error: {e}")
     except KeyboardInterrupt:
         print("\nApplication interrupted by user.")
     except Exception as e:
-        print(f"Error starting application: {e}")
+        error_msg = f"Error starting application: {e}"
         import traceback
 
-        traceback.print_exc()
+        log_error(error_msg, traceback.format_exc())
