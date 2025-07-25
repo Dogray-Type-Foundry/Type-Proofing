@@ -198,23 +198,60 @@ class FilteredCharacterSetHandler(BaseProofHandler):
 class SpacingProofHandler(BaseProofHandler):
     """Handler for Spacing Proof type."""
 
+    def get_character_category_setting(self, category):
+        """Get character category setting value with appropriate defaults."""
+        key = f"{self.unique_proof_key}_cat_{category}"
+        # Default values: most categories enabled except accented
+        defaults = {
+            "uppercase_base": True,
+            "lowercase_base": True,
+            "numbers_symbols": True,
+            "punctuation": True,
+            "accented": False,
+        }
+        return self.proof_settings.get(key, defaults.get(category, True))
+
     def generate_proof(self, context):
+        from character_analysis import get_charset_proof_categories
+
         font_size = self.get_font_size()
         columns = context.cols_by_proof.get(context.proof_name, 2)
-        section_name = self.get_section_name(font_size)
         tracking_value = self.get_tracking_value()
+        otfeatures = context.otfeatures_by_proof.get(context.proof_name, {})
 
-        spacingProof(
-            context.full_character_set,
-            context.axes_product,
-            context.ind_font,
-            None,  # pairedStaticStyles
-            context.otfeatures_by_proof.get(context.proof_name, {}),
-            font_size,
-            columns,
-            sectionName=section_name,
-            tracking=tracking_value,
-        )
+        # Get organized character categories
+        categories = get_charset_proof_categories(context.cat)
+
+        # Build proof sections based on user settings
+        proof_sections = []
+
+        # Check each category setting and add if enabled
+        category_mapping = [
+            ("uppercase_base", "Uppercase Base", categories["uppercase_base"]),
+            ("lowercase_base", "Lowercase Base", categories["lowercase_base"]),
+            ("numbers_symbols", "Numbers & Symbols", categories["numbers_symbols"]),
+            ("punctuation", "Punctuation", categories["punctuation"]),
+            ("accented", "Accented Characters", categories["accented"]),
+        ]
+
+        for category_key, section_label, character_set in category_mapping:
+            if self.get_character_category_setting(category_key) and character_set:
+                proof_sections.append((section_label, character_set))
+
+        for section_label, character_set in proof_sections:
+            if character_set:  # Only generate if characters exist
+                section_name = f"Spacing - {section_label} - {font_size}pt"
+                spacingProof(
+                    character_set,
+                    context.axes_product,
+                    context.ind_font,
+                    None,  # pairedStaticStyles
+                    otfeatures,
+                    font_size,
+                    columns,
+                    sectionName=section_name,
+                    tracking=tracking_value,
+                )
 
 
 class BasicParagraphLargeHandler(BaseProofHandler):
