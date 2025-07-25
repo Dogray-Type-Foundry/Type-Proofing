@@ -142,20 +142,38 @@ class FilteredCharacterSetHandler(BaseProofHandler):
     """Handler for Filtered Character Set proof type."""
 
     def generate_proof(self, context):
-        font_size = self.get_font_size()
-        section_name = self.get_section_name(font_size)
-        tracking_value = self.get_tracking_value()
+        from character_analysis import get_charset_proof_categories
 
-        charsetProof(
-            context.full_character_set,
-            context.axes_product,
-            context.ind_font,
-            None,  # pairedStaticStyles
-            context.otfeatures_by_proof.get(context.proof_name, {}),
-            font_size,
-            sectionName=section_name,
-            tracking=tracking_value,
-        )
+        font_size = self.get_font_size()
+        tracking_value = font_size / 1.5
+        otfeatures = context.otfeatures_by_proof.get(context.proof_name, {})
+
+        # Get organized character categories
+        categories = get_charset_proof_categories(context.cat)
+
+        # Generate separate proofs for each category (like old version)
+        proof_sections = [
+            ("Uppercase Base", categories["uppercase_base"]),
+            ("Lowercase Base", categories["lowercase_base"]),
+            ("Numbers & Symbols", categories["numbers_symbols"]),
+            ("Punctuation", categories["punctuation"]),
+            # Uncomment if you want accented characters
+            # ("Accented Characters", categories["accented"]),
+        ]
+
+        for section_label, character_set in proof_sections:
+            if character_set:  # Only generate if characters exist
+                section_name = f"Character Set - {section_label} - {font_size}pt"
+                charsetProof(
+                    character_set,
+                    context.axes_product,
+                    context.ind_font,
+                    None,  # pairedStaticStyles
+                    otfeatures,
+                    font_size,
+                    sectionName=section_name,
+                    tracking=tracking_value,
+                )
 
 
 class SpacingProofHandler(BaseProofHandler):

@@ -12,7 +12,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
-        "default_size": 56,  # charsetFontSize
+        "default_size": 78,  # charsetFontSize
     },
     "spacing_proof": {
         "display_name": "Spacing Proof",
@@ -20,7 +20,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
-        "default_size": 10,  # spacingFontSize
+        "default_size": 14,  # spacingFontSize
     },
     "basic_paragraph_large": {
         "display_name": "Basic Paragraph Large",
@@ -28,7 +28,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
-        "default_size": 21,  # largeTextFontSize
+        "default_size": 28,  # largeTextFontSize
     },
     "diacritic_words_large": {
         "display_name": "Diacritic Words Large",
@@ -36,7 +36,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
-        "default_size": 21,  # largeTextFontSize
+        "default_size": 28,  # largeTextFontSize
     },
     "basic_paragraph_small": {
         "display_name": "Basic Paragraph Small",
@@ -44,7 +44,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
-        "default_size": 8,  # smallTextFontSize
+        "default_size": 10,  # smallTextFontSize
     },
     "paired_styles_paragraph_small": {
         "display_name": "Paired Styles Paragraph Small",
@@ -52,7 +52,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
-        "default_size": 8,  # smallTextFontSize
+        "default_size": 10,  # smallTextFontSize
     },
     "generative_text_small": {
         "display_name": "Generative Text Small",
@@ -60,7 +60,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": True,
-        "default_size": 8,  # smallTextFontSize
+        "default_size": 10,  # smallTextFontSize
     },
     "diacritic_words_small": {
         "display_name": "Diacritic Words Small",
@@ -68,7 +68,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
-        "default_size": 8,  # smallTextFontSize
+        "default_size": 10,  # smallTextFontSize
     },
     "misc_paragraph_small": {
         "display_name": "Misc Paragraph Small",
@@ -76,7 +76,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
-        "default_size": 8,  # smallTextFontSize
+        "default_size": 10,  # smallTextFontSize
     },
     "ar_character_set": {
         "display_name": "Ar Character Set",
@@ -84,7 +84,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
-        "default_size": 56,  # charsetFontSize
+        "default_size": 78,  # charsetFontSize
     },
     "ar_paragraph_large": {
         "display_name": "Ar Paragraph Large",
@@ -92,7 +92,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
-        "default_size": 21,  # largeTextFontSize
+        "default_size": 28,  # largeTextFontSize
     },
     "fa_paragraph_large": {
         "display_name": "Fa Paragraph Large",
@@ -100,7 +100,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 1,
         "has_paragraphs": False,
-        "default_size": 21,  # largeTextFontSize
+        "default_size": 28,  # largeTextFontSize
     },
     "ar_paragraph_small": {
         "display_name": "Ar Paragraph Small",
@@ -108,7 +108,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
-        "default_size": 8,  # smallTextFontSize
+        "default_size": 10,  # smallTextFontSize
     },
     "fa_paragraph_small": {
         "display_name": "Fa Paragraph Small",
@@ -116,7 +116,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
-        "default_size": 8,  # smallTextFontSize
+        "default_size": 10,  # smallTextFontSize
     },
     "ar_vocalization_paragraph_small": {
         "display_name": "Ar Vocalization Paragraph Small",
@@ -124,7 +124,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
-        "default_size": 8,  # smallTextFontSize
+        "default_size": 10,  # smallTextFontSize
     },
     "ar_lat_mixed_paragraph_small": {
         "display_name": "Ar-Lat Mixed Paragraph Small",
@@ -132,7 +132,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
-        "default_size": 8,  # smallTextFontSize
+        "default_size": 10,  # smallTextFontSize
     },
     "ar_numbers_small": {
         "display_name": "Ar Numbers Small",
@@ -140,7 +140,7 @@ PROOF_REGISTRY = {
         "has_settings": True,
         "default_cols": 2,
         "has_paragraphs": False,
-        "default_size": 8,  # smallTextFontSize
+        "default_size": 10,  # smallTextFontSize
     },
 }
 

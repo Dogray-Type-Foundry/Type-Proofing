@@ -116,6 +116,51 @@ def check_arabic_support(charset):
     return required_chars.issubset(charset_set)
 
 
+def get_charset_proof_categories(cat):
+    """Get organized character sets for character set proofs, matching old drawbot logic.
+
+    Args:
+        cat: Dictionary from categorize() function containing character categories
+
+    Returns:
+        Dictionary with organized character sets for proofs
+    """
+    # Numbers and symbols combined (like old version)
+    num = (
+        cat["uniNd"]
+        + "\n"
+        + cat["uniSm"]
+        + "\n"
+        + cat["uniSc"]
+        + "\n"
+        + cat.get("uniNo", "")
+    )
+
+    # All punctuation categories combined
+    punct = (
+        cat["uniPo"]
+        + cat["uniPc"]
+        + cat["uniPd"]
+        + cat["uniPs"]
+        + cat["uniPe"]
+        + cat["uniPi"]
+        + cat["uniPf"]
+    )
+
+    # Sort uppercase and lowercase base characters by Unicode codepoint
+    uppercase_base_sorted = "".join(sorted(cat["uniLuBase"], key=ord))
+    lowercase_base_sorted = "".join(sorted(cat["uniLlBase"], key=ord))
+
+    # Return organized categories
+    return {
+        "uppercase_base": uppercase_base_sorted,
+        "lowercase_base": lowercase_base_sorted,
+        "numbers_symbols": num,
+        "punctuation": punct,
+        "accented": cat["accented"],
+    }
+
+
 def get_character_set(font_path):
     """Get character set from a font file (alias for filteredCharset)."""
     from font_utils import filteredCharset
