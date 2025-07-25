@@ -1182,7 +1182,7 @@ class ProofWindow:
                         "Settings Loaded",
                         f"Settings have been loaded from:\n{settings_file_path}\n\n"
                         "Changes will now be saved to this file instead of the auto-save file.\n\n"
-                        "You can use 'Reset Settings' to clear this file and return to auto-save mode.",
+                        "You can use 'Reset Settings' to clear all settings from the GUI and return to auto-save mode. This will not delete the custom settings file.",
                     )
                 else:
                     message(
