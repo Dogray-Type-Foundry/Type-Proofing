@@ -262,8 +262,12 @@ def get_proof_default_font_size(proof_key):
 
 def proof_supports_formatting(proof_key):
     """Check if a proof type supports text formatting (tracking, alignment)."""
-    # Character Set and ARA Character Set don't support formatting
-    return proof_key not in ["filtered_character_set", "ar_character_set"]
+    # Character Set, Spacing Proof, and Arabic Character Set don't support formatting (they handle it per category)
+    return proof_key not in [
+        "filtered_character_set",
+        "spacing_proof",
+        "ar_character_set",
+    ]
 
 
 def get_proof_info(proof_key):

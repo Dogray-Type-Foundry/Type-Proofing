@@ -649,7 +649,7 @@ class ProofWindow:
             callback=self.alignPopUpCallback,
         )
 
-        # Character Category controls (for Filtered Character Set proof)
+        # Character Category controls (for Filtered Character Set and Spacing Proof)
         popover.categoryLabel = vanilla.TextBox(
             (10, 190, -10, 20), "Character Categories:"
         )
@@ -745,7 +745,11 @@ class ProofWindow:
         )
 
         # Columns setting with appropriate defaults (skip for certain proofs)
-        if proof_key not in ["filtered_character_set", "ar_character_set"]:
+        if proof_key not in [
+            "filtered_character_set",
+            "spacing_proof",
+            "ar_character_set",
+        ]:
             cols_key = ProofSettingsKeyGenerator.columns_key(proof_key)
 
             # Get proof info from registry
@@ -816,8 +820,8 @@ class ProofWindow:
             popover.alignLabel.show(False)
             popover.alignPopUp.show(False)
 
-        # Update character category controls for Filtered Character Set proof
-        if proof_key == "filtered_character_set":
+        # Update character category controls for Filtered Character Set and Spacing Proof
+        if proof_key in ["filtered_character_set", "spacing_proof"]:
             # Show character category controls
             popover.categoryLabel.show(True)
             popover.categoryUppercase.show(True)
@@ -867,8 +871,11 @@ class ProofWindow:
         ):
             return
 
-        # Only handle this for Filtered Character Set proofs
-        if self.current_base_proof_type != "Filtered Character Set":
+        # Only handle this for Filtered Character Set and Spacing Proof
+        if self.current_base_proof_type not in [
+            "Filtered Character Set",
+            "Spacing Proof",
+        ]:
             return
 
         popover = self.proof_settings_popover
@@ -1342,8 +1349,8 @@ class ProofWindow:
                 popover.alignLabel.show(False)
                 popover.alignPopUp.show(False)
 
-            # Update character category controls for Filtered Character Set proof instances
-            if base_proof_key == "filtered_character_set":
+            # Update character category controls for Filtered Character Set and Spacing Proof instances
+            if base_proof_key in ["filtered_character_set", "spacing_proof"]:
                 # Show character category controls
                 popover.categoryLabel.show(True)
                 popover.categoryUppercase.show(True)

@@ -57,8 +57,12 @@ class ProofSettingsManager:
 
         # Column settings - use default from registry
         cols_key = f"{proof_key}_cols"
-        # Character Set and ARA Character Set don't use columns
-        if proof_key not in ["filtered_character_set", "ar_character_set"]:
+        # Character Set, Spacing Proof, and Arabic Character Set don't use columns (they handle them differently)
+        if proof_key not in [
+            "filtered_character_set",
+            "spacing_proof",
+            "ar_character_set",
+        ]:
             default_cols = proof_info["default_cols"]
             if cols_key not in self.proof_settings:
                 self.proof_settings[cols_key] = default_cols
@@ -91,8 +95,8 @@ class ProofSettingsManager:
                     proof_key
                 )
 
-        # Character category settings for Filtered Character Set proof
-        if proof_key == "filtered_character_set":
+        # Character category settings for Filtered Character Set and Spacing Proof
+        if proof_key in ["filtered_character_set", "spacing_proof"]:
             # Default values: most categories enabled except accented
             category_defaults = {
                 "uppercase_base": True,
@@ -213,7 +217,11 @@ class ProofSettingsManager:
                 return  # Skip if not found in registry
 
             # Columns setting (if applicable)
-            if base_proof_key not in ["filtered_character_set", "ar_character_set"]:
+            if base_proof_key not in [
+                "filtered_character_set",
+                "spacing_proof",
+                "ar_character_set",
+            ]:
                 cols_key = f"{unique_key}_cols"
                 default_cols = proof_info["default_cols"]
                 self.proof_settings[cols_key] = default_cols
@@ -237,8 +245,8 @@ class ProofSettingsManager:
                         base_proof_key
                     )
 
-            # Character category settings for Filtered Character Set proof
-            if base_proof_key == "filtered_character_set":
+            # Character category settings for Filtered Character Set and Spacing Proof
+            if base_proof_key in ["filtered_character_set", "spacing_proof"]:
                 # Default values: most categories enabled except accented
                 category_defaults = {
                     "uppercase_base": True,
@@ -385,7 +393,11 @@ class ProofSettingsManager:
         )
 
         # Columns setting with appropriate defaults (skip for certain proofs)
-        if proof_key not in ["filtered_character_set", "ar_character_set"]:
+        if proof_key not in [
+            "filtered_character_set",
+            "spacing_proof",
+            "ar_character_set",
+        ]:
             cols_key = f"{proof_key}_cols"
             proof_info = get_proof_by_storage_key(proof_key)
             if proof_info:
