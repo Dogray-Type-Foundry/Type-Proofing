@@ -11,7 +11,7 @@ import drawBot as db
 from wordsiv import WordSiv
 
 # Local imports
-from config import (
+from core_config import (
     marginHorizontal,
     marginVertical,
     pageDimensions,
@@ -19,12 +19,17 @@ from config import (
     useFontContainsCharacters,
     wordsivSeed,
     dualStyleSeed,
-    get_proof_default_font_size,
     FsSelection,
     posForms,
     DEFAULT_ON_FEATURES,
 )
-from font_analysis import get_ttfont, upperTemplate, lowerTemplate, product_dict
+from proof_config import get_proof_default_font_size
+from font_utils import (
+    get_ttfont,
+    UPPER_TEMPLATE as upperTemplate,
+    LOWER_TEMPLATE as lowerTemplate,
+)
+from variable_font_utils import product_dict
 
 # Import drawbot grid extension
 try:
@@ -36,11 +41,49 @@ except ImportError:
 
 # Import proof texts
 try:
-    from importlib import reload
-    import prooftexts
+    from sample_texts import (
+        bigMixedText,
+        bigLowerText,
+        bigUpperText,
+        smallMixedText,
+        smallLowerText,
+        smallUpperText,
+        bigRandomNumbers,
+        additionalSmallText,
+    )
+    from script_texts import (
+        arabicVocalization,
+        arabicLatinMixed,
+        arabicFarsiUrduNumbers,
+    )
+    from accented_dictionary import (
+        accentedDict,
+        get_accented_words,
+        get_accented_characters,
+    )
+    from text_generators import text_generator, TextGenerator
 
-    reload(prooftexts)
-    import prooftexts as pte
+    # Create a namespace object to mimic the old prooftexts module
+    class ProofTexts:
+        def __init__(self):
+            self.bigMixedText = bigMixedText
+            self.bigLowerText = bigLowerText
+            self.bigUpperText = bigUpperText
+            self.smallMixedText = smallMixedText
+            self.smallLowerText = smallLowerText
+            self.smallUpperText = smallUpperText
+            self.bigRandomNumbers = bigRandomNumbers
+            self.additionalSmallText = additionalSmallText
+            self.arabicVocalization = arabicVocalization
+            self.arabicLatinMixed = arabicLatinMixed
+            self.arabicFarsiUrduNumbers = arabicFarsiUrduNumbers
+            self.accentedDict = accentedDict
+            self.get_accented_words = get_accented_words
+            self.get_accented_characters = get_accented_characters
+            self.text_generator = text_generator
+            self.TextGenerator = TextGenerator
+
+    pte = ProofTexts()
 except ImportError:
     print("Warning: prooftexts module not found. Using fallback text.")
     pte = None
@@ -624,6 +667,9 @@ def charsetProof(
         else get_proof_default_font_size("filtered_character_set")
     )
 
+    # Use provided tracking or fall back to default
+    tracking_value = tracking if tracking is not None else 24
+
     # sectionName parameter is now passed from the caller
     try:
         if axesProduct:
@@ -637,7 +683,7 @@ def charsetProof(
                     axesProduct,
                     pairedStaticStyles,
                     "center",
-                    24,
+                    tracking_value,
                     otFea,
                     axisDict,
                     mixedStyles=False,
@@ -659,7 +705,7 @@ def charsetProof(
                 axesProduct,
                 pairedStaticStyles,
                 "center",
-                24,
+                tracking_value,
                 otFea,
                 mixedStyles=False,
             )
@@ -823,11 +869,6 @@ def textProof(
         axisDict = {}
         for axisData in axesProduct:
             axisDict = dict(axisData)
-            # Use provided align parameter, but fallback to language-based logic if align is "left" and language is Arabic/Farsi
-            if align == "left" and lang in ["ar", "fa"]:
-                text_align = "right"
-            else:
-                text_align = align
             # Use rtl direction for Arabic/Farsi text
             text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
             textString = stringMaker(
@@ -836,7 +877,7 @@ def textProof(
                 indFont,
                 axesProduct,
                 pairedStaticStyles,
-                alignInput=text_align,
+                alignInput=align,
                 trackingInput=tracking,
                 OTFeaInput=otFea,
                 VFAxisInput=axisDict,
@@ -855,11 +896,6 @@ def textProof(
                 tracking=tracking,
             )
     elif axesProduct == "":
-        # Use provided align parameter, but fallback to language-based logic if align is "left" and language is Arabic/Farsi
-        if align == "left" and lang in ["ar", "fa"]:
-            text_align = "right"
-        else:
-            text_align = align
         # Use rtl direction for Arabic/Farsi text
         text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
         textString = stringMaker(
@@ -868,7 +904,7 @@ def textProof(
             indFont,
             axesProduct,
             pairedStaticStyles,
-            alignInput=text_align,
+            alignInput=align,
             trackingInput=tracking,
             OTFeaInput=otFea,
             mixedStyles=mixedStyles,

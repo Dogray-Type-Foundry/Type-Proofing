@@ -11,3 +11,4 @@ build_app_local.sh
 *.ttf
 *.otf
 *.pdf
+*.json
