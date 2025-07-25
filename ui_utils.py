@@ -163,30 +163,37 @@ def setup_page_format(page_format):
     try:
         import drawBot as db
 
+        # Get dimensions first
+        width, height = None, None
+
         # If page_format is already a tuple/list of dimensions, use it directly
         if isinstance(page_format, (list, tuple)) and len(page_format) >= 2:
             width, height = page_format[0], page_format[1]
-            db.size(width, height)
-
-            # Update the global pageDimensions variable for compatibility
-            import core_config
-
-            core_config.pageDimensions = (width, height)
-            return True
-
         # If page_format is a string, look it up in the mapping
-        if isinstance(page_format, str) and page_format in PAGE_DIMENSIONS:
+        elif isinstance(page_format, str) and page_format in PAGE_DIMENSIONS:
             width, height = PAGE_DIMENSIONS[page_format]
+        else:
+            log_error(f"Invalid page format: {page_format}")
+            return False
+
+        # Try to set the size, but catch the error if drawing has already started
+        try:
             db.size(width, height)
+        except Exception as size_error:
+            # If size() fails because drawing has started, just log it but don't fail
+            if "drawing has begun" in str(size_error):
+                log_error(
+                    f"Cannot set page size after drawing has started, using current dimensions"
+                )
+            else:
+                # Re-raise other errors
+                raise size_error
 
-            # Update the global pageDimensions variable for compatibility
-            import core_config
+        # Always update the global pageDimensions variable for compatibility
+        import core_config
 
-            core_config.pageDimensions = (width, height)
-            return True
-
-        log_error(f"Invalid page format: {page_format}")
-        return False
+        core_config.pageDimensions = (width, height)
+        return True
 
     except Exception as e:
         log_error(f"Failed to setup page format: {e}")

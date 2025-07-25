@@ -1146,7 +1146,9 @@ class ProofWindow:
                 settings_file_path = result[0]
 
                 # Try to load the settings file
-                if self.proof_settings_manager.load_user_settings_file(settings_file_path):
+                if self.app_settings_manager.load_user_settings_file(
+                    settings_file_path
+                ):
                     # Clear font manager and reload fonts
                     self.font_manager.fonts = tuple()
                     self.font_manager.font_info = {}
@@ -1179,8 +1181,8 @@ class ProofWindow:
                     message(
                         "Settings Loaded",
                         f"Settings have been loaded from:\n{settings_file_path}\n\n"
-                        "Changes will now be saved to this file instead of the auto-save file.",
-                        informativeText="You can use 'Reset Settings' to clear this file and return to auto-save mode.",
+                        "Changes will now be saved to this file instead of the auto-save file.\n\n"
+                        "You can use 'Reset Settings' to clear this file and return to auto-save mode.",
                     )
                 else:
                     message(
