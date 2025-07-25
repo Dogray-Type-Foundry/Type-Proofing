@@ -1146,7 +1146,7 @@ class ProofWindow:
                 settings_file_path = result[0]
 
                 # Try to load the settings file
-                if self.settings.load_user_settings_file(settings_file_path):
+                if self.proof_settings_manager.load_user_settings_file(settings_file_path):
                     # Clear font manager and reload fonts
                     self.font_manager.fonts = tuple()
                     self.font_manager.font_info = {}
