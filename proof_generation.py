@@ -667,6 +667,9 @@ def charsetProof(
         else get_proof_default_font_size("filtered_character_set")
     )
 
+    # Use provided tracking or fall back to default
+    tracking_value = tracking if tracking is not None else 24
+
     # sectionName parameter is now passed from the caller
     try:
         if axesProduct:
@@ -680,7 +683,7 @@ def charsetProof(
                     axesProduct,
                     pairedStaticStyles,
                     "center",
-                    24,
+                    tracking_value,
                     otFea,
                     axisDict,
                     mixedStyles=False,
@@ -702,7 +705,7 @@ def charsetProof(
                 axesProduct,
                 pairedStaticStyles,
                 "center",
-                24,
+                tracking_value,
                 otFea,
                 mixedStyles=False,
             )
