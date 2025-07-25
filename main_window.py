@@ -798,7 +798,11 @@ class ProofWindow:
         if proof_supports_formatting(proof_key):
             # Update align control
             align_key = ProofSettingsKeyGenerator.alignment_key(proof_key)
-            align_value = self.proof_settings.get(align_key, "left")
+            # Get default alignment based on proof type
+            from settings_manager import get_default_alignment_for_proof
+
+            default_align = get_default_alignment_for_proof(proof_key)
+            align_value = self.proof_settings.get(align_key, default_align)
             if align_value in self.ALIGNMENT_OPTIONS:
                 popover.alignPopUp.set(self.ALIGNMENT_OPTIONS.index(align_value))
             else:
@@ -1318,7 +1322,11 @@ class ProofWindow:
             if proof_supports_formatting(base_proof_key):
                 # Update align control
                 align_key = ProofSettingsKeyGenerator.alignment_key(unique_proof_key)
-                align_value = self.proof_settings.get(align_key, "left")
+                # Get default alignment based on proof type
+                from settings_manager import get_default_alignment_for_proof
+
+                default_align = get_default_alignment_for_proof(base_proof_key)
+                align_value = self.proof_settings.get(align_key, default_align)
                 if align_value in self.ALIGNMENT_OPTIONS:
                     popover.alignPopUp.set(self.ALIGNMENT_OPTIONS.index(align_value))
                 else:

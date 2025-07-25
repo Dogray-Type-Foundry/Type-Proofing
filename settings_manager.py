@@ -15,6 +15,14 @@ from proof_handlers import create_unique_proof_key
 from utils import safe_json_load, safe_json_save, log_error
 
 
+def get_default_alignment_for_proof(proof_key):
+    """Get the default alignment for a proof type based on whether it's Arabic/Persian."""
+    proof_info = get_proof_by_settings_key(proof_key)
+    if proof_info and proof_info.get("is_arabic", False):
+        return "right"
+    return "left"
+
+
 class ProofSettingsManager:
     """Manages all proof-specific settings including OpenType features, font sizes, etc."""
 
@@ -76,10 +84,12 @@ class ProofSettingsManager:
             if tracking_key not in self.proof_settings:
                 self.proof_settings[tracking_key] = 0
 
-            # Align setting (default "left")
+            # Align setting (default based on proof type - "right" for Arabic/Persian, "left" for others)
             align_key = f"{proof_key}_align"
             if align_key not in self.proof_settings:
-                self.proof_settings[align_key] = "left"
+                self.proof_settings[align_key] = get_default_alignment_for_proof(
+                    proof_key
+                )
 
         # Character category settings for Filtered Character Set proof
         if proof_key == "filtered_character_set":
@@ -220,10 +230,12 @@ class ProofSettingsManager:
                 if tracking_key not in self.proof_settings:
                     self.proof_settings[tracking_key] = 0
 
-                # Align setting (default "left")
+                # Align setting (default based on proof type - "right" for Arabic/Persian, "left" for others)
                 align_key = f"{unique_key}_align"
                 if align_key not in self.proof_settings:
-                    self.proof_settings[align_key] = "left"
+                    self.proof_settings[align_key] = get_default_alignment_for_proof(
+                        base_proof_key
+                    )
 
             # Character category settings for Filtered Character Set proof
             if base_proof_key == "filtered_character_set":
@@ -452,7 +464,8 @@ class ProofSettingsManager:
             return None
 
         align_key = f"{proof_key}_align"
-        return self.proof_settings.get(align_key, "left")
+        default_align = get_default_alignment_for_proof(proof_key)
+        return self.proof_settings.get(align_key, default_align)
 
     def set_alignment_value_for_proof(self, proof_key, align_value):
         """Set alignment value for a specific proof type."""
