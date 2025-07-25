@@ -869,11 +869,6 @@ def textProof(
         axisDict = {}
         for axisData in axesProduct:
             axisDict = dict(axisData)
-            # Use provided align parameter, but fallback to language-based logic if align is "left" and language is Arabic/Farsi
-            if align == "left" and lang in ["ar", "fa"]:
-                text_align = "right"
-            else:
-                text_align = align
             # Use rtl direction for Arabic/Farsi text
             text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
             textString = stringMaker(
@@ -882,7 +877,7 @@ def textProof(
                 indFont,
                 axesProduct,
                 pairedStaticStyles,
-                alignInput=text_align,
+                alignInput=align,
                 trackingInput=tracking,
                 OTFeaInput=otFea,
                 VFAxisInput=axisDict,
@@ -901,11 +896,6 @@ def textProof(
                 tracking=tracking,
             )
     elif axesProduct == "":
-        # Use provided align parameter, but fallback to language-based logic if align is "left" and language is Arabic/Farsi
-        if align == "left" and lang in ["ar", "fa"]:
-            text_align = "right"
-        else:
-            text_align = align
         # Use rtl direction for Arabic/Farsi text
         text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
         textString = stringMaker(
@@ -914,7 +904,7 @@ def textProof(
             indFont,
             axesProduct,
             pairedStaticStyles,
-            alignInput=text_align,
+            alignInput=align,
             trackingInput=tracking,
             OTFeaInput=otFea,
             mixedStyles=mixedStyles,
