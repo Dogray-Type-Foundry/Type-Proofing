@@ -141,6 +141,19 @@ class ProofContext:
 class FilteredCharacterSetHandler(BaseProofHandler):
     """Handler for Filtered Character Set proof type."""
 
+    def get_character_category_setting(self, category):
+        """Get character category setting value with appropriate defaults."""
+        key = f"{self.unique_proof_key}_cat_{category}"
+        # Default values: most categories enabled except accented
+        defaults = {
+            "uppercase_base": True,
+            "lowercase_base": True,
+            "numbers_symbols": True,
+            "punctuation": True,
+            "accented": False,
+        }
+        return self.proof_settings.get(key, defaults.get(category, True))
+
     def generate_proof(self, context):
         from character_analysis import get_charset_proof_categories
 
@@ -151,15 +164,21 @@ class FilteredCharacterSetHandler(BaseProofHandler):
         # Get organized character categories
         categories = get_charset_proof_categories(context.cat)
 
-        # Generate separate proofs for each category (like old version)
-        proof_sections = [
-            ("Uppercase Base", categories["uppercase_base"]),
-            ("Lowercase Base", categories["lowercase_base"]),
-            ("Numbers & Symbols", categories["numbers_symbols"]),
-            ("Punctuation", categories["punctuation"]),
-            # Uncomment if you want accented characters
-            # ("Accented Characters", categories["accented"]),
+        # Build proof sections based on user settings
+        proof_sections = []
+
+        # Check each category setting and add if enabled
+        category_mapping = [
+            ("uppercase_base", "Uppercase Base", categories["uppercase_base"]),
+            ("lowercase_base", "Lowercase Base", categories["lowercase_base"]),
+            ("numbers_symbols", "Numbers & Symbols", categories["numbers_symbols"]),
+            ("punctuation", "Punctuation", categories["punctuation"]),
+            ("accented", "Accented Characters", categories["accented"]),
         ]
+
+        for category_key, section_label, character_set in category_mapping:
+            if self.get_character_category_setting(category_key) and character_set:
+                proof_sections.append((section_label, character_set))
 
         for section_label, character_set in proof_sections:
             if character_set:  # Only generate if characters exist
