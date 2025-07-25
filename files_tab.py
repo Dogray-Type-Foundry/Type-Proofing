@@ -50,7 +50,7 @@ class FilesTab:
 
         # Initialize with basic column descriptions - will be updated dynamically
         self.base_column_descriptions = [
-            {"identifier": "name", "title": "Font", "width": 300},
+            {"identifier": "name", "title": "Font", "width": 200},
         ]
 
         # Start with basic columns
@@ -179,7 +179,7 @@ class FilesTab:
             column_desc = {
                 "identifier": axis,
                 "title": axis,
-                "width": 100,
+                "width": 180,
                 "editable": True,
             }
             # Insert at the end (after all existing columns)
@@ -239,7 +239,7 @@ class FilesTab:
                         column_desc = {
                             "identifier": axis,
                             "title": axis,
-                            "width": 100,
+                            "width": 180,
                             "editable": True,
                         }
                         self.group.tableView.appendColumn(column_desc)
