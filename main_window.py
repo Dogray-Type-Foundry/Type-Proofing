@@ -119,6 +119,11 @@ class ProofSettingsKeyGenerator:
         return f"{proof_key}_align"
 
     @staticmethod
+    def character_category_key(proof_key, category):
+        """Generate character category key."""
+        return f"{proof_key}_cat_{category}"
+
+    @staticmethod
     def otf_prefix(proof_key):
         """Generate OpenType feature prefix."""
         return f"otf_{proof_key}_"
@@ -597,7 +602,7 @@ class ProofWindow:
 
     def create_proof_settings_popover(self):
         """Create the proof settings popover."""
-        self.proof_settings_popover = vanilla.Popover((400, 520))
+        self.proof_settings_popover = vanilla.Popover((400, 620))
         popover = self.proof_settings_popover
 
         # Proof type selector
@@ -612,9 +617,9 @@ class ProofWindow:
         )
 
         # Numeric settings list (now includes tracking)
-        popover.numericLabel = vanilla.TextBox((10, 70, -10, 20), "Settings:")
+        popover.numericLabel = vanilla.TextBox((10, 20, -10, 20), "Page Settings:")
         popover.numericList = vanilla.List2(
-            (10, 95, -10, 140),
+            (10, 40, -10, 140),
             [],
             columnDescriptions=[
                 {
@@ -637,19 +642,57 @@ class ProofWindow:
         )
 
         # Align control (standalone)
-        popover.alignLabel = vanilla.TextBox((10, 245, 100, 20), "Alignment:")
+        popover.alignLabel = vanilla.TextBox((10, 190, 100, 20), "Alignment:")
         popover.alignPopUp = vanilla.PopUpButton(
-            (120, 245, 100, 20),
+            (120, 190, 100, 20),
             self.ALIGNMENT_OPTIONS,
             callback=self.alignPopUpCallback,
         )
 
+        # Character Category controls (for Filtered Character Set proof)
+        popover.categoryLabel = vanilla.TextBox(
+            (10, 190, -10, 20), "Character Categories:"
+        )
+
+        # Character category checkboxes
+        popover.categoryUppercase = vanilla.CheckBox(
+            (20, 210, -10, 20),
+            "Uppercase Base",
+            callback=self.characterCategoryCallback,
+        )
+        popover.categoryLowercase = vanilla.CheckBox(
+            (20, 230, -10, 20),
+            "Lowercase Base",
+            callback=self.characterCategoryCallback,
+        )
+        popover.categoryNumbersSymbols = vanilla.CheckBox(
+            (20, 250, -10, 20),
+            "Numbers & Symbols",
+            callback=self.characterCategoryCallback,
+        )
+        popover.categoryPunctuation = vanilla.CheckBox(
+            (20, 270, -10, 20), "Punctuation", callback=self.characterCategoryCallback
+        )
+        popover.categoryAccented = vanilla.CheckBox(
+            (20, 290, -10, 20),
+            "Accented Characters",
+            callback=self.characterCategoryCallback,
+        )
+
+        # Hide character category controls by default
+        popover.categoryLabel.show(False)
+        popover.categoryUppercase.show(False)
+        popover.categoryLowercase.show(False)
+        popover.categoryNumbersSymbols.show(False)
+        popover.categoryPunctuation.show(False)
+        popover.categoryAccented.show(False)
+
         # OpenType features list
         popover.featuresLabel = vanilla.TextBox(
-            (10, 275, -10, 20), "OpenType Features:"
+            (10, 320, -10, 20), "OpenType Features:"
         )
         popover.featuresList = vanilla.List2(
-            (10, 300, -10, -10),
+            (10, 340, -10, -10),
             [],
             columnDescriptions=[
                 {
@@ -768,6 +811,79 @@ class ProofWindow:
             # Hide alignment control for unsupported proof types
             popover.alignLabel.show(False)
             popover.alignPopUp.show(False)
+
+        # Update character category controls for Filtered Character Set proof
+        if proof_key == "filtered_character_set":
+            # Show character category controls
+            popover.categoryLabel.show(True)
+            popover.categoryUppercase.show(True)
+            popover.categoryLowercase.show(True)
+            popover.categoryNumbersSymbols.show(True)
+            popover.categoryPunctuation.show(True)
+            popover.categoryAccented.show(True)
+
+            # Update checkbox states based on current settings
+            category_controls = [
+                (popover.categoryUppercase, "uppercase_base"),
+                (popover.categoryLowercase, "lowercase_base"),
+                (popover.categoryNumbersSymbols, "numbers_symbols"),
+                (popover.categoryPunctuation, "punctuation"),
+                (popover.categoryAccented, "accented"),
+            ]
+
+            for control, category_key in category_controls:
+                setting_key = ProofSettingsKeyGenerator.character_category_key(
+                    proof_key, category_key
+                )
+                # Default values: most categories enabled except accented
+                defaults = {
+                    "uppercase_base": True,
+                    "lowercase_base": True,
+                    "numbers_symbols": True,
+                    "punctuation": True,
+                    "accented": False,
+                }
+                value = self.proof_settings.get(
+                    setting_key, defaults.get(category_key, True)
+                )
+                control.set(value)
+        else:
+            # Hide character category controls for other proof types
+            popover.categoryLabel.show(False)
+            popover.categoryUppercase.show(False)
+            popover.categoryLowercase.show(False)
+            popover.categoryNumbersSymbols.show(False)
+            popover.categoryPunctuation.show(False)
+            popover.categoryAccented.show(False)
+
+    def characterCategoryCallback(self, sender):
+        """Handle character category checkbox changes."""
+        if not hasattr(self, "current_proof_key") or not hasattr(
+            self, "current_base_proof_type"
+        ):
+            return
+
+        # Only handle this for Filtered Character Set proofs
+        if self.current_base_proof_type != "Filtered Character Set":
+            return
+
+        popover = self.proof_settings_popover
+
+        # Map checkbox controls to category keys
+        category_mapping = {
+            popover.categoryUppercase: "uppercase_base",
+            popover.categoryLowercase: "lowercase_base",
+            popover.categoryNumbersSymbols: "numbers_symbols",
+            popover.categoryPunctuation: "punctuation",
+            popover.categoryAccented: "accented",
+        }
+
+        category_key = category_mapping.get(sender)
+        if category_key:
+            setting_key = ProofSettingsKeyGenerator.character_category_key(
+                self.current_proof_key, category_key
+            )
+            self.proof_settings[setting_key] = sender.get()
 
     def alignPopUpCallback(self, sender):
         """Handle alignment selection changes."""
@@ -1215,6 +1331,50 @@ class ProofWindow:
                 # Hide alignment control for unsupported proof types
                 popover.alignLabel.show(False)
                 popover.alignPopUp.show(False)
+
+            # Update character category controls for Filtered Character Set proof instances
+            if base_proof_key == "filtered_character_set":
+                # Show character category controls
+                popover.categoryLabel.show(True)
+                popover.categoryUppercase.show(True)
+                popover.categoryLowercase.show(True)
+                popover.categoryNumbersSymbols.show(True)
+                popover.categoryPunctuation.show(True)
+                popover.categoryAccented.show(True)
+
+                # Update checkbox states based on current settings for this instance
+                category_controls = [
+                    (popover.categoryUppercase, "uppercase_base"),
+                    (popover.categoryLowercase, "lowercase_base"),
+                    (popover.categoryNumbersSymbols, "numbers_symbols"),
+                    (popover.categoryPunctuation, "punctuation"),
+                    (popover.categoryAccented, "accented"),
+                ]
+
+                for control, category_key in category_controls:
+                    setting_key = ProofSettingsKeyGenerator.character_category_key(
+                        unique_proof_key, category_key
+                    )
+                    # Default values: most categories enabled except accented
+                    defaults = {
+                        "uppercase_base": True,
+                        "lowercase_base": True,
+                        "numbers_symbols": True,
+                        "punctuation": True,
+                        "accented": False,
+                    }
+                    value = self.proof_settings.get(
+                        setting_key, defaults.get(category_key, True)
+                    )
+                    control.set(value)
+            else:
+                # Hide character category controls for other proof types
+                popover.categoryLabel.show(False)
+                popover.categoryUppercase.show(False)
+                popover.categoryLowercase.show(False)
+                popover.categoryNumbersSymbols.show(False)
+                popover.categoryPunctuation.show(False)
+                popover.categoryAccented.show(False)
 
         except Exception as e:
             print(f"Error updating proof settings popover: {e}")

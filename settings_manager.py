@@ -81,6 +81,22 @@ class ProofSettingsManager:
             if align_key not in self.proof_settings:
                 self.proof_settings[align_key] = "left"
 
+        # Character category settings for Filtered Character Set proof
+        if proof_key == "filtered_character_set":
+            # Default values: most categories enabled except accented
+            category_defaults = {
+                "uppercase_base": True,
+                "lowercase_base": True,
+                "numbers_symbols": True,
+                "punctuation": True,
+                "accented": False,
+            }
+
+            for category_key, default_value in category_defaults.items():
+                setting_key = f"{proof_key}_cat_{category_key}"
+                if setting_key not in self.proof_settings:
+                    self.proof_settings[setting_key] = default_value
+
         # OpenType features
         self._initialize_opentype_features(proof_key)
 
@@ -208,6 +224,22 @@ class ProofSettingsManager:
                 align_key = f"{unique_key}_align"
                 if align_key not in self.proof_settings:
                     self.proof_settings[align_key] = "left"
+
+            # Character category settings for Filtered Character Set proof
+            if base_proof_key == "filtered_character_set":
+                # Default values: most categories enabled except accented
+                category_defaults = {
+                    "uppercase_base": True,
+                    "lowercase_base": True,
+                    "numbers_symbols": True,
+                    "punctuation": True,
+                    "accented": False,
+                }
+
+                for category_key, default_value in category_defaults.items():
+                    setting_key = f"{unique_key}_cat_{category_key}"
+                    if setting_key not in self.proof_settings:
+                        self.proof_settings[setting_key] = default_value
 
             # OpenType features
             if self.font_manager.fonts:
