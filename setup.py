@@ -8,14 +8,32 @@ Usage:
 from setuptools import setup
 
 NAME = "TypeProofing"
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 APP = ["TypeProofing.py"]
 DATA_FILES = [
-    "config.py",
-    "prooftexts.py",
-    "proof_generation.py",
-    "font_analysis.py",
+    "variable_font_utils.py",
+    "utils.py",
+    "ui_utils.py",
     "ui_interface.py",
+    "ui_config.py",
+    "text_generators.py",
+    "stepper_cell.py",
+    "settings_manager.py",
+    "script_texts.py",
+    "sample_texts.py",
+    "proof_handlers.py",
+    "proof_generation.py",
+    "proof_config.py",
+    "pdf_manager.py",
+    "main_window.py",
+    "font_utils.py",
+    "font_manager.py",
+    "files_tab.py",
+    "core_config.py",
+    "controls_tab.py",
+    "character_analysis.py",
+    "accented_dictionary.py",
+    "TypeProofing.py",
     "AdobeBlank.otf",
 ]
 OPTIONS = {
