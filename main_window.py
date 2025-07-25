@@ -173,7 +173,6 @@ class ProofWindow:
         # Initialize PDF manager
         self.pdf_manager = PDFManager(self.settings)
 
-        # Initialize proof-specific settings storage (deprecated - use proof_settings_manager)
         # Get proof types with settings keys from registry
         settings_mapping = get_proof_settings_mapping()
         self.proof_types_with_otf = [
