@@ -5,7 +5,6 @@ import io
 import os
 import traceback
 import datetime
-from itertools import product
 import vanilla
 import AppKit
 import drawBot as db
@@ -27,6 +26,7 @@ from proof_config import (
     get_proof_settings_mapping,
     get_proof_by_storage_key,
     get_proof_by_settings_key,
+    get_proof_name_to_key_mapping,
 )
 from font_manager import FontManager
 from variable_font_utils import product_dict, variableFont, pairStaticStyles
@@ -87,27 +87,6 @@ class ProofWindow:
 
     # Class constants
     ALIGNMENT_OPTIONS = ["left", "center", "right"]
-
-    # Proof name to key mapping - centralized constant
-    PROOF_NAME_TO_KEY = {
-        "Filtered Character Set": "filtered_character_set",
-        "Spacing Proof": "spacing_proof",
-        "Basic Paragraph Large": "basic_paragraph_large",
-        "Diacritic Words Large": "diacritic_words_large",
-        "Basic Paragraph Small": "basic_paragraph_small",
-        "Paired Styles Paragraph Small": "paired_styles_paragraph_small",
-        "Generative Text Small": "generative_text_small",
-        "Diacritic Words Small": "diacritic_words_small",
-        "Misc Paragraph Small": "misc_paragraph_small",
-        "Ar Character Set": "ar_character_set",
-        "Ar Paragraph Large": "ar_paragraph_large",
-        "Fa Paragraph Large": "fa_paragraph_large",
-        "Ar Paragraph Small": "ar_paragraph_small",
-        "Fa Paragraph Small": "fa_paragraph_small",
-        "Ar Vocalization Paragraph Small": "ar_vocalization_paragraph_small",
-        "Ar-Lat Mixed Paragraph Small": "ar_lat_mixed_paragraph_small",
-        "Ar Numbers Small": "ar_numbers_small",
-    }
 
     # ============ UI Helper Methods ============
 
@@ -348,7 +327,7 @@ class ProofWindow:
             # Override proof options to all be False (unchecked)
             # Use the centralized mapping to get all proof keys
             proof_option_keys = ["show_baselines"] + list(
-                self.PROOF_NAME_TO_KEY.values()
+                get_proof_name_to_key_mapping().values()
             )
             for option_key in proof_option_keys:
                 self.settings.set_proof_option(option_key, False)
@@ -1110,7 +1089,7 @@ class ProofWindow:
         """Update the proof settings popover for a specific proof instance."""
         try:
             # Use centralized mapping
-            base_proof_key = self.PROOF_NAME_TO_KEY.get(base_proof_type)
+            base_proof_key = get_proof_name_to_key_mapping().get(base_proof_type)
             if not base_proof_key:
                 return
 
