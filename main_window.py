@@ -16,10 +16,14 @@ from core_config import (
     SCRIPT_DIR,
     DEFAULT_ON_FEATURES,
     HIDDEN_FEATURES,
+    PAGE_FORMAT_OPTIONS,
 )
 from proof_config import (
     get_proof_default_font_size,
     proof_supports_formatting,
+    get_proof_settings_mapping,
+    get_proof_by_storage_key,
+    get_proof_by_settings_key,
 )
 from font_manager import FontManager
 from variable_font_utils import (
@@ -50,14 +54,8 @@ from settings_manager import Settings, ProofSettingsManager, AppSettingsManager
 from files_tab import FilesTab
 from controls_tab import ControlsTab
 from pdf_manager import PDFManager
-from proof_config import (
-    get_proof_settings_mapping,
-    get_proof_by_storage_key,
-    get_proof_by_settings_key,
-)
 from PyObjCTools.AppHelper import callAfter
 from vanilla.dialogs import askYesNo, getFile, message
-from core_config import PAGE_FORMAT_OPTIONS
 import drawBot as db
 
 
@@ -431,92 +429,15 @@ class ProofWindow:
             sys.stderr = buffer
 
             try:
-                # Initialize variables
-                controls = self.controlsTab.group  # "Controls" group
-
-                if not self.font_manager.fonts:
-                    print("No fonts loaded. Please add fonts first.")
+                controls = self.controlsTab.group
+                setup_result = self._setup_proof_generation(controls)
+                if setup_result[0] is None:  # Check if setup failed
                     return
 
-                # Use the currently loaded fonts
-                fonts = self.font_manager.fonts
-
-                # Read axis values - now handled through Files tab per-font settings
-                userAxesValues = {}
-
-                # Read proof options from list
-                proof_options_items = controls.proofOptionsList.get()
-                proof_options = {}
-
-                # Read showBaselines from the standalone checkbox
-                self.showBaselines = controls.showBaselinesCheckbox.get()
-                db.showBaselines = self.showBaselines
-
-                for item in proof_options_items:
-                    option = item.get(
-                        "_original_option", item["Option"]
-                    )  # Get original option name
-                    enabled = bool(item["Enabled"])
-
-                    # For all proofs, use the actual option name as the key
-                    # This handles both original proofs and numbered duplicates
-                    proof_options[item["Option"]] = enabled
-
-                # Build otfeatures dict from proof_settings
-                otfeatures_by_proof = {}
-                cols_by_proof = {}
-                paras_by_proof = {}
-
-                # Get mapping from proof_config
-                display_name_to_settings_key = get_proof_settings_mapping()
-
-                # Process settings for both old-style and new unique proof identifiers
-                for item in proof_options_items:
-                    if not item["Enabled"]:
-                        continue
-
-                    proof_name = item["Option"]
-
-                    # Always use the unique identifier for settings keys to ensure consistency
-                    # This handles both original proofs and numbered duplicates uniformly
-                    unique_key = create_unique_proof_key(proof_name)
-
-                    # Determine the base proof type for validation
-                    settings_key = None
-                    for (
-                        display_name,
-                        base_settings_key,
-                    ) in display_name_to_settings_key.items():
-                        if proof_name.startswith(display_name):
-                            settings_key = base_settings_key
-                            break
-
-                    # Fallback if no base type found
-                    if not settings_key:
-                        settings_key = "basic_paragraph_small"
-
-                    # Use centralized key generation
-                    cols_key = f"{unique_key}_cols"
-                    para_key = f"{unique_key}_para"
-                    otf_prefix = f"otf_{unique_key}_"
-
-                    # Get columns setting
-                    if cols_key in self.proof_settings:
-                        cols_by_proof[proof_name] = self.proof_settings[cols_key]
-
-                    # Get paragraphs setting (only for Wordsiv proofs)
-                    if "Wordsiv" in proof_name:
-                        if para_key in self.proof_settings:
-                            paras_by_proof[proof_name] = self.proof_settings[para_key]
-
-                    # Get OpenType features
-                    otf_dict = {}
-                    otf_search_prefix = f"otf_{unique_key if proof_name not in display_name_to_settings_key else settings_key}_"
-                    for key, value in self.proof_settings.items():
-                        if key.startswith(otf_prefix):
-                            feature = key.replace(otf_prefix, "")
-                            otf_dict[feature] = bool(value)
-                    otfeatures_by_proof[proof_name] = otf_dict
+                fonts, userAxesValues, proof_options, proof_options_items = setup_result
+                otfeatures_by_proof, cols_by_proof, paras_by_proof = (
+                    self._build_proof_settings(proof_options_items)
+                )
 
                 # Generate proof
                 output_path = self.run_proof(
@@ -544,6 +465,68 @@ class ProofWindow:
             self.debugTextEditor.set(buffer.getvalue())
 
         safe_execute("generateCallback", _generate_operation)
+
+    def _setup_proof_generation(self, controls):
+        """Setup variables for proof generation."""
+        if not self.font_manager.fonts:
+            print("No fonts loaded. Please add fonts first.")
+            return None, None, None, None
+
+        proof_options_items = controls.proofOptionsList.get()
+        proof_options = {}
+
+        # Read showBaselines from the standalone checkbox
+        self.showBaselines = controls.showBaselinesCheckbox.get()
+        db.showBaselines = self.showBaselines
+
+        for item in proof_options_items:
+            proof_options[item["Option"]] = bool(item["Enabled"])
+
+        return self.font_manager.fonts, {}, proof_options, proof_options_items
+
+    def _build_proof_settings(self, proof_options_items):
+        """Build proof settings dictionaries."""
+        otfeatures_by_proof = {}
+        cols_by_proof = {}
+        paras_by_proof = {}
+        display_name_to_settings_key = get_proof_settings_mapping()
+
+        for item in proof_options_items:
+            if not item["Enabled"]:
+                continue
+
+            proof_name = item["Option"]
+            unique_key = create_unique_proof_key(proof_name)
+
+            # Determine the base proof type for validation
+            settings_key = None
+            for display_name, base_settings_key in display_name_to_settings_key.items():
+                if proof_name.startswith(display_name):
+                    settings_key = base_settings_key
+                    break
+            if not settings_key:
+                settings_key = "basic_paragraph_small"
+
+            # Get settings
+            cols_key = f"{unique_key}_cols"
+            para_key = f"{unique_key}_para"
+            otf_prefix = f"otf_{unique_key}_"
+
+            if cols_key in self.proof_settings:
+                cols_by_proof[proof_name] = self.proof_settings[cols_key]
+
+            if "Wordsiv" in proof_name and para_key in self.proof_settings:
+                paras_by_proof[proof_name] = self.proof_settings[para_key]
+
+            # Get OpenType features
+            otf_dict = {}
+            for key, value in self.proof_settings.items():
+                if key.startswith(otf_prefix):
+                    feature = key.replace(otf_prefix, "")
+                    otf_dict[feature] = bool(value)
+            otfeatures_by_proof[proof_name] = otf_dict
+
+        return otfeatures_by_proof, cols_by_proof, paras_by_proof
 
     def initialize_proof_settings(self):
         """Initialize proof-specific settings storage using the settings manager."""
@@ -1047,7 +1030,6 @@ class ProofWindow:
     def addSettingsFileCallback(self, sender):
         """Handle the Add Settings File button click."""
         try:
-            # Show file dialog to select settings file
             result = getFile(
                 title="Select Settings File",
                 messageText="Choose a JSON settings file to load:",
@@ -1058,11 +1040,10 @@ class ProofWindow:
             if result and len(result) > 0:
                 settings_file_path = result[0]
 
-                # Try to load the settings file
                 if self.app_settings_manager.load_user_settings_file(
                     settings_file_path
                 ):
-                    # Clear font manager and reload fonts
+                    # Clear and reload font manager
                     self.font_manager.fonts = tuple()
                     self.font_manager.font_info = {}
                     self.font_manager.axis_values_by_font = {}
@@ -1071,8 +1052,6 @@ class ProofWindow:
                     font_paths = self.settings.get_fonts()
                     if font_paths:
                         self.font_manager.load_fonts(font_paths)
-
-                        # Load axis values
                         for font_path in font_paths:
                             axis_values = self.settings.get_font_axis_values(font_path)
                             if axis_values:
@@ -1082,15 +1061,10 @@ class ProofWindow:
 
                     # Refresh UI
                     self.filesTab.update_table()
-
-                    # Refresh controls tab with new values
                     self.refresh_controls_tab()
-
                     self.initialize_proof_settings()
 
                     print(f"Settings loaded from: {settings_file_path}")
-
-                    # Show information dialog
                     message(
                         "Settings Loaded",
                         f"Settings have been loaded from:\n{settings_file_path}\n\n"
@@ -1112,17 +1086,13 @@ class ProofWindow:
     def refresh_controls_tab(self):
         """Refresh the controls tab with current settings values."""
         try:
-            # Use the dynamic proof options list
             self.controlsTab.refresh_proof_options_list()
-
-            # Update page format selection
             if hasattr(self.controlsTab.group, "pageFormatPopUp"):
                 current_format = self.settings.get_page_format()
                 if current_format in PAGE_FORMAT_OPTIONS:
                     self.controlsTab.group.pageFormatPopUp.set(
                         PAGE_FORMAT_OPTIONS.index(current_format)
                     )
-
         except Exception as e:
             print(f"Error refreshing controls tab: {e}")
             traceback.print_exc()

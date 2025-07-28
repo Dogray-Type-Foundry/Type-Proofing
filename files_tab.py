@@ -172,56 +172,41 @@ class FilesTab:
         if not self.font_manager.fonts:
             return
 
-        # Get the desired axis order from the first font
         desired_axes_order = self.font_manager.get_all_axes()
-
-        # Get current column identifiers
         current_columns = self.group.tableView.getColumnIdentifiers()
-
-        # Base columns that should always be first
         base_column_ids = [desc["identifier"] for desc in self.base_column_descriptions]
-
-        # Find which axis columns currently exist
         existing_axis_columns = [
             col for col in current_columns if col not in base_column_ids
         ]
 
-        # Only reorder if we have axis columns and they're not already in the right order
         if existing_axis_columns and existing_axis_columns != desired_axes_order:
-            # Build the new column order: base columns + axes in first font's order
-            new_column_order = base_column_ids[:]
+            # Build new column order: base + axes in first font's order
+            new_column_order = base_column_ids + [
+                axis for axis in desired_axes_order if axis in existing_axis_columns
+            ]
+            # Add remaining axis columns not in the first font
+            new_column_order.extend(
+                [axis for axis in existing_axis_columns if axis not in new_column_order]
+            )
 
-            # Add axes in the order they appear in the first font
-            for axis in desired_axes_order:
-                if axis in existing_axis_columns:
-                    new_column_order.append(axis)
-
-            # Add any remaining axis columns that aren't in the first font
-            for axis in existing_axis_columns:
-                if axis not in new_column_order:
-                    new_column_order.append(axis)
-
-            # Apply the new column order if it's different from current
             if new_column_order != current_columns:
-                # Store current table data
                 current_data = self.group.tableView.get()
 
-                # Remove all axis columns
+                # Remove and re-add axis columns in new order
                 for axis in existing_axis_columns:
                     self.group.tableView.removeColumn(axis)
 
-                # Re-add axis columns in the new order
                 for axis in new_column_order:
-                    if axis not in base_column_ids:  # Skip base columns
-                        column_desc = {
-                            "identifier": axis,
-                            "title": axis,
-                            "width": 180,
-                            "editable": True,
-                        }
-                        self.group.tableView.appendColumn(column_desc)
+                    if axis not in base_column_ids:
+                        self.group.tableView.appendColumn(
+                            {
+                                "identifier": axis,
+                                "title": axis,
+                                "width": 180,
+                                "editable": True,
+                            }
+                        )
 
-                # Restore table data
                 self.group.tableView.set(current_data)
 
     def reset_table_columns(self):
@@ -347,7 +332,7 @@ class FilesTab:
             # Get current table data
             table_data = list(self.group.tableView.get())
 
-            # Remove items to move (in reverse order to maintain indices)
+            # Remove items to move in reverse order to maintain indices
             moved_items = []
             for idx in sorted(indexes, reverse=True):
                 if 0 <= idx < len(table_data):
@@ -366,7 +351,7 @@ class FilesTab:
             new_font_paths = [row["_path"] for row in table_data if "_path" in row]
             if new_font_paths:
                 self.font_manager.fonts = tuple(new_font_paths)
-                # Update axis values using the appropriate method
+                # Update axis values
                 if hasattr(self, "current_axes"):
                     self.font_manager.update_axis_values_from_individual_axes_table(
                         table_data, self.current_axes

@@ -24,11 +24,9 @@ def refresh_path_control(path_control, url):
             return
 
         # Handle different URL formats
-        if isinstance(url, str):
-            if not url.startswith("file://"):
-                url = f"file://{normalize_path(url)}"
+        if isinstance(url, str) and not url.startswith("file://"):
+            url = f"file://{normalize_path(url)}"
 
-        # Set the path control
         path_control.set(url)
 
         # Force refresh for app bundle compatibility
@@ -39,7 +37,6 @@ def refresh_path_control(path_control, url):
 
     except Exception as e:
         log_error(f"PathControl refresh failed: {e}", "refresh_path_control")
-        # Fallback: try setting the original URL
         try:
             path_control.set(url)
         except Exception:
@@ -202,25 +199,27 @@ def calculate_text_bounds(text, font_size, font_name="Arial"):
 # =============================================================================
 
 
-def format_table_data(raw_data):
-    """Format raw data for table display"""
-    try:
-        if not raw_data:
-            return []
+def format_table_data(data_list, display_name_mapping=None, value_formatter=None):
+    """
+    Format data for PopUpButton display and value mapping.
+    Returns (display_items, value_map) where value_map[display_name] = actual_value
+    """
+    if not data_list:
+        return [], {}
 
-        if isinstance(raw_data, list):
-            return raw_data
+    display_items = []
+    value_map = {}
 
-        if isinstance(raw_data, dict):
-            # Convert dict to list of dicts
-            return [{"key": k, "value": v} for k, v in raw_data.items()]
+    for item in data_list:
+        display_name = (
+            display_name_mapping.get(item, item) if display_name_mapping else item
+        )
+        actual_value = value_formatter(item) if value_formatter else item
 
-        # Convert other types to string representation
-        return [{"value": str(raw_data)}]
+        display_items.append(display_name)
+        value_map[display_name] = actual_value
 
-    except Exception as e:
-        log_error(f"Failed to format table data: {e}")
-        return []
+    return display_items, value_map
 
 
 def merge_font_data(font_list, axis_data):
