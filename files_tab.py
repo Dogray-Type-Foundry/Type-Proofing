@@ -2,10 +2,9 @@
 
 import os
 import traceback
-import urllib.parse
 import vanilla
 from utils import normalize_path, validate_font_path, log_error
-from ui_utils import refresh_path_control, create_font_drop_data, format_table_data
+from ui_utils import refresh_path_control
 
 
 class FilesTab:
@@ -185,10 +184,11 @@ class FilesTab:
 
     def get_first_font_folder(self):
         """Get the folder path of the first font in the list."""
-        if self.font_manager.fonts:
-            first_font_path = self.font_manager.fonts[0]
-            return os.path.dirname(first_font_path)
-        return ""
+        return (
+            os.path.dirname(self.font_manager.fonts[0])
+            if self.font_manager.fonts
+            else ""
+        )
 
     def update_table(self):
         """Update the table with current font data."""
@@ -348,36 +348,22 @@ class FilesTab:
     def axisEditCallback(self, sender):
         """Handle axis editing in the table."""
         table_data = sender.get()
-        if hasattr(self, "current_axes"):
-            self.font_manager.update_axis_values_from_table(
-                table_data, self.current_axes
-            )
-        else:
-            # Fallback to old method if current_axes not available
-            self.font_manager.update_axis_values_from_table(table_data)
+        axes = getattr(self, "current_axes", None)
+        self.font_manager.update_axis_values_from_table(table_data, axes)
 
     def makeDragDataCallback(self, index):
         """Create drag data for internal reordering."""
         table_data = self.group.tableView.get()
-        if 0 <= index < len(table_data):
-            row = table_data[index]
-            typesAndValues = {
-                "dev.drawbot.proof.fontListIndexes": index,
-                "dev.drawbot.proof.fontData": row,
-            }
-            return typesAndValues
-        return {}
+        if not (0 <= index < len(table_data)):
+            return {}
+        return {
+            "dev.drawbot.proof.fontListIndexes": index,
+            "dev.drawbot.proof.fontData": table_data[index],
+        }
 
     def dropCandidateCallback(self, info):
         """Handle drop candidate validation for both file drops and reordering."""
-        source = info["source"]
-
-        # Internal reordering
-        if source == self.group.tableView:
-            return "move"
-
-        # File drops from external sources
-        return "copy"
+        return "move" if info["source"] == self.group.tableView else "copy"
 
     def performDropCallback(self, info):
         """Handle both file drops and internal reordering."""
