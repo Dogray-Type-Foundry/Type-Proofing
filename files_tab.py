@@ -21,6 +21,24 @@ class FilesTab:
         # Update table with any fonts loaded from settings
         self.update_table()
 
+    # ============ Helper Methods ============
+
+    def _refresh_after_font_changes(self):
+        """Refresh UI components after font changes."""
+        self.update_table()
+        self.parent_window.initialize_proof_settings()
+
+    def _sync_table_with_backend(self):
+        """Sync font manager backend with table UI state."""
+        table_data = self.group.tableView.get()
+        font_paths = [row["_path"] for row in table_data if "_path" in row]
+        # Find indices of fonts to remove
+        indices_to_remove = []
+        for i, font_path in enumerate(self.font_manager.fonts):
+            if font_path not in font_paths:
+                indices_to_remove.append(i)
+        self.font_manager.remove_fonts_by_indices(indices_to_remove)
+
     def create_ui(self):
         """Create the Files tab UI components."""
         self.group = vanilla.Group((0, 0, -0, -0))
@@ -256,8 +274,7 @@ class FilesTab:
                     print(f"Skipping invalid font file: {path}")
 
             if validated_paths and self.font_manager.add_fonts(validated_paths):
-                self.update_table()
-                self.parent_window.initialize_proof_settings()
+                self._refresh_after_font_changes()
                 # Update PDF location UI to populate PathControl with first font's folder
                 self.update_pdf_location_ui()
             else:
@@ -268,17 +285,8 @@ class FilesTab:
     def removeFontsCallback(self, sender):
         """Handle the Remove Selected button click."""
         self.group.tableView.removeSelection()
-        # Sync backend with UI
-        table_data = self.group.tableView.get()
-        font_paths = [row["_path"] for row in table_data if "_path" in row]
-        # Find indices of fonts to remove
-        indices_to_remove = []
-        for i, font_path in enumerate(self.font_manager.fonts):
-            if font_path not in font_paths:
-                indices_to_remove.append(i)
-        self.font_manager.remove_fonts_by_indices(indices_to_remove)
-        self.update_table()
-        self.parent_window.initialize_proof_settings()
+        self._sync_table_with_backend()
+        self._refresh_after_font_changes()
 
     def axisEditCallback(self, sender):
         """Handle axis editing in the table."""
