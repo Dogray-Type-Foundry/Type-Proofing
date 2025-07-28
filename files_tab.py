@@ -4,31 +4,8 @@ import os
 import traceback
 import urllib.parse
 import vanilla
-from Foundation import NSObject
-import objc
 from utils import normalize_path, validate_font_path, log_error
 from ui_utils import refresh_path_control, create_font_drop_data, format_table_data
-
-
-class FontListDelegate(NSObject):
-    """Delegate for handling font list drag and drop operations."""
-
-    def init(self):
-        """Initialize and return self."""
-        self = objc.super(FontListDelegate, self).init()
-        if self is None:
-            return None
-        return self
-
-    def tableView_validateDrop_proposedRow_proposedDropOperation_(
-        self, table_view, info, row, operation
-    ):
-        """Validate drop operations for the font list."""
-        return True
-
-    def tableView_acceptDrop_row_dropOperation_(self, table_view, info, row, operation):
-        """Handle drop operations for the font list."""
-        return True
 
 
 class FilesTab:
