@@ -3,7 +3,7 @@
 import os
 from fontTools.ttLib import TTFont
 from fontTools.agl import toUnicode
-from utils import safe_font_load, log_error
+from utils import safe_font_load, log_error, normalize_path
 
 # Cache for TTFont instances to avoid repeated loading
 _ttfont_cache = {}
@@ -72,18 +72,8 @@ def filteredCharset(input_font):
 
 
 def normalize_font_path(path):
-    """Normalize path from various input types."""
-    try:
-        import AppKit
-
-        if isinstance(path, AppKit.NSURL):
-            return path.path()
-    except ImportError:
-        pass
-
-    if isinstance(path, str) and path.startswith("file://"):
-        return path.replace("file://", "")
-    return str(path)
+    """Normalize path from various input types for font files."""
+    return normalize_path(path, font_specific=True)
 
 
 def is_valid_font_file(path):

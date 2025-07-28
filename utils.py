@@ -13,17 +13,34 @@ from urllib.parse import urlparse, unquote
 # =============================================================================
 
 
-def normalize_path(path):
-    """Normalize path from various input types (URL, string, etc.)"""
+def normalize_path(path, font_specific=False):
+    """Normalize path from various input types (URL, string, AppKit.NSURL, etc.)"""
     if not path:
         return ""
 
-    # Handle URL format
-    if isinstance(path, str) and path.startswith("file://"):
-        parsed = urlparse(path)
-        path = unquote(parsed.path)
+    # Handle AppKit.NSURL objects for font-specific paths
+    if font_specific:
+        try:
+            import AppKit
 
-    return os.path.abspath(os.path.expanduser(path))
+            if isinstance(path, AppKit.NSURL):
+                return path.path()
+        except ImportError:
+            pass
+
+    # Handle URL format
+    if isinstance(path, str):
+        if path.startswith("file://"):
+            if font_specific:
+                return path.replace("file://", "")
+            else:
+                parsed = urlparse(path)
+                path = unquote(parsed.path)
+
+    if font_specific:
+        return str(path)
+    else:
+        return os.path.abspath(os.path.expanduser(str(path)))
 
 
 def ensure_directory_exists(directory):
