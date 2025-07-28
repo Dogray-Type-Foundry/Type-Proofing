@@ -248,12 +248,12 @@ class ProofWindow:
 
     def _get_font_features(self):
         """Get OpenType features from the first loaded font."""
-        if self.font_manager.fonts:
-            try:
-                return db.listOpenTypeFeatures(self.font_manager.fonts[0])
-            except Exception:
-                return []
-        return []
+        if not self.font_manager.fonts:
+            return []
+        try:
+            return db.listOpenTypeFeatures(self.font_manager.fonts[0])
+        except Exception:
+            return []
 
     def _setup_category_controls(self, popover, proof_key, show=True):
         """Setup character category controls for popover."""
@@ -395,27 +395,27 @@ class ProofWindow:
         self._exiting = True
 
         def _cleanup_operation():
-            # Try to save settings quickly without full validation
-            if hasattr(self, "settings"):
+            # Silent cleanup operations that should not fail the exit process
+            cleanup_tasks = [
+                lambda: self.settings.save() if hasattr(self, "settings") else None,
+                lambda: (
+                    setattr(sys, "stdout", self._original_stdout)
+                    if hasattr(self, "_original_stdout")
+                    else None
+                ),
+                lambda: (
+                    setattr(sys, "stderr", self._original_stderr)
+                    if hasattr(self, "_original_stderr")
+                    else None
+                ),
+                lambda: AppHelper.stopEventLoop(),
+            ]
+
+            for task in cleanup_tasks:
                 try:
-                    self.settings.save()
+                    task()
                 except:
                     pass
-
-            # Restore stdout and stderr
-            try:
-                if hasattr(self, "_original_stdout"):
-                    sys.stdout = self._original_stdout
-                if hasattr(self, "_original_stderr"):
-                    sys.stderr = self._original_stderr
-            except:
-                pass
-
-            # Stop the event loop
-            try:
-                AppHelper.stopEventLoop()
-            except:
-                pass
 
         # Use silent error handling for cleanup
         try:
