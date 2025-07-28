@@ -5,10 +5,8 @@ from fontTools.ttLib import TTFont
 from fontTools.agl import toUnicode
 from utils import safe_font_load, log_error, normalize_path
 
-# Cache for TTFont instances to avoid repeated loading
 _ttfont_cache = {}
 
-# Character templates
 UPPER_TEMPLATE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 LOWER_TEMPLATE = "abcdefghijklmnopqrstuvwxyz"
 

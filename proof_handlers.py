@@ -9,7 +9,6 @@ from proof_generation import (
 )
 from script_texts import arabicVocalization, arabicLatinMixed, arabicFarsiUrduNumbers
 
-# Import proof texts for mixed text handling
 try:
     from sample_texts import bigRandomNumbers, additionalSmallText
 except ImportError:
