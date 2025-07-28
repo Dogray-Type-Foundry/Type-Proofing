@@ -118,7 +118,6 @@ class ProofWindow:
         self.font_manager = FontManager(self.settings)
 
         # Initialize settings managers
-        self.settings = Settings()
         self.proof_settings_manager = ProofSettingsManager(
             self.settings, self.font_manager
         )
