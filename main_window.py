@@ -230,30 +230,55 @@ class ProofWindow:
                 return []
         return []
 
+    def _setup_category_controls(self, popover, proof_key, show=True):
+        """Setup character category controls for popover."""
+        controls = [
+            (popover.categoryLabel, None),
+            (popover.categoryUppercase, "uppercase_base"),
+            (popover.categoryLowercase, "lowercase_base"),
+            (popover.categoryNumbersSymbols, "numbers_symbols"),
+            (popover.categoryPunctuation, "punctuation"),
+            (popover.categoryAccented, "accented"),
+        ]
+
+        for control, category_key in controls:
+            control.show(show)
+            if show and category_key:
+                setting_key = f"{proof_key}_cat_{category_key}"
+                defaults = {
+                    "uppercase_base": True,
+                    "lowercase_base": True,
+                    "numbers_symbols": True,
+                    "punctuation": True,
+                    "accented": False,
+                }
+                value = self.proof_settings.get(
+                    setting_key, defaults.get(category_key, True)
+                )
+                control.set(value)
+
     def _build_feature_settings(self, proof_key, feature_tags):
         """Build feature settings list for a given proof and feature tags."""
         feature_items = []
         for tag in feature_tags:
-            # Skip hidden features
             if tag in HIDDEN_FEATURES:
                 continue
 
             feature_key = f"otf_{proof_key}_{tag}"
+            default_value = tag in self.default_on_features
 
-            # Special handling for Spacing_Proof kern feature
+            # Special handling for Spacing_Proof kern feature (always off)
             if proof_key == "spacing_proof" and tag == "kern":
-                feature_value = False
                 self.proof_settings[feature_key] = False
                 feature_items.append(
                     {
                         "Feature": f"{tag} (always off)",
-                        "Enabled": feature_value,
+                        "Enabled": False,
                         "_key": feature_key,
                         "_readonly": True,
                     }
                 )
             else:
-                default_value = tag in self.default_on_features
                 feature_value = self.proof_settings.get(feature_key, default_value)
                 feature_items.append(
                     {"Feature": tag, "Enabled": feature_value, "_key": feature_key}
@@ -309,26 +334,10 @@ class ProofWindow:
                 self.settings.reset_to_defaults()
 
                 # Override proof options to all be False (unchecked)
-                proof_option_keys = [
-                    "show_baselines",
-                    "filtered_character_set",
-                    "spacing_proof",
-                    "basic_paragraph_large",
-                    "diacritic_words_large",
-                    "basic_paragraph_small",
-                    "paired_styles_paragraph_small",
-                    "generative_text_small",
-                    "diacritic_words_small",
-                    "misc_paragraph_small",
-                    "ar_character_set",
-                    "ar_paragraph_large",
-                    "fa_paragraph_large",
-                    "ar_paragraph_small",
-                    "fa_paragraph_small",
-                    "ar_vocalization_paragraph_small",
-                    "ar_lat_mixed_paragraph_small",
-                    "ar_numbers_small",
-                ]
+                # Use the centralized mapping to get all proof keys
+                proof_option_keys = ["show_baselines"] + list(
+                    self.PROOF_NAME_TO_KEY.values()
+                )
 
                 for option_key in proof_option_keys:
                     self.settings.set_proof_option(option_key, False)
@@ -366,7 +375,6 @@ class ProofWindow:
 
     def windowShouldCloseCallback(self, sender):
         """Handle the window should close event to ensure proper cleanup."""
-        # Just allow the close, cleanup will be handled by windowCloseCallback
         return True
 
     def _perform_cleanup_and_exit(self):
@@ -382,7 +390,7 @@ class ProofWindow:
                 try:
                     self.settings.save()
                 except:
-                    pass  # Don't fail if settings can't be saved
+                    pass
 
             # Restore stdout and stderr
             try:
@@ -403,11 +411,9 @@ class ProofWindow:
         try:
             _cleanup_operation()
         except:
-            pass  # Don't let any error prevent exit
+            pass
 
         # Force exit the Python process
-        import os
-
         os._exit(0)
 
     def generateCallback(self, sender):
@@ -434,9 +440,6 @@ class ProofWindow:
 
                 # Use the currently loaded fonts
                 fonts = self.font_manager.fonts
-                familyName = os.path.splitext(os.path.basename(fonts[0]))[0].split("-")[
-                    0
-                ]
 
                 # Read axis values - now handled through Files tab per-font settings
                 userAxesValues = {}
@@ -779,45 +782,9 @@ class ProofWindow:
 
         # Update character category controls for Filtered Character Set and Spacing Proof
         if proof_key in ["filtered_character_set", "spacing_proof"]:
-            # Show character category controls
-            popover.categoryLabel.show(True)
-            popover.categoryUppercase.show(True)
-            popover.categoryLowercase.show(True)
-            popover.categoryNumbersSymbols.show(True)
-            popover.categoryPunctuation.show(True)
-            popover.categoryAccented.show(True)
-
-            # Update checkbox states based on current settings
-            category_controls = [
-                (popover.categoryUppercase, "uppercase_base"),
-                (popover.categoryLowercase, "lowercase_base"),
-                (popover.categoryNumbersSymbols, "numbers_symbols"),
-                (popover.categoryPunctuation, "punctuation"),
-                (popover.categoryAccented, "accented"),
-            ]
-
-            for control, category_key in category_controls:
-                setting_key = f"{proof_key}_cat_{category_key}"
-                # Default values: most categories enabled except accented
-                defaults = {
-                    "uppercase_base": True,
-                    "lowercase_base": True,
-                    "numbers_symbols": True,
-                    "punctuation": True,
-                    "accented": False,
-                }
-                value = self.proof_settings.get(
-                    setting_key, defaults.get(category_key, True)
-                )
-                control.set(value)
+            self._setup_category_controls(popover, proof_key, show=True)
         else:
-            # Hide character category controls for other proof types
-            popover.categoryLabel.show(False)
-            popover.categoryUppercase.show(False)
-            popover.categoryLowercase.show(False)
-            popover.categoryNumbersSymbols.show(False)
-            popover.categoryPunctuation.show(False)
-            popover.categoryAccented.show(False)
+            self._setup_category_controls(popover, proof_key, show=False)
 
     def characterCategoryCallback(self, sender):
         """Handle character category checkbox changes."""
@@ -873,74 +840,60 @@ class ProofWindow:
     def configureSteppersForNumericList(self, numeric_list, items):
         """Configure stepper cells in the numeric list with appropriate min/max/increment values."""
 
-        # Use a delayed call to allow the table to be fully rendered first
         def configure_delayed():
-            # Get the NSTableView from the List2 object
             table_view = numeric_list.getNSTableView()
-
-            # Access the data source to get cell wrappers
             data_source = table_view.dataSource()
 
-            # Configure steppers for each row
             for row_index, item in enumerate(items):
-                if "Setting" in item:
-                    setting_name = item["Setting"]
-                    stepper_config = get_stepper_config_for_setting(setting_name)
+                if "Setting" not in item:
+                    continue
 
-                    # Get the NSView for the "Value" column (column index 1)
+                setting_name = item["Setting"]
+                stepper_config = get_stepper_config_for_setting(setting_name)
+
+                # Get the NSView for the "Value" column (column index 1)
+                try:
+                    ns_cell_view = table_view.viewAtColumn_row_(
+                        1, row_index, makeIfNecessary=True
+                    )
+                except AttributeError:
                     try:
-                        ns_cell_view = table_view.viewAtColumn_row_(
-                            1, row_index, makeIfNecessary=True
+                        ns_cell_view = table_view.makeViewWithIdentifier_owner_(
+                            "Value", data_source
                         )
-                    except AttributeError:
-                        # Try alternative method names
-                        try:
-                            ns_cell_view = table_view.makeViewWithIdentifier_owner_(
-                                "Value", data_source
-                            )
-                        except:
-                            continue
+                    except:
+                        continue
 
-                    # Try multiple approaches to get the vanilla wrapper
-                    vanilla_wrapper = None
+                # Find the vanilla wrapper through multiple approaches
+                vanilla_wrapper = None
+                if ns_cell_view and hasattr(data_source, "_cellWrappers"):
+                    vanilla_wrapper = data_source._cellWrappers.get(ns_cell_view)
 
-                    # Approach 1: Get from data source cell wrappers
-                    if ns_cell_view and hasattr(data_source, "_cellWrappers"):
-                        vanilla_wrapper = data_source._cellWrappers.get(ns_cell_view)
+                if (
+                    not vanilla_wrapper
+                    and ns_cell_view
+                    and hasattr(ns_cell_view, "vanillaWrapper")
+                ):
+                    try:
+                        vanilla_wrapper = ns_cell_view.vanillaWrapper()
+                    except:
+                        pass
 
-                    # Approach 2: Check if the NSView has a vanillaWrapper method
-                    if (
-                        not vanilla_wrapper
-                        and ns_cell_view
-                        and hasattr(ns_cell_view, "vanillaWrapper")
-                    ):
-                        try:
-                            vanilla_wrapper = ns_cell_view.vanillaWrapper()
-                        except:
-                            pass
+                if not vanilla_wrapper and hasattr(
+                    ns_cell_view, "setStepperConfiguration_"
+                ):
+                    vanilla_wrapper = ns_cell_view
 
-                    # Approach 3: Check if NSView is actually the vanilla wrapper
-                    if not vanilla_wrapper and hasattr(
-                        ns_cell_view, "setStepperConfiguration_"
-                    ):
-                        vanilla_wrapper = ns_cell_view
+                if vanilla_wrapper and hasattr(
+                    vanilla_wrapper, "setStepperConfiguration_"
+                ):
+                    vanilla_wrapper.setStepperConfiguration_(stepper_config)
+                    if "_key" in item:
+                        vanilla_wrapper.setChangeCallback_withKey_(
+                            self.stepperChangeCallback, item["_key"]
+                        )
 
-                    if vanilla_wrapper and hasattr(
-                        vanilla_wrapper, "setStepperConfiguration_"
-                    ):
-                        vanilla_wrapper.setStepperConfiguration_(stepper_config)
-
-                        # Set the callback for this specific cell
-                        if "_key" in item:
-                            vanilla_wrapper.setChangeCallback_withKey_(
-                                self.stepperChangeCallback, item["_key"]
-                            )
-
-        # Use performSelector to delay the configuration
         callAfter(configure_delayed)
-
-        # Try immediate configuration as well
-        configure_delayed()
 
     def numericSettingsEditCallback(self, sender):
         """Handle edits to numeric settings in popover."""
@@ -1304,45 +1257,9 @@ class ProofWindow:
 
             # Update character category controls for Filtered Character Set and Spacing Proof instances
             if base_proof_key in ["filtered_character_set", "spacing_proof"]:
-                # Show character category controls
-                popover.categoryLabel.show(True)
-                popover.categoryUppercase.show(True)
-                popover.categoryLowercase.show(True)
-                popover.categoryNumbersSymbols.show(True)
-                popover.categoryPunctuation.show(True)
-                popover.categoryAccented.show(True)
-
-                # Update checkbox states based on current settings for this instance
-                category_controls = [
-                    (popover.categoryUppercase, "uppercase_base"),
-                    (popover.categoryLowercase, "lowercase_base"),
-                    (popover.categoryNumbersSymbols, "numbers_symbols"),
-                    (popover.categoryPunctuation, "punctuation"),
-                    (popover.categoryAccented, "accented"),
-                ]
-
-                for control, category_key in category_controls:
-                    setting_key = f"{unique_proof_key}_cat_{category_key}"
-                    # Default values: most categories enabled except accented
-                    defaults = {
-                        "uppercase_base": True,
-                        "lowercase_base": True,
-                        "numbers_symbols": True,
-                        "punctuation": True,
-                        "accented": False,
-                    }
-                    value = self.proof_settings.get(
-                        setting_key, defaults.get(category_key, True)
-                    )
-                    control.set(value)
+                self._setup_category_controls(popover, unique_proof_key, show=True)
             else:
-                # Hide character category controls for other proof types
-                popover.categoryLabel.show(False)
-                popover.categoryUppercase.show(False)
-                popover.categoryLowercase.show(False)
-                popover.categoryNumbersSymbols.show(False)
-                popover.categoryPunctuation.show(False)
-                popover.categoryAccented.show(False)
+                self._setup_category_controls(popover, unique_proof_key, show=False)
 
         except Exception as e:
             print(f"Error updating proof settings popover: {e}")
