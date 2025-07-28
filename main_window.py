@@ -8,7 +8,10 @@ import datetime
 from itertools import product
 import vanilla
 import AppKit
+import drawBot as db
 from PyObjCTools import AppHelper
+from PyObjCTools.AppHelper import callAfter
+from vanilla.dialogs import askYesNo, getFile, message
 
 from core_config import (
     WINDOW_TITLE,
@@ -26,11 +29,7 @@ from proof_config import (
     get_proof_by_settings_key,
 )
 from font_manager import FontManager
-from variable_font_utils import (
-    product_dict,
-    variableFont,
-    pairStaticStyles,
-)
+from variable_font_utils import product_dict, variableFont, pairStaticStyles
 from font_utils import filteredCharset
 from utils import validate_setting_value, safe_execute
 from stepper_cell import (
@@ -40,10 +39,7 @@ from stepper_cell import (
     clear_row_settings,
 )
 from character_analysis import categorize
-from proof_generation import (
-    charsetProof,
-    spacingProof,
-)
+from proof_generation import charsetProof, spacingProof
 from proof_handlers import (
     ProofContext,
     get_proof_handler,
@@ -54,9 +50,6 @@ from settings_manager import Settings, ProofSettingsManager, get_app_settings
 from files_tab import FilesTab
 from controls_tab import ControlsTab
 from pdf_manager import PDFManager
-from PyObjCTools.AppHelper import callAfter
-from vanilla.dialogs import askYesNo, getFile, message
-import drawBot as db
 
 
 def close_existing_windows(window_title):

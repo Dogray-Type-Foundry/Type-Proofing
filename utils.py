@@ -8,11 +8,6 @@ import re
 from urllib.parse import urlparse, unquote
 
 
-# =============================================================================
-# File and Path Utilities
-# =============================================================================
-
-
 def normalize_path(path, font_specific=False):
     """Normalize path from various input types (URL, string, AppKit.NSURL, etc.)"""
     if not path:
@@ -130,11 +125,6 @@ def format_file_size(bytes_size):
     return f"{size:.1f} {size_names[i]}"
 
 
-# =============================================================================
-# JSON File Operations
-# =============================================================================
-
-
 def safe_json_load(file_path, default=None):
     """Safely load JSON file with error handling"""
     try:
@@ -161,11 +151,6 @@ def safe_json_save(data, file_path):
     except Exception as e:
         log_error(f"Failed to save JSON to {file_path}: {e}")
         return False
-
-
-# =============================================================================
-# String Processing Utilities
-# =============================================================================
 
 
 def clean_font_name(name):
@@ -214,11 +199,6 @@ def truncate_text(text, max_length=100, suffix="..."):
         return text
 
     return text[: max_length - len(suffix)] + suffix
-
-
-# =============================================================================
-# Validation Utilities
-# =============================================================================
 
 
 def validate_font_path(path):
@@ -327,11 +307,6 @@ def validate_setting_value(key, value):
         return False, None, f"invalid value: {value}"
 
 
-# =============================================================================
-# Error Handling and Logging
-# =============================================================================
-
-
 def log_error(error, context=""):
     """Log error with context information"""
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -376,8 +351,3 @@ def safe_font_load(font_path):
     except Exception as e:
         log_error(f"Failed to load font {font_path}: {e}", "safe_font_load")
         return None
-
-
-# =============================================================================
-# System Integration Utilities
-# =============================================================================

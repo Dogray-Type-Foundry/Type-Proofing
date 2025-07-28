@@ -5,12 +5,8 @@ import os
 import random
 import traceback
 import unicodedata
-
-# Third-party imports
 import drawBot as db
 from wordsiv import WordSiv
-
-# Local imports
 from core_config import (
     marginHorizontal,
     marginVertical,
@@ -31,7 +27,6 @@ from font_utils import (
 )
 from variable_font_utils import product_dict
 
-# Import drawbot grid extension
 try:
     from drawBotGrid import BaselineGrid, columnBaselineGridTextBox
 except ImportError:
@@ -39,7 +34,6 @@ except ImportError:
     BaselineGrid = None
     columnBaselineGridTextBox = None
 
-# Import proof texts
 try:
     from sample_texts import (
         bigMixedText,
@@ -63,7 +57,6 @@ try:
     )
     from text_generators import text_generator, TextGenerator
 
-    # Create a namespace object to mimic the old prooftexts module
     class ProofTexts:
         def __init__(self):
             self.bigMixedText = bigMixedText

@@ -1,14 +1,15 @@
 # UI Utilities - Interface helpers, drawing utilities, and data formatting for UI components
+
+import os
 from datetime import datetime
-from utils import log_error, format_timestamp, normalize_path
+from urllib.parse import unquote
 import vanilla
 import AppKit
 import objc
-import os
-from urllib.parse import unquote
+import drawBot as db
 from Foundation import NSURL
 import core_config
-import drawBot as db
+from utils import log_error, format_timestamp, normalize_path
 
 
 # =============================================================================
