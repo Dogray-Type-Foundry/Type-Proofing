@@ -15,7 +15,6 @@ DATA_FILES = [
     "utils.py",
     "ui_utils.py",
     "ui_interface.py",
-    "ui_config.py",
     "text_generators.py",
     "stepper_cell.py",
     "settings_manager.py",

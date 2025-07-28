@@ -197,21 +197,6 @@ def calculate_text_bounds(text, font_size, font_name="Arial"):
         return {"width": 0, "height": 0}
 
 
-def center_text_on_page(text, page_width, page_height, font_size=12, font_name="Arial"):
-    """Calculate centered text position"""
-    try:
-        bounds = calculate_text_bounds(text, font_size, font_name)
-
-        x = (page_width - bounds["width"]) / 2
-        y = (page_height - bounds["height"]) / 2
-
-        return {"x": x, "y": y, "width": bounds["width"], "height": bounds["height"]}
-
-    except Exception as e:
-        log_error(f"Failed to center text: {e}")
-        return {"x": 0, "y": 0, "width": 0, "height": 0}
-
-
 # =============================================================================
 # Data Processing for UI
 # =============================================================================
@@ -347,64 +332,3 @@ def parse_axis_value_input(input_string):
 # =============================================================================
 # Font-specific UI Utilities
 # =============================================================================
-
-
-def generate_font_preview_text(font_path, sample_text="The quick brown fox"):
-    """Generate preview text for a font"""
-    try:
-        from utils import safe_font_load
-
-        ttfont = safe_font_load(font_path)
-        if not ttfont:
-            return sample_text
-
-        # Get character set from font
-        cmap = ttfont.getBestCmap()
-        available_chars = set(cmap.keys()) if cmap else set()
-
-        # Filter sample text to only include available characters
-        filtered_chars = []
-        for char in sample_text:
-            if ord(char) in available_chars:
-                filtered_chars.append(char)
-            elif char.isspace():
-                filtered_chars.append(char)  # Keep spaces
-
-        preview = "".join(filtered_chars)
-        return preview if preview.strip() else sample_text
-
-    except Exception as e:
-        log_error(f"Failed to generate font preview: {e}")
-        return sample_text
-
-
-def get_font_display_name(font_path):
-    """Get display name for font in UI"""
-    try:
-        from utils import safe_font_load
-
-        ttfont = safe_font_load(font_path)
-        if ttfont and "name" in ttfont:
-            name_table = ttfont["name"]
-
-            # Try to get family name (ID 1) and style name (ID 2)
-            family_name = None
-            style_name = None
-
-            for record in name_table.names:
-                if record.nameID == 1:  # Family name
-                    family_name = str(record)
-                elif record.nameID == 2:  # Style name
-                    style_name = str(record)
-
-            if family_name:
-                if style_name and style_name.lower() not in ["regular", "normal"]:
-                    return f"{family_name} {style_name}"
-                return family_name
-
-        # Fallback to filename
-        return os.path.splitext(os.path.basename(font_path))[0]
-
-    except Exception as e:
-        log_error(f"Failed to get font display name: {e}")
-        return os.path.splitext(os.path.basename(font_path))[0]
