@@ -285,6 +285,31 @@ def is_valid_numeric_input(value):
         return False
 
 
+def validate_setting_value(key, value):
+    """Validate and convert setting values based on key type.
+
+    Args:
+        key: Setting key (used to determine validation rules)
+        value: Value to validate and convert
+
+    Returns:
+        tuple: (is_valid, converted_value, error_message)
+    """
+    try:
+        if "_tracking" in key:
+            # Tracking values can be float (including negative)
+            converted_value = float(value)
+            return True, converted_value, None
+        else:
+            # Other settings must be positive integers
+            converted_value = int(float(value))
+            if converted_value <= 0:
+                return False, None, "must be > 0"
+            return True, converted_value, None
+    except (ValueError, TypeError):
+        return False, None, f"invalid value: {value}"
+
+
 # =============================================================================
 # Error Handling and Logging
 # =============================================================================
@@ -295,6 +320,26 @@ def log_error(error, context=""):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     context_str = f" [{context}]" if context else ""
     print(f"[{timestamp}] ERROR{context_str}: {error}")
+
+
+def safe_execute(operation_name, func, *args, **kwargs):
+    """Safely execute an operation with standardized error handling.
+
+    Args:
+        operation_name: Name of the operation for error reporting
+        func: Function to execute
+        *args, **kwargs: Arguments to pass to the function
+
+    Returns:
+        bool: True if operation succeeded, False if it failed
+    """
+    try:
+        func(*args, **kwargs)
+        return True
+    except Exception as e:
+        print(f"Error in {operation_name}: {e}")
+        traceback.print_exc()
+        return False
 
 
 def safe_font_load(font_path):

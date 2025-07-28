@@ -28,6 +28,7 @@ from variable_font_utils import (
     pairStaticStyles,
 )
 from font_utils import filteredCharset
+from utils import validate_setting_value, safe_execute
 from stepper_cell import (
     StepperList2Cell,
     get_stepper_config_for_setting,
@@ -287,7 +288,7 @@ class ProofWindow:
             # Save the settings file
             self.settings.save()
 
-        self._safe_execute("save_all_settings", _save_operation)
+        safe_execute("save_all_settings", _save_operation)
 
     def resetSettingsCallback(self, sender):
         """Handle the Reset Settings button click."""
@@ -353,7 +354,7 @@ class ProofWindow:
 
                 print("Settings reset to defaults.")
 
-        self._safe_execute("resetSettingsCallback", _reset_operation)
+        safe_execute("resetSettingsCallback", _reset_operation)
 
     def closeWindowCallback(self, sender):
         """Handle the Close Window button click."""
@@ -539,7 +540,7 @@ class ProofWindow:
             sys.stderr = old_stderr
             self.debugTextEditor.set(buffer.getvalue())
 
-        self._safe_execute("generateCallback", _generate_operation)
+        safe_execute("generateCallback", _generate_operation)
 
     def initialize_proof_settings(self):
         """Initialize proof-specific settings storage using the settings manager."""
@@ -861,7 +862,7 @@ class ProofWindow:
 
     def stepperChangeCallback(self, setting_key, value):
         """Handle stepper value changes."""
-        is_valid, converted_value, error_msg = self._validate_setting_value(
+        is_valid, converted_value, error_msg = validate_setting_value(
             setting_key, value
         )
         if not is_valid:
@@ -948,8 +949,8 @@ class ProofWindow:
             if "_key" in item:
                 key = item["_key"]
                 value = item["Value"]
-                is_valid, converted_value, error_msg = self._validate_setting_value(
-                    key, item["Value"]
+                is_valid, converted_value, error_msg = validate_setting_value(
+                    key, value
                 )
                 if not is_valid:
                     print(f"Invalid value for {item['Setting']}: {error_msg}")
@@ -1347,28 +1348,4 @@ class ProofWindow:
             print(f"Error updating proof settings popover: {e}")
             traceback.print_exc()
 
-    def _validate_setting_value(self, key, value):
-        # Validate and convert setting values based on key type
-        try:
-            if "_tracking" in key:
-                # Tracking values can be float (including negative)
-                converted_value = float(value)
-                return True, converted_value, None
-            else:
-                # Other settings must be positive integers
-                converted_value = int(float(value))
-                if converted_value <= 0:
-                    return False, None, "must be > 0"
-                return True, converted_value, None
-        except (ValueError, TypeError):
-            return False, None, f"invalid value: {value}"
-
-    def _safe_execute(self, operation_name, func, *args, **kwargs):
-        # Safely execute an operation with standardized error handling
-        try:
-            func(*args, **kwargs)
-            return True
-        except Exception as e:
-            print(f"Error in {operation_name}: {e}")
-            traceback.print_exc()
-            return False
+        return False
