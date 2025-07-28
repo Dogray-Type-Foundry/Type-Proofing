@@ -36,11 +36,6 @@ class FontManager:
             if saved_fonts:
                 self.fonts = tuple(saved_fonts)
                 self.update_font_info()
-                # Load axis values from settings
-                for font_path in self.fonts:
-                    axis_values = self.settings.get_font_axis_values(font_path)
-                    if axis_values:
-                        self.axis_values_by_font[font_path] = axis_values
 
     def add_fonts(self, paths):
         """Add new fonts to the collection."""
@@ -98,7 +93,16 @@ class FontManager:
             try:
                 font_info = get_font_info(font_path)
                 self.font_info[font_path] = font_info
+
+                # Initialize with default axes from font
                 self.axis_values_by_font[font_path] = font_info.get("axes", {})
+
+                # Override with saved user axis values from settings if available
+                if self.settings:
+                    saved_axis_values = self.settings.get_font_axis_values(font_path)
+                    if saved_axis_values:
+                        self.axis_values_by_font[font_path] = saved_axis_values
+
             except Exception as e:
                 print(f"Error processing font {font_path}: {e}")
                 self.font_info[font_path] = {
@@ -217,7 +221,9 @@ class FontManager:
             # Add each axis as a separate column
             axes_dict = self.axis_values_by_font.get(font_path, {})
             for axis in all_axes:
-                row[axis] = format_axis_values(axes_dict[axis]) if axis in axes_dict else ""
+                row[axis] = (
+                    format_axis_values(axes_dict[axis]) if axis in axes_dict else ""
+                )
 
             row["_path"] = font_path
             table_data.append(row)
