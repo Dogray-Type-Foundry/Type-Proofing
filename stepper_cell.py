@@ -104,34 +104,24 @@ class StepperList2Cell(vanilla.Group):
     def _stepperChangedInternal(self, sender):
         """Internal stepper callback - called by StepperTarget."""
         value = sender.doubleValue()
-
-        # Handle floating-point precision issues by rounding to the increment precision
         increment = self._stepperConfig.get("increment", 1)
+
+        # Handle floating-point precision issues
         if increment < 1:
-            # For decimal increments, round to the appropriate number of decimal places
             decimal_places = (
                 len(str(increment).split(".")[-1]) if "." in str(increment) else 0
             )
             value = round(value, decimal_places)
-
-            # Special case: if we're very close to zero, make it exactly zero
             if abs(value) < increment / 2:
                 value = 0.0
 
-        # Format based on increment (integer vs float)
-        if increment >= 1:
-            formatted_value = str(int(value))
-        else:
-            formatted_value = f"{value:g}"
-
-        # Update text field
+        # Format based on increment type
+        formatted_value = str(int(value)) if increment >= 1 else f"{value:g}"
         self.textField.set(formatted_value)
 
-        # Call external callback if present (vanilla.List2 pattern)
+        # Call callbacks
         if self._externalCallback is not None:
             self._externalCallback(self)
-
-        # Call specific change callback if present (our custom callback)
         if self._changeCallback and self._settingKey:
             self._changeCallback(self._settingKey, formatted_value)
 

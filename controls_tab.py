@@ -320,20 +320,16 @@ class ControlsTab:
     def proofOptionsEditCallback(self, sender):
         """Handle edits to proof options."""
         items = sender.get()
-
-        # Check if this is a checkbox edit
         edited_index = sender.getEditedIndex()
 
-        # Import helper functions from proof_config
         from proof_config import get_proof_display_names
 
-        # Get proofs with settings from registry (all proofs have settings)
         proofs_with_settings = set(get_proof_display_names(include_arabic=True))
 
         if edited_index is not None and edited_index < len(items):
             item = items[edited_index]
-            proof_name = item["Option"]  # Use the actual proof name
-            base_option = item.get("_original_option", proof_name)  # Get base type
+            proof_name = item["Option"]
+            base_option = item.get("_original_option", proof_name)
             enabled = item["Enabled"]
 
             # If this proof has settings and was just enabled, show the popover
@@ -342,10 +338,7 @@ class ControlsTab:
                 and enabled
                 and not self.popover_states.get(proof_name, False)
             ):
-                # Hide any other open popovers first
                 self.hide_all_popovers_except(proof_name)
-
-                # Show the popover for this option
                 self.show_popover_for_option(proof_name, edited_index)
                 self.popover_states[proof_name] = True
             elif (
