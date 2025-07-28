@@ -90,50 +90,6 @@ class TextBoxOutput:
         pass
 
 
-class ProofSettingsKeyGenerator:
-    """Centralized generator for all proof settings keys."""
-
-    @staticmethod
-    def font_size_key(proof_key):
-        """Generate font size key."""
-        return f"{proof_key}_fontSize"
-
-    @staticmethod
-    def columns_key(proof_key):
-        """Generate columns key."""
-        return f"{proof_key}_cols"
-
-    @staticmethod
-    def paragraphs_key(proof_key):
-        """Generate paragraphs key."""
-        return f"{proof_key}_para"
-
-    @staticmethod
-    def tracking_key(proof_key):
-        """Generate tracking key."""
-        return f"{proof_key}_tracking"
-
-    @staticmethod
-    def alignment_key(proof_key):
-        """Generate alignment key."""
-        return f"{proof_key}_align"
-
-    @staticmethod
-    def character_category_key(proof_key, category):
-        """Generate character category key."""
-        return f"{proof_key}_cat_{category}"
-
-    @staticmethod
-    def otf_prefix(proof_key):
-        """Generate OpenType feature prefix."""
-        return f"otf_{proof_key}_"
-
-    @staticmethod
-    def otf_feature_key(proof_key, feature_tag):
-        """Generate OpenType feature key."""
-        return f"otf_{proof_key}_{feature_tag}"
-
-
 class ProofWindow:
     """Main application window and controller."""
 
@@ -281,7 +237,7 @@ class ProofWindow:
             if tag in HIDDEN_FEATURES:
                 continue
 
-            feature_key = ProofSettingsKeyGenerator.otf_feature_key(proof_key, tag)
+            feature_key = f"otf_{proof_key}_{tag}"
 
             # Special handling for Spacing_Proof kern feature
             if proof_key == "spacing_proof" and tag == "kern":
@@ -536,9 +492,9 @@ class ProofWindow:
                         settings_key = "basic_paragraph_small"
 
                     # Use centralized key generation
-                    cols_key = ProofSettingsKeyGenerator.columns_key(unique_key)
-                    para_key = ProofSettingsKeyGenerator.paragraphs_key(unique_key)
-                    otf_prefix = ProofSettingsKeyGenerator.otf_prefix(unique_key)
+                    cols_key = f"{unique_key}_cols"
+                    para_key = f"{unique_key}_para"
+                    otf_prefix = f"otf_{unique_key}_"
 
                     # Get columns setting
                     if cols_key in self.proof_settings:
@@ -735,7 +691,7 @@ class ProofWindow:
         numeric_items = []
 
         # Font size setting for all proofs (always first)
-        font_size_key = ProofSettingsKeyGenerator.font_size_key(proof_key)
+        font_size_key = f"{proof_key}_fontSize"
         # Set default font size based on proof type using registry
         default_font_size = get_proof_default_font_size(proof_key)
 
@@ -750,7 +706,7 @@ class ProofWindow:
             "spacing_proof",
             "ar_character_set",
         ]:
-            cols_key = ProofSettingsKeyGenerator.columns_key(proof_key)
+            cols_key = f"{proof_key}_cols"
 
             # Get proof info from registry
             proof_info = get_proof_by_storage_key(proof_key)
@@ -768,7 +724,7 @@ class ProofWindow:
         # Get proof info from registry
         proof_info = get_proof_by_settings_key(proof_key)
         if proof_info and proof_info["has_paragraphs"]:
-            para_key = ProofSettingsKeyGenerator.paragraphs_key(proof_key)
+            para_key = f"{proof_key}_para"
             para_value = self.proof_settings.get(para_key, 5)
             numeric_items.append(
                 {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
@@ -776,7 +732,7 @@ class ProofWindow:
 
         # Add tracking for supported proof types
         if proof_supports_formatting(proof_key):
-            tracking_key = ProofSettingsKeyGenerator.tracking_key(proof_key)
+            tracking_key = f"{proof_key}_tracking"
             tracking_value = self.proof_settings.get(tracking_key, 0)
             numeric_items.append(
                 {"Setting": "Tracking", "Value": tracking_value, "_key": tracking_key}
@@ -801,7 +757,7 @@ class ProofWindow:
         # Update alignment control for supported proof types
         if proof_supports_formatting(proof_key):
             # Update align control
-            align_key = ProofSettingsKeyGenerator.alignment_key(proof_key)
+            align_key = f"{proof_key}_align"
             # Get default alignment based on proof type
             from settings_manager import get_default_alignment_for_proof
 
@@ -840,9 +796,7 @@ class ProofWindow:
             ]
 
             for control, category_key in category_controls:
-                setting_key = ProofSettingsKeyGenerator.character_category_key(
-                    proof_key, category_key
-                )
+                setting_key = f"{proof_key}_cat_{category_key}"
                 # Default values: most categories enabled except accented
                 defaults = {
                     "uppercase_base": True,
@@ -891,9 +845,7 @@ class ProofWindow:
 
         category_key = category_mapping.get(sender)
         if category_key:
-            setting_key = ProofSettingsKeyGenerator.character_category_key(
-                self.current_proof_key, category_key
-            )
+            setting_key = f"{self.current_proof_key}_cat_{category_key}"
             self.proof_settings[setting_key] = sender.get()
 
     def alignPopUpCallback(self, sender):
@@ -904,7 +856,7 @@ class ProofWindow:
         selected_idx = sender.get()
         if 0 <= selected_idx < len(self.ALIGNMENT_OPTIONS):
             align_value = self.ALIGNMENT_OPTIONS[selected_idx]
-            align_key = ProofSettingsKeyGenerator.alignment_key(self.current_proof_key)
+            align_key = f"{self.current_proof_key}_align"
             self.proof_settings[align_key] = align_value
 
     def stepperChangeCallback(self, setting_key, value):
@@ -1257,7 +1209,7 @@ class ProofWindow:
             numeric_items = []
 
             # Font size setting
-            font_size_key = ProofSettingsKeyGenerator.font_size_key(unique_proof_key)
+            font_size_key = f"{unique_proof_key}_fontSize"
             # Set default font size using registry
             default_font_size = get_proof_default_font_size(base_proof_key)
 
@@ -1275,7 +1227,7 @@ class ProofWindow:
                 "filtered_character_set",
                 "ar_character_set",
             ]:
-                cols_key = ProofSettingsKeyGenerator.columns_key(unique_proof_key)
+                cols_key = f"{unique_proof_key}_cols"
 
                 # Get proof info from registry
                 proof_info = get_proof_by_storage_key(base_proof_key)
@@ -1293,7 +1245,7 @@ class ProofWindow:
             # Get proof info from registry
             proof_info = get_proof_by_settings_key(base_proof_key)
             if proof_info and proof_info["has_paragraphs"]:
-                para_key = ProofSettingsKeyGenerator.paragraphs_key(unique_proof_key)
+                para_key = f"{unique_proof_key}_para"
                 para_value = self.proof_settings.get(para_key, 5)
                 numeric_items.append(
                     {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
@@ -1301,7 +1253,7 @@ class ProofWindow:
 
             # Add tracking for supported proof types
             if proof_supports_formatting(base_proof_key):
-                tracking_key = ProofSettingsKeyGenerator.tracking_key(unique_proof_key)
+                tracking_key = f"{unique_proof_key}_tracking"
                 tracking_value = self.proof_settings.get(tracking_key, 0)
                 numeric_items.append(
                     {
@@ -1330,7 +1282,7 @@ class ProofWindow:
             # Update alignment control for supported proof types
             if proof_supports_formatting(base_proof_key):
                 # Update align control
-                align_key = ProofSettingsKeyGenerator.alignment_key(unique_proof_key)
+                align_key = f"{unique_proof_key}_align"
                 # Get default alignment based on proof type
                 from settings_manager import get_default_alignment_for_proof
 
@@ -1369,9 +1321,7 @@ class ProofWindow:
                 ]
 
                 for control, category_key in category_controls:
-                    setting_key = ProofSettingsKeyGenerator.character_category_key(
-                        unique_proof_key, category_key
-                    )
+                    setting_key = f"{unique_proof_key}_cat_{category_key}"
                     # Default values: most categories enabled except accented
                     defaults = {
                         "uppercase_base": True,
