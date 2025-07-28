@@ -435,14 +435,11 @@ class ProofWindow:
 
             # Setup stdout/stderr redirection
             buffer = io.StringIO()
-            old_stdout = sys.stdout
-            old_stderr = sys.stderr
-            sys.stdout = buffer
-            sys.stderr = buffer
+            old_stdout, old_stderr = sys.stdout, sys.stderr
+            sys.stdout = sys.stderr = buffer
 
             try:
-                controls = self.controlsTab.group
-                setup_result = self._setup_proof_generation(controls)
+                setup_result = self._setup_proof_generation(self.controlsTab.group)
                 if setup_result[0] is None:  # Check if setup failed
                     return
 
@@ -451,7 +448,7 @@ class ProofWindow:
                     self._build_proof_settings(proof_options_items)
                 )
 
-                # Generate proof
+                # Generate and display proof
                 output_path = self.run_proof(
                     userAxesValues,
                     proof_options,
@@ -459,8 +456,6 @@ class ProofWindow:
                     cols_by_proof=cols_by_proof,
                     paras_by_proof=paras_by_proof,
                 )
-
-                # Display the generated PDF
                 if self.display_pdf(output_path):
                     self.tabSwitcher.set(
                         1
@@ -470,13 +465,12 @@ class ProofWindow:
             except Exception as e:
                 print(f"Error in proof generation: {e}")
                 traceback.print_exc()
+            finally:
+                # Restore stdout/stderr and update debug output
+                sys.stdout, sys.stderr = old_stdout, old_stderr
+                self.debugTextEditor.set(buffer.getvalue())
 
-            # Restore stdout/stderr and update debug output
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
-            self.debugTextEditor.set(buffer.getvalue())
-
-        safe_execute("generateCallback", _generate_operation)
+        self._safe_callback("generateCallback", _generate_operation)
 
     def _setup_proof_generation(self, controls):
         """Setup variables for proof generation."""
