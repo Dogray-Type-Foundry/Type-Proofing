@@ -16,27 +16,45 @@ class ControlsTab:
         self.popover_states = {}  # Track which popovers are shown for each row
         self.create_ui()
 
-    def get_proof_options_list(self):
-        """Generate dynamic proof options list based on font capabilities and saved custom instances."""
-        # Import the helper functions from proof_config
+    # ============ Helper Methods ============
+
+    def _get_proof_mapping_data(self):
+        """Get proof options mapping data from registry."""
         from proof_config import (
             get_base_proof_display_names,
             get_arabic_proof_display_names,
             get_proof_settings_mapping,
         )
 
-        # Get base and Arabic proof options from registry
+        mapping = get_proof_settings_mapping()
         base_options = [
             (name, key)
-            for name, key in get_proof_settings_mapping().items()
+            for name, key in mapping.items()
             if name in get_base_proof_display_names()
         ]
-
         arabic_options = [
             (name, key)
-            for name, key in get_proof_settings_mapping().items()
+            for name, key in mapping.items()
             if name in get_arabic_proof_display_names()
         ]
+        return base_options, arabic_options
+
+    def _manage_popover_state(self, proof_name, action):
+        """Centralized popover state management."""
+        if action == "show":
+            self.popover_states[proof_name] = True
+        elif action == "hide":
+            self.popover_states[proof_name] = False
+        elif action == "toggle":
+            self.popover_states[proof_name] = not self.popover_states.get(
+                proof_name, False
+            )
+        return self.popover_states.get(proof_name, False)
+
+    def get_proof_options_list(self):
+        """Generate dynamic proof options list based on font capabilities and saved custom instances."""
+        # Get base and Arabic proof options from registry
+        base_options, arabic_options = self._get_proof_mapping_data()
 
         # Check if any loaded font supports Arabic
         show_arabic_proofs = self.parent_window.font_manager.has_arabic_support()

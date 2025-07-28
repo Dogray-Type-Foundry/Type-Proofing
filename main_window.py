@@ -109,6 +109,40 @@ class ProofWindow:
         "Ar Numbers Small": "ar_numbers_small",
     }
 
+    # ============ UI Helper Methods ============
+
+    def _safe_callback(self, callback_name, operation_func):
+        """Wrapper for safe callback execution with consistent error handling."""
+        safe_execute(callback_name, operation_func)
+
+    def _refresh_ui_components(self):
+        """Refresh all UI components after settings changes."""
+        self.controlsTab.refresh_proof_options_list()
+        self.refresh_controls_tab()
+
+    def _handle_settings_confirmation(self, message_text, action_func):
+        """Handle confirmation dialogs for settings operations."""
+        response = askYesNo("Confirm Action", message_text)
+        if response:
+            action_func()
+            self._refresh_ui_components()
+
+    def _validate_and_update_settings(
+        self, items, key_field="_key", value_field="Value"
+    ):
+        """Validate and update settings from list items."""
+        for item in items:
+            if key_field in item:
+                key = item[key_field]
+                value = item[value_field]
+                is_valid, converted_value, error_msg = validate_setting_value(
+                    key, value
+                )
+                if not is_valid:
+                    print(f"Invalid value for {item.get('Setting', key)}: {error_msg}")
+                    continue
+                self.proof_settings[key] = converted_value
+
     def __init__(self):
         # Close any existing windows with the same title
         close_existing_windows(WINDOW_TITLE)
@@ -300,61 +334,46 @@ class ProofWindow:
 
             # Save proof-specific settings
             self.settings.set_proof_settings(self.proof_settings)
-
-            # Save the settings file
             self.settings.save()
 
-        safe_execute("save_all_settings", _save_operation)
+        self._safe_callback("save_all_settings", _save_operation)
 
     def resetSettingsCallback(self, sender):
         """Handle the Reset Settings button click."""
 
-        def _reset_operation():
-            # Show confirmation dialog
-            message_text = (
-                "This will reset all settings to defaults and clear all loaded fonts."
+        def _reset_action():
+            # Reset settings to defaults (this also clears user_settings_file)
+            self.settings.reset_to_defaults()
+
+            # Override proof options to all be False (unchecked)
+            # Use the centralized mapping to get all proof keys
+            proof_option_keys = ["show_baselines"] + list(
+                self.PROOF_NAME_TO_KEY.values()
             )
-            if self.settings.user_settings_file:
-                message_text += f"\n\nThis will also stop using the custom settings file:\n{self.settings.user_settings_file}"
-            message_text += "\n\nAre you sure?"
+            for option_key in proof_option_keys:
+                self.settings.set_proof_option(option_key, False)
 
-            result = askYesNo("Reset All Settings", message_text)
+            # Clear font manager
+            self.font_manager.fonts = tuple()
+            self.font_manager.font_info = {}
+            self.font_manager.axis_values_by_font = {}
 
-            if result == 1:  # User clicked Yes
-                # Reset settings to defaults (this also clears user_settings_file)
-                self.settings.reset_to_defaults()
+            # Reset table columns to base columns only
+            self.filesTab.reset_table_columns()
+            self.filesTab.update_table()
+            self.filesTab.update_pdf_location_ui()
+            self.initialize_proof_settings()
+            print("Settings reset to defaults.")
 
-                # Override proof options to all be False (unchecked)
-                # Use the centralized mapping to get all proof keys
-                proof_option_keys = ["show_baselines"] + list(
-                    self.PROOF_NAME_TO_KEY.values()
-                )
+        # Build confirmation message
+        message_text = (
+            "This will reset all settings to defaults and clear all loaded fonts."
+        )
+        if self.settings.user_settings_file:
+            message_text += f"\n\nThis will also stop using the custom settings file:\n{self.settings.user_settings_file}"
+        message_text += "\n\nAre you sure?"
 
-                for option_key in proof_option_keys:
-                    self.settings.set_proof_option(option_key, False)
-
-                # Clear font manager
-                self.font_manager.fonts = tuple()
-                self.font_manager.font_info = {}
-                self.font_manager.axis_values_by_font = {}
-
-                # Reset table columns to base columns only
-                self.filesTab.reset_table_columns()
-
-                # Refresh UI
-                self.filesTab.update_table()
-
-                # Update PDF location UI to reflect reset settings
-                self.filesTab.update_pdf_location_ui()
-
-                # Refresh controls tab with default values
-                self.refresh_controls_tab()
-
-                self.initialize_proof_settings()
-
-                print("Settings reset to defaults.")
-
-        safe_execute("resetSettingsCallback", _reset_operation)
+        self._handle_settings_confirmation(message_text, _reset_action)
 
     def closeWindowCallback(self, sender):
         """Handle the Close Window button click."""
@@ -873,18 +892,7 @@ class ProofWindow:
 
     def numericSettingsEditCallback(self, sender):
         """Handle edits to numeric settings in popover."""
-        items = sender.get()
-        for item in items:
-            if "_key" in item:
-                key = item["_key"]
-                value = item["Value"]
-                is_valid, converted_value, error_msg = validate_setting_value(
-                    key, value
-                )
-                if not is_valid:
-                    print(f"Invalid value for {item['Setting']}: {error_msg}")
-                    continue
-                self.proof_settings[key] = converted_value
+        self._validate_and_update_settings(sender.get(), value_field="Value")
 
     def featuresEditCallback(self, sender):
         """Handle edits to OpenType features in popover."""
