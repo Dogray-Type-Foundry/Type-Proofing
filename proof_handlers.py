@@ -130,29 +130,122 @@ class BaseProofHandler(ABC):
 class StandardTextProofHandler(BaseProofHandler):
     """Standard handler for text-based proofs with configurable parameters."""
 
+    # Configuration mapping for different proof types
+    PROOF_CONFIGS = {
+        "basic_paragraph_large": {
+            "character_set_key": "base_letters",
+            "default_columns": 1,
+            "default_paragraphs": 2,
+        },
+        "diacritic_words_large": {
+            "character_set_key": "accented_plus",
+            "default_columns": 1,
+            "default_paragraphs": 3,
+            "accents": 3,
+        },
+        "basic_paragraph_small": {
+            "character_set_key": "base_letters",
+            "default_columns": 2,
+            "default_paragraphs": 5,
+        },
+        "paired_styles_paragraph_small": {
+            "character_set_key": "base_letters",
+            "default_columns": 2,
+            "default_paragraphs": 5,
+            "mixed_styles": True,
+            "force_wordsiv": True,
+        },
+        "generative_text_small": {
+            "character_set_key": "base_letters",
+            "default_columns": 2,
+            "default_paragraphs": 5,
+            "force_wordsiv": True,
+        },
+        "diacritic_words_small": {
+            "character_set_key": "accented_plus",
+            "default_columns": 2,
+            "default_paragraphs": 5,
+            "accents": 3,
+        },
+        "misc_paragraph_small": {
+            "character_set_key": "base_letters",
+            "default_columns": 2,
+            "default_paragraphs": 5,
+            "inject_text": (bigRandomNumbers, additionalSmallText),
+        },
+        "ar_paragraph_large": {
+            "character_set_key": "arabic",
+            "default_columns": 1,
+            "default_paragraphs": 2,
+            "language": "ar",
+        },
+        "fa_paragraph_large": {
+            "character_set_key": "farsi",
+            "default_columns": 1,
+            "default_paragraphs": 2,
+            "language": "fa",
+        },
+        "ar_paragraph_small": {
+            "character_set_key": "arabic",
+            "default_columns": 2,
+            "default_paragraphs": 5,
+            "language": "ar",
+        },
+        "fa_paragraph_small": {
+            "character_set_key": "farsi",
+            "default_columns": 2,
+            "default_paragraphs": 5,
+            "language": "fa",
+        },
+        "ar_latin_mixed": {
+            "character_set_key": "arabic",
+            "default_columns": 2,
+            "default_paragraphs": 5,
+            "inject_text": arabicLatinMixed,
+            "language": "ar",
+        },
+        "ar_farsi_urdu_numbers": {
+            "character_set_key": "arabic",
+            "default_columns": 2,
+            "default_paragraphs": 5,
+            "inject_text": arabicFarsiUrduNumbers,
+            "language": "ar",
+        },
+        "ar_vocalization": {
+            "character_set_key": "arabic",
+            "default_columns": 2,
+            "default_paragraphs": 5,
+            "inject_text": arabicVocalization,
+            "language": "ar",
+        },
+    }
+
     def __init__(
-        self,
-        proof_name,
-        proof_settings,
-        get_proof_font_size_func,
-        character_set_key,
-        default_columns=2,
-        default_paragraphs=5,
-        mixed_styles=False,
-        force_wordsiv=False,
-        inject_text=None,
-        accents=0,
-        language=None,
+        self, proof_name, proof_settings, get_proof_font_size_func, proof_key=None
     ):
         super().__init__(proof_name, proof_settings, get_proof_font_size_func)
-        self.character_set_key = character_set_key
-        self.default_columns = default_columns
-        self.default_paragraphs = default_paragraphs
-        self.mixed_styles = mixed_styles
-        self.force_wordsiv = force_wordsiv
-        self.inject_text = inject_text
-        self.accents = accents
-        self.language = language
+
+        # If proof_key is provided, use configuration from PROOF_CONFIGS
+        if proof_key and proof_key in self.PROOF_CONFIGS:
+            config = self.PROOF_CONFIGS[proof_key]
+            self.character_set_key = config["character_set_key"]
+            self.default_columns = config.get("default_columns", 2)
+            self.default_paragraphs = config.get("default_paragraphs", 5)
+            self.mixed_styles = config.get("mixed_styles", False)
+            self.force_wordsiv = config.get("force_wordsiv", False)
+            self.inject_text = config.get("inject_text", None)
+            self.accents = config.get("accents", 0)
+            self.language = config.get("language", None)
+        else:
+            # Fallback to default values for backward compatibility
+            self.character_set_key = "base_letters"
+            self.default_columns = 2
+            self.default_paragraphs = 5
+            self.mixed_styles = False
+            self.force_wordsiv = False
+            self.inject_text = None
+            self.accents = 0
+            self.language = None
 
     def get_character_set(self, context):
         """Get character set based on the key."""
@@ -296,111 +389,6 @@ class SpacingProofHandler(CategoryBasedProofHandler):
                 )
 
 
-class BasicParagraphLargeHandler(StandardTextProofHandler):
-    """Handler for Basic Paragraph Large proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="base_letters",
-            default_columns=1,
-            default_paragraphs=2,
-        )
-
-
-class DiacriticWordsLargeHandler(StandardTextProofHandler):
-    """Handler for Diacritic Words Large proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="accented_plus",
-            default_columns=1,
-            default_paragraphs=3,
-            accents=3,
-        )
-
-
-class BasicParagraphSmallHandler(StandardTextProofHandler):
-    """Handler for Basic Paragraph Small proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="base_letters",
-            default_columns=2,
-            default_paragraphs=5,
-        )
-
-
-class PairedStylesParagraphSmallHandler(StandardTextProofHandler):
-    """Handler for Paired Styles Paragraph Small proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="base_letters",
-            default_columns=2,
-            default_paragraphs=5,
-            mixed_styles=True,
-            force_wordsiv=True,
-        )
-
-
-class GenerativeTextSmallHandler(StandardTextProofHandler):
-    """Handler for Generative Text Small proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="base_letters",
-            default_columns=2,
-            default_paragraphs=5,
-            force_wordsiv=True,
-        )
-
-
-class DiacriticWordsSmallHandler(StandardTextProofHandler):
-    """Handler for Diacritic Words Small proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="accented_plus",
-            default_columns=2,
-            default_paragraphs=5,
-            accents=3,
-        )
-
-
-class MiscParagraphSmallHandler(StandardTextProofHandler):
-    """Handler for Misc Paragraph Small proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        inject_text = (bigRandomNumbers, additionalSmallText)
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="base_letters",
-            default_columns=2,
-            default_paragraphs=5,
-            inject_text=inject_text,
-        )
-
-
 class ArCharacterSetHandler(BaseProofHandler):
     """Handler for Arabic Character Set proof type."""
 
@@ -421,133 +409,12 @@ class ArCharacterSetHandler(BaseProofHandler):
         )
 
 
-class ArParagraphLargeHandler(StandardTextProofHandler):
-    """Handler for Arabic Paragraph Large proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="arabic",
-            default_columns=1,
-            default_paragraphs=2,
-            language="ar",
-        )
-
-
-class FaParagraphLargeHandler(StandardTextProofHandler):
-    """Handler for Farsi Paragraph Large proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="farsi",
-            default_columns=1,
-            default_paragraphs=2,
-            language="fa",
-        )
-
-
-class ArParagraphSmallHandler(StandardTextProofHandler):
-    """Handler for Arabic Paragraph Small proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="arabic",
-            default_columns=2,
-            default_paragraphs=5,
-            language="ar",
-        )
-
-
-class FaParagraphSmallHandler(StandardTextProofHandler):
-    """Handler for Farsi Paragraph Small proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="farsi",
-            default_columns=2,
-            default_paragraphs=5,
-            language="fa",
-        )
-
-
-class ArVocalizationParagraphSmallHandler(StandardTextProofHandler):
-    """Handler for Arabic Vocalization Paragraph Small proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="arabic",
-            default_columns=2,
-            default_paragraphs=3,
-            language="ar",
-            inject_text=(arabicVocalization,),
-        )
-
-
-class ArLatMixedParagraphSmallHandler(StandardTextProofHandler):
-    """Handler for Arabic-Latin Mixed Paragraph Small proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="arabic",
-            default_columns=2,
-            default_paragraphs=3,
-            language="ar",
-            inject_text=(arabicLatinMixed,),
-        )
-
-
-class ArNumbersSmallHandler(StandardTextProofHandler):
-    """Handler for Arabic Numbers Small proof type."""
-
-    def __init__(self, proof_name, proof_settings, get_proof_font_size_func):
-        super().__init__(
-            proof_name,
-            proof_settings,
-            get_proof_font_size_func,
-            character_set_key="arabic",
-            default_columns=2,
-            default_paragraphs=3,
-            language="ar",
-            inject_text=(arabicFarsiUrduNumbers,),
-        )
-
-
 # Registry mapping proof types to their handler classes
 PROOF_HANDLER_REGISTRY = {
     "Filtered Character Set": FilteredCharacterSetHandler,
     "Spacing Proof": SpacingProofHandler,
-    "Basic Paragraph Large": BasicParagraphLargeHandler,
-    "Diacritic Words Large": DiacriticWordsLargeHandler,
-    "Basic Paragraph Small": BasicParagraphSmallHandler,
-    "Paired Styles Paragraph Small": PairedStylesParagraphSmallHandler,
-    "Generative Text Small": GenerativeTextSmallHandler,
-    "Diacritic Words Small": DiacriticWordsSmallHandler,
-    "Misc Paragraph Small": MiscParagraphSmallHandler,
     "Ar Character Set": ArCharacterSetHandler,
-    "Ar Paragraph Large": ArParagraphLargeHandler,
-    "Fa Paragraph Large": FaParagraphLargeHandler,
-    "Ar Paragraph Small": ArParagraphSmallHandler,
-    "Fa Paragraph Small": FaParagraphSmallHandler,
-    "Ar Vocalization Paragraph Small": ArVocalizationParagraphSmallHandler,
-    "Ar-Lat Mixed Paragraph Small": ArLatMixedParagraphSmallHandler,
-    "Ar Numbers Small": ArNumbersSmallHandler,
+    # All other text-based proofs use StandardTextProofHandler with configuration
 }
 
 
@@ -580,7 +447,7 @@ def get_proof_handler(proof_type, proof_name, proof_settings, get_proof_font_siz
         cached_handler._cached_font_size = None
         return cached_handler
 
-    # Create new handler if not in cache
+    # Check if this is a special handler in the registry
     handler_class = PROOF_HANDLER_REGISTRY.get(proof_type)
     if handler_class:
         try:
@@ -592,6 +459,29 @@ def get_proof_handler(proof_type, proof_name, proof_settings, get_proof_font_siz
         except Exception as e:
             print(f"Error creating handler for '{proof_type}': {e}")
             return None
+
+    # For text-based proofs, use StandardTextProofHandler with configuration
+    from proof_config import PROOF_REGISTRY
+
+    # Find the proof key by looking up the display name in the registry
+    proof_key = None
+    for key, proof_info in PROOF_REGISTRY.items():
+        if proof_info["display_name"] == proof_type:
+            proof_key = key
+            break
+
+    if proof_key:
+        try:
+            handler = StandardTextProofHandler(
+                proof_name, proof_settings, get_proof_font_size_func, proof_key
+            )
+            _handler_cache[cache_key] = handler
+            return handler
+        except Exception as e:
+            print(f"Error creating StandardTextProofHandler for '{proof_type}': {e}")
+            return None
+
+    print(f"No handler found for proof type: {proof_type}")
     return None
 
 
