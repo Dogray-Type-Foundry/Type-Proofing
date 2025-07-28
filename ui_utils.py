@@ -1,10 +1,14 @@
 # UI Utilities - Interface helpers, drawing utilities, and data formatting for UI components
-
-import os
-import random
-import traceback
 from datetime import datetime
 from utils import log_error, format_timestamp, normalize_path
+import vanilla
+import AppKit
+import objc
+import os
+from urllib.parse import unquote
+from Foundation import NSURL
+import core_config
+import drawBot as db
 
 
 # =============================================================================
@@ -88,60 +92,6 @@ def update_table_selection(table, new_data):
         return False
 
 
-def show_error_dialog(message, title="Error"):
-    """Show error dialog to user (macOS)"""
-    try:
-        import vanilla
-
-        # Create a simple error dialog
-        dialog = vanilla.Window((400, 150), title)
-        dialog.textBox = vanilla.TextBox(
-            (20, 20, -20, -60), message, sizeStyle="regular"
-        )
-        dialog.okButton = vanilla.Button(
-            (150, -40, 100, 20), "OK", callback=lambda sender: dialog.close()
-        )
-
-        dialog.open()
-        return True
-
-    except Exception as e:
-        log_error(f"Failed to show error dialog: {e}")
-        # Fallback to console
-        print(f"{title}: {message}")
-        return False
-
-
-def get_table_column_width(table, column_index, default_width=100):
-    """Get table column width safely"""
-    try:
-        if hasattr(table, "getNSTableView"):
-            ns_table = table.getNSTableView()
-            if hasattr(ns_table, "tableColumns"):
-                columns = ns_table.tableColumns()
-                if 0 <= column_index < len(columns):
-                    return columns[column_index].width()
-        return default_width
-    except Exception:
-        return default_width
-
-
-def set_table_column_width(table, column_index, width):
-    """Set table column width safely"""
-    try:
-        if hasattr(table, "getNSTableView"):
-            ns_table = table.getNSTableView()
-            if hasattr(ns_table, "tableColumns"):
-                columns = ns_table.tableColumns()
-                if 0 <= column_index < len(columns):
-                    columns[column_index].setWidth_(width)
-                    return True
-        return False
-    except Exception as e:
-        log_error(f"Failed to set table column width: {e}")
-        return False
-
-
 # =============================================================================
 # DrawBot and PDF Utilities
 # =============================================================================
@@ -216,23 +166,21 @@ def add_footer_info(font_name, proof_type, page_number, page_width, page_height)
 
         # Generate footer text
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-        footer_text = f"{timestamp} | {font_name} | {proof_type} | Page {page_number}"
+        left_text = f"{timestamp} | {font_name} | {proof_type} | Page {page_number}"
+        right_text = f"Page {page_number} of {core_config.totalPages}"
 
         # Position footer at bottom
         y_position = footer_margin
 
         # Draw footer text
-        db.textBox(
-            footer_text,
-            (footer_margin, y_position, page_width - 2 * footer_margin, footer_height),
-            align="center",
+        db.text(left_text, (footer_margin, footer_margin))
+        db.text(
+            right_text,
+            (page_width - db.textSize(right_text)[0] - footer_margin, footer_margin),
         )
 
-        return True
-
     except Exception as e:
-        log_error(f"Failed to add footer info: {e}")
-        return False
+        log_error(f"Failed to add footer info: {e}", "add_footer_info")
 
 
 def calculate_text_bounds(text, font_size, font_name="Arial"):
@@ -262,32 +210,6 @@ def center_text_on_page(text, page_width, page_height, font_size=12, font_name="
     except Exception as e:
         log_error(f"Failed to center text: {e}")
         return {"x": 0, "y": 0, "width": 0, "height": 0}
-
-
-def draw_text_with_background(
-    text, x, y, width, height, bg_color=None, text_color=None
-):
-    """Draw text with optional background"""
-    try:
-        import drawBot as db
-
-        # Draw background if specified
-        if bg_color:
-            db.fill(*bg_color)
-            db.rect(x, y, width, height)
-
-        # Draw text
-        if text_color:
-            db.fill(*text_color)
-        else:
-            db.fill(0)  # Black text by default
-
-        db.textBox(text, (x, y, width, height))
-        return True
-
-    except Exception as e:
-        log_error(f"Failed to draw text with background: {e}")
-        return False
 
 
 # =============================================================================
@@ -486,43 +408,3 @@ def get_font_display_name(font_path):
     except Exception as e:
         log_error(f"Failed to get font display name: {e}")
         return os.path.splitext(os.path.basename(font_path))[0]
-
-
-# =============================================================================
-# Color Utilities
-# =============================================================================
-
-
-def hex_to_rgb(hex_color):
-    """Convert hex color to RGB tuple"""
-    try:
-        hex_color = hex_color.lstrip("#")
-        return tuple(int(hex_color[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
-    except Exception:
-        return (0, 0, 0)  # Black fallback
-
-
-def rgb_to_hex(rgb_tuple):
-    """Convert RGB tuple to hex color"""
-    try:
-        r, g, b = rgb_tuple
-        return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
-    except Exception:
-        return "#000000"  # Black fallback
-
-
-def get_contrast_text_color(bg_color):
-    """Get appropriate text color (black/white) for background"""
-    try:
-        if isinstance(bg_color, str):
-            bg_color = hex_to_rgb(bg_color)
-
-        # Calculate relative luminance
-        r, g, b = bg_color
-        luminance = 0.299 * r + 0.587 * g + 0.114 * b
-
-        # Return white text for dark backgrounds, black for light
-        return (1, 1, 1) if luminance < 0.5 else (0, 0, 0)
-
-    except Exception:
-        return (0, 0, 0)  # Black fallback

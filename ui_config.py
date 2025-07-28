@@ -294,31 +294,3 @@ class Settings:
             return True
         except IOError:
             return False
-
-
-# =============================================================================
-# UI Layout Constants
-# =============================================================================
-
-# Table column configurations
-FONT_TABLE_COLUMNS = [
-    {"title": "Font", "key": "font", "width": 200},
-    {"title": "Weight", "key": "weight", "width": 80},
-    {"title": "Style", "key": "style", "width": 80},
-    {"title": "Axes", "key": "axes", "width": 150},
-]
-
-# UI spacing and sizing constants
-DEFAULT_BUTTON_HEIGHT = 22
-DEFAULT_TEXT_HEIGHT = 17
-DEFAULT_POPUP_WIDTH = 120
-DEFAULT_COLUMN_SPACING = 10
-DEFAULT_ROW_SPACING = 8
-
-# Preview pane dimensions
-PREVIEW_MIN_WIDTH = 400
-PREVIEW_MIN_HEIGHT = 300
-
-# Popover dimensions
-SETTINGS_POPOVER_WIDTH = 300
-SETTINGS_POPOVER_HEIGHT = 200
