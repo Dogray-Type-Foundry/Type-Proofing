@@ -50,7 +50,7 @@ from proof_handlers import (
     create_unique_proof_key,
     clear_handler_cache,
 )
-from settings_manager import Settings, ProofSettingsManager, AppSettingsManager
+from settings_manager import Settings, ProofSettingsManager, get_app_settings
 from files_tab import FilesTab
 from controls_tab import ControlsTab
 from pdf_manager import PDFManager
@@ -125,10 +125,11 @@ class ProofWindow:
         self.font_manager = FontManager(self.settings)
 
         # Initialize settings managers
+        self.settings = Settings()
         self.proof_settings_manager = ProofSettingsManager(
             self.settings, self.font_manager
         )
-        self.app_settings_manager = AppSettingsManager(self.settings)
+        # No longer need app_settings_manager - use self.settings directly
 
         # Initialize PDF manager
         self.pdf_manager = PDFManager(self.settings)
@@ -1040,9 +1041,7 @@ class ProofWindow:
             if result and len(result) > 0:
                 settings_file_path = result[0]
 
-                if self.app_settings_manager.load_user_settings_file(
-                    settings_file_path
-                ):
+                if self.settings.load_user_settings_file(settings_file_path):
                     # Clear and reload font manager
                     self.font_manager.fonts = tuple()
                     self.font_manager.font_info = {}
