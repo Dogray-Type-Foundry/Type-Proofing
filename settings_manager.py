@@ -18,7 +18,7 @@ from proof_config import (
     get_proof_display_names,
 )
 from proof_handlers import create_unique_proof_key
-from utils import safe_json_load, safe_json_save, log_error
+from utils import safe_json_load, safe_json_save, log_error, validate_setting_value
 
 
 class Settings:
@@ -783,22 +783,12 @@ class ProofSettingsManager:
 
     def update_numeric_setting(self, key, value):
         """Update a numeric setting with validation."""
-        try:
-            # Handle tracking values (can be float) vs other settings (must be positive int)
-            if "_tracking" in key:
-                value = float(value)
-                self.proof_settings[key] = value
-                return True
-            else:
-                value = int(value)
-                if value <= 0:
-                    print(f"Invalid value for setting: must be > 0")
-                    return False
-                self.proof_settings[key] = value
-                return True
-        except (ValueError, TypeError):
-            print(f"Invalid value for setting: {value}")
+        is_valid, converted_value, error_msg = validate_setting_value(key, value)
+        if not is_valid:
+            print(f"Invalid value for setting: {error_msg}")
             return False
+        self.proof_settings[key] = converted_value
+        return True
 
     def update_feature_setting(self, key, enabled, readonly=False):
         """Update an OpenType feature setting."""
