@@ -8,7 +8,7 @@ The application has been modularized into the following components:
 - config.py: Configuration constants and settings management
 - font_analysis.py: Font processing and character set analysis
 - proof_generation.py: Proof generation functions and text processing
-- ui_interface.py: User interface components and main application window
+- main_window.py: User interface components and main application window
 - utils.py: Core utility functions for file operations, validation, error handling
 - ui_utils.py: UI-specific utilities and drawing helpers
 
@@ -35,7 +35,7 @@ log.setLevel(logging.ERROR)
 # Import and run the main application
 if __name__ == "__main__":
     try:
-        from ui_interface import ProofWindow
+        from main_window import ProofWindow
         from PyObjCTools import AppHelper
 
         # Create and show the main window
