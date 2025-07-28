@@ -284,7 +284,7 @@ class FilesTab:
         """Handle axis editing in the table."""
         table_data = sender.get()
         if hasattr(self, "current_axes"):
-            self.font_manager.update_axis_values_from_individual_axes_table(
+            self.font_manager.update_axis_values_from_table(
                 table_data, self.current_axes
             )
         else:
@@ -353,7 +353,7 @@ class FilesTab:
                 self.font_manager.fonts = tuple(new_font_paths)
                 # Update axis values
                 if hasattr(self, "current_axes"):
-                    self.font_manager.update_axis_values_from_individual_axes_table(
+                    self.font_manager.update_axis_values_from_table(
                         table_data, self.current_axes
                     )
                 else:
