@@ -14,7 +14,6 @@ DATA_FILES = [
     "variable_font_utils.py",
     "utils.py",
     "ui_utils.py",
-    "ui_interface.py",
     "text_generators.py",
     "stepper_cell.py",
     "settings_manager.py",
