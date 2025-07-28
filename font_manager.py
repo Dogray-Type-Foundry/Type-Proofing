@@ -174,6 +174,10 @@ class FontManager:
         """Get axis values for a specific font."""
         return self.axis_values_by_font.get(font_path, {})
 
+    def get_family_name(self):
+        """Get family name from the first font."""
+        return get_font_family_name(self.fonts[0]) if self.fonts else ""
+
     def load_fonts(self, font_paths):
         """Load fonts from a list of paths (replaces existing fonts)."""
         if not font_paths:
@@ -213,12 +217,7 @@ class FontManager:
             # Add each axis as a separate column
             axes_dict = self.axis_values_by_font.get(font_path, {})
             for axis in all_axes:
-                if axis in axes_dict:
-                    # Format axis values as comma-separated string
-                    axis_values = axes_dict[axis]
-                    row[axis] = format_axis_values(axis_values)
-                else:
-                    row[axis] = ""  # Empty for fonts that don't have this axis
+                row[axis] = format_axis_values(axes_dict[axis]) if axis in axes_dict else ""
 
             row["_path"] = font_path
             table_data.append(row)
