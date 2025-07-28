@@ -199,6 +199,30 @@ def get_proof_storage_mapping():
     return {proof_key: proof_key for proof_key in PROOF_REGISTRY.keys()}
 
 
+def get_proof_name_to_key_mapping():
+    """Get complete mapping from proof display names to internal keys."""
+    return {
+        "Show Baselines/Grid": "show_baselines",
+        "Filtered Character Set": "filtered_character_set",
+        "Spacing Proof": "spacing_proof",
+        "Basic Paragraph Large": "basic_paragraph_large",
+        "Diacritic Words Large": "diacritic_words_large",
+        "Basic Paragraph Small": "basic_paragraph_small",
+        "Paired Styles Paragraph Small": "paired_styles_paragraph_small",
+        "Generative Text Small": "generative_text_small",
+        "Diacritic Words Small": "diacritic_words_small",
+        "Misc Paragraph Small": "misc_paragraph_small",
+        "Ar Character Set": "ar_character_set",
+        "Ar Paragraph Large": "ar_paragraph_large",
+        "Fa Paragraph Large": "fa_paragraph_large",
+        "Ar Paragraph Small": "ar_paragraph_small",
+        "Fa Paragraph Small": "fa_paragraph_small",
+        "Ar Vocalization Paragraph Small": "ar_vocalization_paragraph_small",
+        "Ar-Lat Mixed Paragraph Small": "ar_lat_mixed_paragraph_small",
+        "Ar Numbers Small": "ar_numbers_small",
+    }
+
+
 def get_proof_default_columns():
     """Get default column counts for all proofs."""
     return {
@@ -284,3 +308,11 @@ def get_display_name(proof_key):
 def get_otf_prefix(proof_key):
     """Get OpenType feature prefix for a proof key."""
     return f"otf_{proof_key}_"
+
+
+def get_default_alignment_for_proof(proof_key):
+    """Get the default alignment for a proof type based on whether it's Arabic/Persian."""
+    proof_info = get_proof_by_settings_key(proof_key)
+    if proof_info and proof_info.get("is_arabic", False):
+        return "right"
+    return "left"

@@ -9,12 +9,14 @@ from core_config import (
     DEFAULT_PAGE_FORMAT,
 )
 from proof_config import (
-    get_proof_default_font_size,
+    PROOF_REGISTRY,
     get_proof_by_settings_key,
     get_proof_by_storage_key,
+    get_proof_default_font_size,
     proof_supports_formatting,
     get_proof_settings_mapping,
-    PROOF_REGISTRY,
+    get_default_alignment_for_proof,
+    get_proof_name_to_key_mapping,
     get_proof_display_names,
 )
 from proof_handlers import create_unique_proof_key
@@ -311,14 +313,6 @@ class Settings:
             return False
 
 
-def get_default_alignment_for_proof(proof_key):
-    """Get the default alignment for a proof type based on whether it's Arabic/Persian."""
-    proof_info = get_proof_by_settings_key(proof_key)
-    if proof_info and proof_info.get("is_arabic", False):
-        return "right"
-    return "left"
-
-
 class ProofSettingsManager:
     """Manages all proof-specific settings including OpenType features, font sizes, etc."""
 
@@ -468,27 +462,8 @@ class ProofSettingsManager:
     def initialize_settings_for_proof(self, unique_proof_name, base_proof_type):
         """Initialize settings for a newly added proof instance."""
         try:
-            # Map proof display names to internal keys - use unified snake_case format
-            proof_name_to_key = {
-                "Show Baselines/Grid": "show_baselines",
-                "Filtered Character Set": "filtered_character_set",
-                "Spacing Proof": "spacing_proof",
-                "Basic Paragraph Large": "basic_paragraph_large",
-                "Diacritic Words Large": "diacritic_words_large",
-                "Basic Paragraph Small": "basic_paragraph_small",
-                "Paired Styles Paragraph Small": "paired_styles_paragraph_small",
-                "Generative Text Small": "generative_text_small",
-                "Diacritic Words Small": "diacritic_words_small",
-                "Misc Paragraph Small": "misc_paragraph_small",
-                "Ar Character Set": "ar_character_set",
-                "Ar Paragraph Large": "ar_paragraph_large",
-                "Fa Paragraph Large": "fa_paragraph_large",
-                "Ar Paragraph Small": "ar_paragraph_small",
-                "Fa Paragraph Small": "fa_paragraph_small",
-                "Ar Vocalization Paragraph Small": "ar_vocalization_paragraph_small",
-                "Ar-Lat Mixed Paragraph Small": "ar_lat_mixed_paragraph_small",
-                "Ar Numbers Small": "ar_numbers_small",
-            }
+            # Use centralized mapping
+            proof_name_to_key = get_proof_name_to_key_mapping()
 
             # Skip if this is just "Show Baselines/Grid" - it doesn't need special settings
             if base_proof_type == "Show Baselines/Grid":
