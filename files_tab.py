@@ -4,7 +4,14 @@ import os
 import traceback
 import vanilla
 from utils import normalize_path, validate_font_path, log_error
-from ui_utils import refresh_path_control
+from ui_utils import (
+    refresh_path_control,
+    normalize_folder_result,
+    set_path_control_with_refresh,
+    reorder_table_items,
+    update_pdf_settings_helper,
+    create_font_drop_data,
+)
 
 
 class FilesTab:
@@ -29,18 +36,7 @@ class FilesTab:
 
     def _reorder_table_items(self, table_data, indexes, insert_index):
         """Reorder table items based on provided indexes."""
-        # Remove items to move in reverse order to maintain indices
-        moved_items = []
-        for idx in sorted(indexes, reverse=True):
-            if 0 <= idx < len(table_data):
-                moved_items.insert(0, table_data.pop(idx))
-
-        # Insert items at new position
-        if insert_index is not None:
-            table_data[insert_index:insert_index] = moved_items
-        else:
-            table_data.extend(moved_items)
-        return table_data
+        return reorder_table_items(table_data, indexes, insert_index)
 
     def _update_backend_from_table(self, table_data):
         """Update font manager backend based on table data."""
@@ -57,43 +53,13 @@ class FilesTab:
 
     def _update_pdf_settings(self, custom_location=None, use_custom=None):
         """Helper to update PDF output settings consistently."""
-        settings = self.parent_window.settings
-        if "pdf_output" not in settings.data:
-            settings.data["pdf_output"] = {
-                "use_custom_location": False,
-                "custom_location": "",
-            }
-
-        if custom_location is not None:
-            settings.data["pdf_output"]["custom_location"] = custom_location
-        if use_custom is not None:
-            settings.data["pdf_output"]["use_custom_location"] = use_custom
-        settings.save()
+        update_pdf_settings_helper(
+            self.parent_window.settings, custom_location, use_custom
+        )
 
     def _normalize_folder_result(self, result):
         """Normalize folder selection result from getFolder dialog."""
-        if not result:
-            return None
-
-        # Handle the Objective-C array properly
-        selected_path = None
-        if hasattr(result, "__iter__") and hasattr(result, "__len__"):
-            if len(result) > 0:
-                selected_path = result[0]
-                if hasattr(selected_path, "__iter__") and not isinstance(
-                    selected_path, str
-                ):
-                    selected_path = str(selected_path).strip('()"')
-                else:
-                    selected_path = str(selected_path)
-        else:
-            selected_path = str(result)
-
-        # Clean up the path string - remove any remaining array formatting
-        selected_path = selected_path.strip('()"').strip()
-        if selected_path.startswith('"') and selected_path.endswith('"'):
-            selected_path = selected_path[1:-1]
-        return selected_path
+        return normalize_folder_result(result)
 
     def create_ui(self):
         """Create the Files tab UI components."""
@@ -356,10 +322,7 @@ class FilesTab:
         table_data = self.group.tableView.get()
         if not (0 <= index < len(table_data)):
             return {}
-        return {
-            "dev.drawbot.proof.fontListIndexes": index,
-            "dev.drawbot.proof.fontData": table_data[index],
-        }
+        return create_font_drop_data(table_data[index], index)
 
     def dropCandidateCallback(self, info):
         """Handle drop candidate validation for both file drops and reordering."""
@@ -431,16 +394,8 @@ class FilesTab:
         self.update_pdf_location_ui()
 
     def _set_path_control_with_refresh(self, path_control, url):
-        """
-        Set PathControl URL with enhanced compatibility for py2app bundles.
-        This addresses iCloud Drive path display issues in app bundles.
-        """
-        if not url:
-            path_control.set("")
-            return
-
-        # Use utility function for refreshing path control
-        refresh_path_control(path_control, url)
+        """Set PathControl URL with enhanced compatibility for py2app bundles."""
+        set_path_control_with_refresh(path_control, url)
 
     def pdfPathControlCallback(self, sender):
         """Handle PathControl changes for PDF output location."""

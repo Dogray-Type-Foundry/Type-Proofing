@@ -200,6 +200,98 @@ def calculate_text_bounds(text, font_size, font_name="Arial"):
 # =============================================================================
 
 
+def normalize_folder_result(result):
+    """Normalize folder selection result from getFolder dialog."""
+    if not result:
+        return None
+
+    # Handle the Objective-C array properly
+    selected_path = None
+    if hasattr(result, "__iter__") and hasattr(result, "__len__"):
+        if len(result) > 0:
+            selected_path = result[0]
+            if hasattr(selected_path, "__iter__") and not isinstance(
+                selected_path, str
+            ):
+                selected_path = str(selected_path).strip('()"')
+            else:
+                selected_path = str(selected_path)
+    else:
+        selected_path = str(result)
+
+    # Clean up the path string - remove any remaining array formatting
+    selected_path = selected_path.strip('()"').strip()
+    if selected_path.startswith('"') and selected_path.endswith('"'):
+        selected_path = selected_path[1:-1]
+    return selected_path
+
+
+def set_path_control_with_refresh(path_control, url):
+    """
+    Set PathControl URL with enhanced compatibility for py2app bundles.
+    This addresses iCloud Drive path display issues in app bundles.
+    """
+    if not url:
+        path_control.set("")
+        return
+
+    # Use utility function for refreshing path control
+    refresh_path_control(path_control, url)
+
+
+def reorder_table_items(table_data, indexes, target_index):
+    """Reorder table items based on drag and drop operation."""
+    if not indexes or not table_data:
+        return table_data
+
+    # Convert to list if needed
+    table_data = list(table_data)
+
+    # Remove items from original positions (in reverse order to maintain indexes)
+    moved_items = []
+    for index in sorted(indexes, reverse=True):
+        if 0 <= index < len(table_data):
+            moved_items.insert(0, table_data.pop(index))
+
+    # Insert items at target position
+    for i, item in enumerate(moved_items):
+        insert_index = target_index + i
+        if insert_index > len(table_data):
+            table_data.append(item)
+        else:
+            table_data.insert(insert_index, item)
+
+    return table_data
+
+
+def update_pdf_settings_helper(settings, custom_location=None, use_custom=None):
+    """Helper to update PDF output settings consistently."""
+    if "pdf_output" not in settings.data:
+        settings.data["pdf_output"] = {
+            "use_custom_location": False,
+            "custom_location": "",
+        }
+
+    if custom_location is not None:
+        settings.data["pdf_output"]["custom_location"] = custom_location
+    if use_custom is not None:
+        settings.data["pdf_output"]["use_custom_location"] = use_custom
+    settings.save()
+
+
+def create_table_drag_settings():
+    """Create standard drag settings for font tables."""
+    return dict(makeDragDataCallback=lambda index: create_font_drop_data(None, index))
+
+
+def create_table_drop_settings():
+    """Create standard drop settings for font tables."""
+    return dict(
+        pasteboardTypes=["fileURL", "dev.drawbot.proof.fontListIndexes"],
+        dropCandidateCallback=lambda info: "move" if info.get("source") else "copy",
+    )
+
+
 def format_table_data(data_list, display_name_mapping=None, value_formatter=None):
     """
     Format data for PopUpButton display and value mapping.
