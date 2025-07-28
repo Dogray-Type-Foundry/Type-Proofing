@@ -1,20 +1,23 @@
 # Font Manager - Core font management functionality
 
+# Standard library imports
 import os
-import drawBot as db
+
+# Local imports
 from font_utils import (
     get_ttfont,
-    normalize_font_path,
     is_valid_font_file,
     get_font_family_name,
     filteredCharset,
+    get_font_info,
+    format_axis_values,
+    parse_axis_values_string,
+    parse_axis_value,
 )
+from utils import normalize_path
 from character_analysis import check_arabic_support
 from variable_font_utils import (
     get_all_font_axes,
-    parse_axis_values_string,
-    format_axis_values,
-    parse_axis_value,
 )
 
 
@@ -42,9 +45,9 @@ class FontManager:
     def add_fonts(self, paths):
         """Add new fonts to the collection."""
         valid_paths = [
-            normalize_font_path(p)
+            normalize_path(p, font_specific=True)
             for p in paths
-            if is_valid_font_file(normalize_font_path(p))
+            if is_valid_font_file(normalize_path(p, font_specific=True))
         ]
 
         # Only add fonts not already in the list
@@ -93,33 +96,11 @@ class FontManager:
 
         for font_path in self.fonts:
             try:
-                font_info = {
-                    "features": db.listOpenTypeFeatures(font_path),
-                    "name": os.path.basename(font_path),
-                }
-
-                # Process variable font axes
-                variableDict = db.listFontVariations(font_path)
-                axes_dict = {}
-
-                if variableDict:
-                    for axis, data in variableDict.items():
-                        # Get unique values in order: min, default, max
-                        values = []
-                        for key in ("minValue", "defaultValue", "maxValue"):
-                            v = data.get(key)
-                            if v is not None and v not in values:
-                                # Convert to int if it's a whole number
-                                values.append(
-                                    int(v)
-                                    if isinstance(v, (int, float)) and v == int(v)
-                                    else v
-                                )
-                        axes_dict[axis] = values
-
-                font_info["axes"] = axes_dict
-                self.axis_values_by_font[font_path] = axes_dict
+                font_info = get_font_info(font_path)
                 self.font_info[font_path] = font_info
+
+                # Initialize axis values from font info
+                self.axis_values_by_font[font_path] = font_info.get("axes", {})
 
             except Exception as e:
                 print(f"Error processing font {font_path}: {e}")
@@ -127,6 +108,7 @@ class FontManager:
                     "axes": {},
                     "name": os.path.basename(font_path),
                 }
+                self.axis_values_by_font[font_path] = {}
                 self.axis_values_by_font[font_path] = {}
 
     def get_table_data(self):
@@ -217,11 +199,15 @@ class FontManager:
         return False
 
     def load_fonts(self, font_paths):
-        """Load fonts from a list of paths."""
+        """Load fonts from a list of paths (replaces existing fonts)."""
         if not font_paths:
             return False
 
-        valid_paths = [path for path in font_paths if is_valid_font_file(path)]
+        valid_paths = [
+            normalize_path(p, font_specific=True)
+            for p in font_paths
+            if is_valid_font_file(normalize_path(p, font_specific=True))
+        ]
 
         if not valid_paths:
             return False
