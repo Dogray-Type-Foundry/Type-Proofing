@@ -69,19 +69,60 @@ def filteredCharset(input_font):
         return ""
 
 
-def normalize_font_path(path):
-    """Normalize path from various input types for font files."""
-    return normalize_path(path, font_specific=True)
-
-
 def is_valid_font_file(path):
     """Check if a path points to a valid font file."""
-    normalized_path = normalize_font_path(path)
-    return normalized_path.lower().endswith((".otf", ".ttf")) and os.path.exists(
-        normalized_path
-    )
+    from utils import normalize_path, is_valid_font_extension
+
+    normalized_path = normalize_path(path, font_specific=True)
+    return is_valid_font_extension(normalized_path) and os.path.exists(normalized_path)
 
 
 def get_font_family_name(font_path):
     """Get family name from font file."""
     return os.path.splitext(os.path.basename(font_path))[0].split("-")[0]
+
+
+def get_font_info(font_path):
+    """Get comprehensive font information including features and axes."""
+    import drawBot as db
+
+    font_info = {
+        "features": db.listOpenTypeFeatures(font_path),
+        "name": os.path.basename(font_path),
+        "axes": {},
+    }
+
+    # Process variable font axes
+    variableDict = db.listFontVariations(font_path)
+    if variableDict:
+        for axis, data in variableDict.items():
+            # Get unique values in order: min, default, max
+            values = []
+            for key in ("minValue", "defaultValue", "maxValue"):
+                v = data.get(key)
+                if v is not None and v not in values:
+                    # Convert to int if it's a whole number
+                    values.append(
+                        int(v) if isinstance(v, (int, float)) and v == int(v) else v
+                    )
+            font_info["axes"][axis] = values
+
+    return font_info
+
+
+def parse_axis_value(value_str):
+    """Parse a string value to float, int, or keep as string."""
+    try:
+        return float(value_str) if "." in value_str else int(value_str)
+    except ValueError:
+        return value_str
+
+
+def format_axis_values(axis_values):
+    """Format axis values as comma-separated string."""
+    return ",".join(str(v) for v in axis_values)
+
+
+def parse_axis_values_string(values_str):
+    """Parse comma-separated axis values string into list."""
+    return [parse_axis_value(v.strip()) for v in values_str.split(",") if v.strip()]
