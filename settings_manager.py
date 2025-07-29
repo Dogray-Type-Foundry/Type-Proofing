@@ -182,25 +182,18 @@ class Settings:
     def save(self):
         """Save current settings to file."""
         try:
-            # Ensure directory exists
             os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
-
-            # If we're using a user settings file, save to that instead
-            save_path = (
-                self.user_settings_file
-                if self.user_settings_file
-                else self.settings_path
-            )
+            save_path = self.user_settings_file or self.settings_path
 
             with open(save_path, "w") as f:
                 json.dump(self.data, f, indent=2)
 
-            # If we're using a user settings file, also update the auto-save file
-            # to remember which user file was loaded
+            # Update auto-save file if using user settings
             if self.user_settings_file and save_path != self.settings_path:
-                auto_save_data = {"user_settings_file": self.user_settings_file}
                 with open(self.settings_path, "w") as f:
-                    json.dump(auto_save_data, f, indent=2)
+                    json.dump(
+                        {"user_settings_file": self.user_settings_file}, f, indent=2
+                    )
         except Exception as e:
             print(f"Error saving settings: {e}")
 
@@ -229,13 +222,13 @@ class Settings:
 
     def get_proof_order(self):
         """Get the current proof order."""
-        # Generate default order from registry if not set (excluding show_baselines)
-        default_order = get_proof_display_names(include_arabic=True)
-        return self.data.get("proof_order", default_order)
+        return self.data.get(
+            "proof_order", get_proof_display_names(include_arabic=True)
+        )
 
     def set_proof_order(self, proof_order):
         """Set the proof order."""
-        self.data["proof_order"] = proof_order[:]  # Create a copy
+        self.data["proof_order"] = proof_order[:]
 
     def get_page_format(self):
         """Get the current page format."""
@@ -338,217 +331,162 @@ class ProofSettingsManager:
         for proof_key, _ in proof_types_with_otf:
             self._initialize_proof_type_defaults(proof_key)
 
+    # Common defaults to avoid duplication
+    _CATEGORY_DEFAULTS = {
+        "uppercase_base": True,
+        "lowercase_base": True,
+        "numbers_symbols": True,
+        "punctuation": True,
+        "accented": False,
+    }
+
+    _COLUMN_EXCLUDED_PROOFS = {
+        "filtered_character_set",
+        "spacing_proof",
+        "ar_character_set",
+    }
+
     def _initialize_proof_type_defaults(self, proof_key):
         """Initialize default settings for a specific proof type."""
-        # Get proof info from registry
         proof_info = get_proof_by_settings_key(proof_key)
         if proof_info is None:
-            return  # Skip if not found in registry
+            return
 
-        # Column settings - use default from registry
-        cols_key = f"{proof_key}_cols"
-        # Character Set, Spacing Proof, and Arabic Character Set don't use columns (they handle them differently)
-        if proof_key not in [
-            "filtered_character_set",
-            "spacing_proof",
-            "ar_character_set",
-        ]:
-            default_cols = proof_info["default_cols"]
-            if cols_key not in self.proof_settings:
-                self.proof_settings[cols_key] = default_cols
+        self._init_basic_settings(proof_key, proof_info)
+        self._init_category_settings(proof_key)
+        self._initialize_opentype_features(proof_key)
 
-        # Font size settings for all proofs
-        font_size_key = f"{proof_key}_fontSize"
-        # Set default font size based on proof type using registry
-        default_font_size = get_proof_default_font_size(proof_key)
+    def _init_basic_settings(self, proof_key, proof_info):
+        """Initialize basic settings (font size, columns, paragraphs, formatting)."""
+        settings = {
+            f"{proof_key}_fontSize": get_proof_default_font_size(proof_key),
+        }
 
-        if font_size_key not in self.proof_settings:
-            self.proof_settings[font_size_key] = default_font_size
+        # Column settings for applicable proofs
+        if proof_key not in self._COLUMN_EXCLUDED_PROOFS:
+            settings[f"{proof_key}_cols"] = proof_info["default_cols"]
 
-        # Paragraph settings (only for proofs that have paragraphs)
+        # Paragraph settings for applicable proofs
         if proof_info["has_paragraphs"]:
-            para_key = f"{proof_key}_para"
-            if para_key not in self.proof_settings:
-                self.proof_settings[para_key] = 5
+            settings[f"{proof_key}_para"] = 5
 
-        # Text formatting settings for supported proof types
+        # Text formatting settings
         if proof_supports_formatting(proof_key):
-            # Tracking setting (default 0)
-            tracking_key = f"{proof_key}_tracking"
-            if tracking_key not in self.proof_settings:
-                self.proof_settings[tracking_key] = 0
+            settings[f"{proof_key}_tracking"] = 0
+            settings[f"{proof_key}_align"] = get_default_alignment_for_proof(proof_key)
 
-            # Align setting (default based on proof type - "right" for Arabic/Persian, "left" for others)
-            align_key = f"{proof_key}_align"
-            if align_key not in self.proof_settings:
-                self.proof_settings[align_key] = get_default_alignment_for_proof(
-                    proof_key
-                )
+        # Apply settings only if not already present
+        for key, value in settings.items():
+            if key not in self.proof_settings:
+                self.proof_settings[key] = value
 
-        # Character category settings for Filtered Character Set and Spacing Proof
+    def _init_category_settings(self, proof_key):
+        """Initialize character category settings for applicable proofs."""
         if proof_key in ["filtered_character_set", "spacing_proof"]:
-            # Default values: most categories enabled except accented
-            category_defaults = {
-                "uppercase_base": True,
-                "lowercase_base": True,
-                "numbers_symbols": True,
-                "punctuation": True,
-                "accented": False,
-            }
-
-            for category_key, default_value in category_defaults.items():
+            for category_key, default_value in self._CATEGORY_DEFAULTS.items():
                 setting_key = f"{proof_key}_cat_{category_key}"
                 if setting_key not in self.proof_settings:
                     self.proof_settings[setting_key] = default_value
 
-        # OpenType features
-        self._initialize_opentype_features(proof_key)
-
-    def _initialize_opentype_features(self, proof_key):
-        """Initialize OpenType feature settings for a proof type."""
+    def _get_font_features(self):
+        """Get OpenType feature tags from the current font."""
         if not self.font_manager.fonts:
-            return
-
+            return []
         try:
             import drawBot as db
 
-            feature_tags = db.listOpenTypeFeatures(self.font_manager.fonts[0])
+            return db.listOpenTypeFeatures(self.font_manager.fonts[0])
         except Exception:
-            feature_tags = []
+            return []
 
-        for tag in feature_tags:
-            # Skip hidden features
-            if tag in HIDDEN_FEATURES:
-                continue
+    def _initialize_opentype_features(self, proof_key):
+        """Initialize OpenType feature settings for a proof type."""
+        for tag in self._get_font_features():
+            if tag not in HIDDEN_FEATURES:
+                feature_key = f"otf_{proof_key}_{tag}"
+                if feature_key not in self.proof_settings:
+                    self.proof_settings[feature_key] = tag in DEFAULT_ON_FEATURES
 
-            feature_key = f"otf_{proof_key}_{tag}"
-            if feature_key not in self.proof_settings:
-                default_value = tag in DEFAULT_ON_FEATURES
-                self.proof_settings[feature_key] = default_value
+    def _get_proof_key_for_identifier(self, proof_identifier):
+        """Get proof key and font size key for a given proof identifier."""
+        display_name_to_settings_key = get_proof_settings_mapping()
+
+        if proof_identifier in display_name_to_settings_key:
+            # Direct match
+            proof_key = display_name_to_settings_key[proof_identifier]
+            return proof_key, f"{proof_key}_fontSize"
+
+        # Check for numbered variants
+        for display_name, settings_key in display_name_to_settings_key.items():
+            if proof_identifier.startswith(display_name):
+                unique_key = create_unique_proof_key(proof_identifier)
+                return settings_key, f"{unique_key}_fontSize"
+
+        # Fallback
+        proof_key = "basic_paragraph_small"
+        unique_key = create_unique_proof_key(proof_identifier)
+        return proof_key, f"{unique_key}_fontSize"
 
     def get_proof_font_size(self, proof_identifier):
         """Get font size for a specific proof from its settings."""
-        # Get mapping from config
-        display_name_to_settings_key = get_proof_settings_mapping()
-
-        # Determine if this is a direct match or a numbered variant
-        proof_key = None
-        if proof_identifier in display_name_to_settings_key:
-            # Direct match - use proof key
-            proof_key = display_name_to_settings_key[proof_identifier]
-            font_size_key = f"{proof_key}_fontSize"
-        else:
-            # This might be a numbered variant like "Filtered Character Set 2"
-            # Find the base proof type by checking if the identifier starts with any known proof type
-            for display_name, settings_key in display_name_to_settings_key.items():
-                if proof_identifier.startswith(display_name):
-                    proof_key = settings_key
-                    # For numbered variants, we use the unique identifier as the key
-                    unique_key = create_unique_proof_key(proof_identifier)
-                    font_size_key = f"{unique_key}_fontSize"
-                    break
-
-            # Fallback if no match found
-            if not proof_key:
-                proof_key = "basic_paragraph_small"
-                unique_key = create_unique_proof_key(proof_identifier)
-                font_size_key = f"{unique_key}_fontSize"
-
-        # Set default font size based on proof type using registry
+        proof_key, font_size_key = self._get_proof_key_for_identifier(proof_identifier)
         default_font_size = get_proof_default_font_size(proof_key)
-
         return self.proof_settings.get(font_size_key, default_font_size)
+
+    def _init_proof_instance_settings(self, unique_key, base_proof_key, proof_info):
+        """Initialize settings for a specific proof instance."""
+        settings = {
+            f"{unique_key}_fontSize": get_proof_default_font_size(base_proof_key),
+        }
+
+        # Column and paragraph settings
+        if base_proof_key not in self._COLUMN_EXCLUDED_PROOFS:
+            settings[f"{unique_key}_cols"] = proof_info["default_cols"]
+
+        if proof_info["has_paragraphs"]:
+            settings[f"{unique_key}_para"] = 5
+
+        # Text formatting settings
+        if proof_supports_formatting(base_proof_key):
+            settings[f"{unique_key}_tracking"] = 0
+            settings[f"{unique_key}_align"] = get_default_alignment_for_proof(
+                base_proof_key
+            )
+
+        # Category settings
+        if base_proof_key in ["filtered_character_set", "spacing_proof"]:
+            for category_key, default_value in self._CATEGORY_DEFAULTS.items():
+                settings[f"{unique_key}_cat_{category_key}"] = default_value
+
+        # Apply settings
+        for key, value in settings.items():
+            if key not in self.proof_settings:
+                self.proof_settings[key] = value
+
+        # OpenType features
+        for tag in self._get_font_features():
+            if tag not in HIDDEN_FEATURES:
+                feature_key = f"otf_{unique_key}_{tag}"
+                if feature_key not in self.proof_settings:
+                    self.proof_settings[feature_key] = tag in DEFAULT_ON_FEATURES
 
     def initialize_settings_for_proof(self, unique_proof_name, base_proof_type):
         """Initialize settings for a newly added proof instance."""
         try:
-            # Use centralized mapping
-            proof_name_to_key = get_proof_name_to_key_mapping()
-
-            # Skip if this is just "Show Baselines/Grid" - it doesn't need special settings
             if base_proof_type == "Show Baselines/Grid":
                 return
 
+            proof_name_to_key = get_proof_name_to_key_mapping()
             base_proof_key = proof_name_to_key.get(base_proof_type)
             if not base_proof_key:
                 return
 
-            # Create a unique identifier for this proof instance by sanitizing the unique name
-            unique_key = create_unique_proof_key(unique_proof_name)
-
-            # Initialize settings with defaults based on the base proof type
-            # Font size setting
-            font_size_key = f"{unique_key}_fontSize"
-            default_font_size = get_proof_default_font_size(base_proof_key)
-            self.proof_settings[font_size_key] = default_font_size
-
-            # Get proof info from registry
             proof_info = get_proof_by_storage_key(base_proof_key)
             if proof_info is None:
-                return  # Skip if not found in registry
+                return
 
-            # Columns setting (if applicable)
-            if base_proof_key not in [
-                "filtered_character_set",
-                "spacing_proof",
-                "ar_character_set",
-            ]:
-                cols_key = f"{unique_key}_cols"
-                default_cols = proof_info["default_cols"]
-                self.proof_settings[cols_key] = default_cols
-
-            # Paragraphs setting (only for proofs that have paragraphs)
-            if proof_info["has_paragraphs"]:
-                para_key = f"{unique_key}_para"
-                self.proof_settings[para_key] = 5
-
-            # Text formatting settings for supported proof types
-            if proof_supports_formatting(base_proof_key):
-                # Tracking setting (default 0)
-                tracking_key = f"{unique_key}_tracking"
-                if tracking_key not in self.proof_settings:
-                    self.proof_settings[tracking_key] = 0
-
-                # Align setting (default based on proof type - "right" for Arabic/Persian, "left" for others)
-                align_key = f"{unique_key}_align"
-                if align_key not in self.proof_settings:
-                    self.proof_settings[align_key] = get_default_alignment_for_proof(
-                        base_proof_key
-                    )
-
-            # Character category settings for Filtered Character Set and Spacing Proof
-            if base_proof_key in ["filtered_character_set", "spacing_proof"]:
-                # Default values: most categories enabled except accented
-                category_defaults = {
-                    "uppercase_base": True,
-                    "lowercase_base": True,
-                    "numbers_symbols": True,
-                    "punctuation": True,
-                    "accented": False,
-                }
-
-                for category_key, default_value in category_defaults.items():
-                    setting_key = f"{unique_key}_cat_{category_key}"
-                    if setting_key not in self.proof_settings:
-                        self.proof_settings[setting_key] = default_value
-
-            # OpenType features
-            if self.font_manager.fonts:
-                try:
-                    import drawBot as db
-
-                    feature_tags = db.listOpenTypeFeatures(self.font_manager.fonts[0])
-                except Exception:
-                    feature_tags = []
-
-                for tag in feature_tags:
-                    # Skip hidden features
-                    if tag in HIDDEN_FEATURES:
-                        continue
-
-                    feature_key = f"otf_{unique_key}_{tag}"
-                    default_value = tag in DEFAULT_ON_FEATURES
-                    self.proof_settings[feature_key] = default_value
+            unique_key = create_unique_proof_key(unique_proof_name)
+            self._init_proof_instance_settings(unique_key, base_proof_key, proof_info)
 
         except Exception as e:
             print(f"Error initializing settings for proof {unique_proof_name}: {e}")
@@ -596,138 +534,175 @@ class ProofSettingsManager:
 
             traceback.print_exc()
 
+    def _build_settings_for_proof(self, proof_name, unique_key, settings_key):
+        """Build settings data for a single proof."""
+        cols_key = f"{unique_key}_cols"
+        para_key = f"{unique_key}_para"
+        otf_prefix = f"otf_{unique_key}_"
+
+        result = {"cols": None, "paras": None, "otf": {}}
+
+        # Get columns and paragraphs settings
+        if cols_key in self.proof_settings:
+            result["cols"] = self.proof_settings[cols_key]
+
+        if "Wordsiv" in proof_name and para_key in self.proof_settings:
+            result["paras"] = self.proof_settings[para_key]
+
+        # Get OpenType features
+        for key, value in self.proof_settings.items():
+            if key.startswith(otf_prefix):
+                feature = key.replace(otf_prefix, "")
+                result["otf"][feature] = bool(value)
+
+        return result
+
     def build_proof_data_for_generation(self, proof_options_items):
         """Build the data structures needed for proof generation."""
         otfeatures_by_proof = {}
         cols_by_proof = {}
         paras_by_proof = {}
 
-        # Get mapping from config
         display_name_to_settings_key = get_proof_settings_mapping()
 
-        # Process settings for both old-style and new unique proof identifiers
         for item in proof_options_items:
             if not item["Enabled"]:
                 continue
 
             proof_name = item["Option"]
-
-            # Always use the unique identifier for settings keys to ensure consistency
-            # This handles both original proofs and numbered duplicates uniformly
             unique_key = create_unique_proof_key(proof_name)
 
-            # Determine the base proof type for validation
+            # Determine base proof type
             settings_key = None
             for display_name, base_settings_key in display_name_to_settings_key.items():
                 if proof_name.startswith(display_name):
                     settings_key = base_settings_key
                     break
 
-            # Fallback if no base type found
             if not settings_key:
                 settings_key = "basic_paragraph_small"
 
-            # Always use unique identifier for all settings keys
-            cols_key = f"{unique_key}_cols"
-            para_key = f"{unique_key}_para"
-            otf_prefix = f"otf_{unique_key}_"
+            # Build settings for this proof
+            proof_data = self._build_settings_for_proof(
+                proof_name, unique_key, settings_key
+            )
 
-            # Get columns setting
-            if cols_key in self.proof_settings:
-                cols_by_proof[proof_name] = self.proof_settings[cols_key]
-
-            # Get paragraphs setting (only for Wordsiv proofs)
-            if "Wordsiv" in proof_name:
-                if para_key in self.proof_settings:
-                    paras_by_proof[proof_name] = self.proof_settings[para_key]
-
-            # Get OpenType features
-            otf_dict = {}
-            for key, value in self.proof_settings.items():
-                if key.startswith(otf_prefix):
-                    feature = key.replace(otf_prefix, "")
-                    otf_dict[feature] = bool(value)
-            otfeatures_by_proof[proof_name] = otf_dict
+            if proof_data["cols"] is not None:
+                cols_by_proof[proof_name] = proof_data["cols"]
+            if proof_data["paras"] is not None:
+                paras_by_proof[proof_name] = proof_data["paras"]
+            otfeatures_by_proof[proof_name] = proof_data["otf"]
 
         return otfeatures_by_proof, cols_by_proof, paras_by_proof
 
-    def get_popover_settings_for_proof(self, proof_key):
-        """Get settings data for popover display for a specific proof type."""
-        numeric_items = []
+    def _build_numeric_settings_list(self, proof_key):
+        """Build list of numeric settings for a proof."""
+        items = []
 
-        # Font size setting for all proofs (always first)
+        # Font size (always first)
         font_size_key = f"{proof_key}_fontSize"
         default_font_size = get_proof_default_font_size(proof_key)
         font_size_value = self.proof_settings.get(font_size_key, default_font_size)
-        numeric_items.append(
+        items.append(
             {"Setting": "Font Size", "Value": font_size_value, "_key": font_size_key}
         )
 
-        # Columns setting with appropriate defaults (skip for certain proofs)
-        if proof_key not in [
-            "filtered_character_set",
-            "spacing_proof",
-            "ar_character_set",
-        ]:
+        # Columns (for applicable proofs)
+        if proof_key not in self._COLUMN_EXCLUDED_PROOFS:
             cols_key = f"{proof_key}_cols"
             proof_info = get_proof_by_storage_key(proof_key)
-            if proof_info:
-                default_cols = proof_info["default_cols"]
-            else:
-                default_cols = 2  # Fallback
-
+            default_cols = proof_info["default_cols"] if proof_info else 2
             cols_value = self.proof_settings.get(cols_key, default_cols)
-            numeric_items.append(
-                {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
-            )
+            items.append({"Setting": "Columns", "Value": cols_value, "_key": cols_key})
 
-        # Paragraphs setting (only for proofs that have paragraphs)
+        # Paragraphs (for applicable proofs)
         proof_info = get_proof_by_settings_key(proof_key)
         if proof_info and proof_info["has_paragraphs"]:
             para_key = f"{proof_key}_para"
             para_value = self.proof_settings.get(para_key, 5)
-            numeric_items.append(
+            items.append(
                 {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
             )
 
-        # Add tracking for supported proof types
+        # Tracking (for supported proofs)
         if proof_supports_formatting(proof_key):
             tracking_key = f"{proof_key}_tracking"
             tracking_value = self.proof_settings.get(tracking_key, 0)
-            numeric_items.append(
+            items.append(
                 {"Setting": "Tracking", "Value": tracking_value, "_key": tracking_key}
             )
 
-        return numeric_items
+        return items
+
+    def get_popover_settings_for_proof(self, proof_key):
+        """Get settings data for popover display for a specific proof type."""
+        return self._build_numeric_settings_list(proof_key)
+
+    def get_popover_settings_for_proof_instance(self, unique_proof_key, base_proof_key):
+        """Get settings data for popover display for a specific proof instance."""
+        return self._build_numeric_settings_list_with_key(
+            unique_proof_key, base_proof_key
+        )
+
+    def _build_numeric_settings_list_with_key(self, settings_key, base_proof_key=None):
+        """Build list of numeric settings using a custom settings key."""
+        items = []
+
+        # Use base_proof_key for registry lookups, settings_key for actual settings
+        lookup_key = base_proof_key or settings_key
+
+        # Font size (always first)
+        font_size_key = f"{settings_key}_fontSize"
+        default_font_size = get_proof_default_font_size(lookup_key)
+        font_size_value = self.proof_settings.get(font_size_key, default_font_size)
+        items.append(
+            {"Setting": "Font Size", "Value": font_size_value, "_key": font_size_key}
+        )
+
+        # Columns (for applicable proofs)
+        if lookup_key not in self._COLUMN_EXCLUDED_PROOFS:
+            cols_key = f"{settings_key}_cols"
+            proof_info = get_proof_by_storage_key(lookup_key)
+            default_cols = proof_info["default_cols"] if proof_info else 2
+            cols_value = self.proof_settings.get(cols_key, default_cols)
+            items.append({"Setting": "Columns", "Value": cols_value, "_key": cols_key})
+
+        # Paragraphs (for applicable proofs)
+        proof_info = get_proof_by_settings_key(lookup_key)
+        if proof_info and proof_info["has_paragraphs"]:
+            para_key = f"{settings_key}_para"
+            para_value = self.proof_settings.get(para_key, 5)
+            items.append(
+                {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
+            )
+
+        # Tracking (for supported proofs)
+        if proof_supports_formatting(lookup_key):
+            tracking_key = f"{settings_key}_tracking"
+            tracking_value = self.proof_settings.get(tracking_key, 0)
+            items.append(
+                {"Setting": "Tracking", "Value": tracking_value, "_key": tracking_key}
+            )
+
+        return items
 
     def get_opentype_features_for_proof(self, proof_key):
         """Get OpenType features data for popover display for a specific proof type."""
-        if not self.font_manager.fonts:
-            return []
-
-        try:
-            import drawBot as db
-
-            feature_tags = db.listOpenTypeFeatures(self.font_manager.fonts[0])
-        except Exception:
-            feature_tags = []
-
         feature_items = []
-        for tag in feature_tags:
-            # Skip hidden features
+
+        for tag in self._get_font_features():
             if tag in HIDDEN_FEATURES:
                 continue
 
             feature_key = f"otf_{proof_key}_{tag}"
 
-            # Special handling for Spacing_Proof kern feature
+            # Special handling for spacing proof kern feature
             if proof_key == "spacing_proof" and tag == "kern":
-                feature_value = False
                 self.proof_settings[feature_key] = False
                 feature_items.append(
                     {
                         "Feature": f"{tag} (always off)",
-                        "Enabled": feature_value,
+                        "Enabled": False,
                         "_key": feature_key,
                         "_readonly": True,
                     }
@@ -745,16 +720,15 @@ class ProofSettingsManager:
         """Get alignment value for a specific proof type."""
         if not proof_supports_formatting(proof_key):
             return None
-
         align_key = f"{proof_key}_align"
-        default_align = get_default_alignment_for_proof(proof_key)
-        return self.proof_settings.get(align_key, default_align)
+        return self.proof_settings.get(
+            align_key, get_default_alignment_for_proof(proof_key)
+        )
 
     def set_alignment_value_for_proof(self, proof_key, align_value):
         """Set alignment value for a specific proof type."""
         if proof_supports_formatting(proof_key):
-            align_key = f"{proof_key}_align"
-            self.proof_settings[align_key] = align_value
+            self.proof_settings[f"{proof_key}_align"] = align_value
 
     def update_numeric_setting(self, key, value):
         """Update a numeric setting with validation."""
@@ -767,15 +741,10 @@ class ProofSettingsManager:
 
     def update_feature_setting(self, key, enabled, readonly=False):
         """Update an OpenType feature setting."""
-        if readonly:
-            # Reset to disabled if someone tries to change a readonly feature
-            if enabled:
-                enabled = False
-
+        if readonly and enabled:
+            enabled = False
         self.proof_settings[key] = bool(enabled)
-        return (
-            enabled  # Return the actual value set (may differ from input for readonly)
-        )
+        return enabled
 
     def reset_all_proof_settings(self):
         """Reset all proof-specific settings to defaults."""
