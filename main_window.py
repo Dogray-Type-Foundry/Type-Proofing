@@ -249,71 +249,25 @@ class ProofWindow:
             control.show(show)
             if show and category_key:
                 setting_key = f"{proof_key}_cat_{category_key}"
-                defaults = {
-                    "uppercase_base": True,
-                    "lowercase_base": True,
-                    "numbers_symbols": True,
-                    "punctuation": True,
-                    "accented": False,
-                }
-                value = self.proof_settings.get(
-                    setting_key, defaults.get(category_key, True)
+                # Use the defaults from settings manager
+                value = self.proof_settings_manager.proof_settings.get(
+                    setting_key,
+                    self.proof_settings_manager._CATEGORY_DEFAULTS.get(
+                        category_key, True
+                    ),
                 )
                 control.set(value)
 
     def _build_feature_settings(self, proof_key, feature_tags):
         """Build feature settings list for a given proof and feature tags."""
-        feature_items = []
-        for tag in feature_tags:
-            if tag in HIDDEN_FEATURES:
-                continue
-
-            feature_key = f"otf_{proof_key}_{tag}"
-            default_value = tag in self.default_on_features
-
-            # Special handling for Spacing_Proof kern feature (always off)
-            if proof_key == "spacing_proof" and tag == "kern":
-                self.proof_settings[feature_key] = False
-                feature_items.append(
-                    {
-                        "Feature": f"{tag} (always off)",
-                        "Enabled": False,
-                        "_key": feature_key,
-                        "_readonly": True,
-                    }
-                )
-            else:
-                feature_value = self.proof_settings.get(feature_key, default_value)
-                feature_items.append(
-                    {"Feature": tag, "Enabled": feature_value, "_key": feature_key}
-                )
-        return feature_items
+        return self.proof_settings_manager.get_opentype_features_for_proof(proof_key)
 
     def save_all_settings(self):
         """Save all current settings to the settings file."""
 
         def _save_operation():
-            # Save proof options
             proof_options_items = self.controlsTab.group.proofOptionsList.get()
-            for item in proof_options_items:
-                proof_name = item[
-                    "Option"
-                ]  # Use the actual proof name (including numbers)
-                base_option = item.get(
-                    "_original_option", proof_name
-                )  # Get original option name
-                enabled = item["Enabled"]
-
-                if base_option == "Show Baselines/Grid":
-                    self.settings.set_proof_option("showBaselines", enabled)
-                else:
-                    # For unique proof names, use a sanitized version as the key
-                    unique_key = create_unique_proof_key(proof_name)
-                    self.settings.set_proof_option(unique_key, enabled)
-
-            # Save proof-specific settings
-            self.settings.set_proof_settings(self.proof_settings)
-            self.settings.save()
+            self.proof_settings_manager.save_all_settings(proof_options_items)
 
         self._safe_callback("save_all_settings", _save_operation)
 
@@ -470,48 +424,10 @@ class ProofWindow:
         return self.font_manager.fonts, {}, proof_options, proof_options_items
 
     def _build_proof_settings(self, proof_options_items):
-        """Build proof settings dictionaries."""
-        otfeatures_by_proof = {}
-        cols_by_proof = {}
-        paras_by_proof = {}
-        display_name_to_settings_key = get_proof_settings_mapping()
-
-        for item in proof_options_items:
-            if not item["Enabled"]:
-                continue
-
-            proof_name = item["Option"]
-            unique_key = create_unique_proof_key(proof_name)
-
-            # Determine the base proof type for validation
-            settings_key = None
-            for display_name, base_settings_key in display_name_to_settings_key.items():
-                if proof_name.startswith(display_name):
-                    settings_key = base_settings_key
-                    break
-            if not settings_key:
-                settings_key = "basic_paragraph_small"
-
-            # Get settings
-            cols_key = f"{unique_key}_cols"
-            para_key = f"{unique_key}_para"
-            otf_prefix = f"otf_{unique_key}_"
-
-            if cols_key in self.proof_settings:
-                cols_by_proof[proof_name] = self.proof_settings[cols_key]
-
-            if "Wordsiv" in proof_name and para_key in self.proof_settings:
-                paras_by_proof[proof_name] = self.proof_settings[para_key]
-
-            # Get OpenType features
-            otf_dict = {}
-            for key, value in self.proof_settings.items():
-                if key.startswith(otf_prefix):
-                    feature = key.replace(otf_prefix, "")
-                    otf_dict[feature] = bool(value)
-            otfeatures_by_proof[proof_name] = otf_dict
-
-        return otfeatures_by_proof, cols_by_proof, paras_by_proof
+        """Build proof settings dictionaries using the settings manager."""
+        return self.proof_settings_manager.build_proof_data_for_generation(
+            proof_options_items
+        )
 
     def initialize_proof_settings(self):
         """Initialize proof-specific settings storage using the settings manager."""
@@ -659,57 +575,10 @@ class ProofWindow:
         proof_key, proof_label = self.proof_types_with_otf[idx]
         popover = self.proof_settings_popover
 
-        # Update numeric settings
-        numeric_items = []
-
-        # Font size setting for all proofs (always first)
-        font_size_key = f"{proof_key}_fontSize"
-        # Set default font size based on proof type using registry
-        default_font_size = get_proof_default_font_size(proof_key)
-
-        font_size_value = self.proof_settings.get(font_size_key, default_font_size)
-        numeric_items.append(
-            {"Setting": "Font Size", "Value": font_size_value, "_key": font_size_key}
+        # Get numeric settings from settings manager
+        numeric_items = self.proof_settings_manager.get_popover_settings_for_proof(
+            proof_key
         )
-
-        # Columns setting with appropriate defaults (skip for certain proofs)
-        if proof_key not in [
-            "filtered_character_set",
-            "spacing_proof",
-            "ar_character_set",
-        ]:
-            cols_key = f"{proof_key}_cols"
-
-            # Get proof info from registry
-            proof_info = get_proof_by_storage_key(proof_key)
-            if proof_info:
-                default_cols = proof_info["default_cols"]
-            else:
-                default_cols = 2  # Fallback
-
-            cols_value = self.proof_settings.get(cols_key, default_cols)
-            numeric_items.append(
-                {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
-            )
-
-        # Paragraphs setting (only for proofs that have paragraphs)
-        # Get proof info from registry
-        proof_info = get_proof_by_settings_key(proof_key)
-        if proof_info and proof_info["has_paragraphs"]:
-            para_key = f"{proof_key}_para"
-            para_value = self.proof_settings.get(para_key, 5)
-            numeric_items.append(
-                {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
-            )
-
-        # Add tracking for supported proof types
-        if proof_supports_formatting(proof_key):
-            tracking_key = f"{proof_key}_tracking"
-            tracking_value = self.proof_settings.get(tracking_key, 0)
-            numeric_items.append(
-                {"Setting": "Tracking", "Value": tracking_value, "_key": tracking_key}
-            )
-
         popover.numericList.set(numeric_items)
 
         # Populate the row setting registry for stepper auto-configuration
@@ -721,20 +590,17 @@ class ProofWindow:
         # Configure steppers for the numeric settings
         self.configureSteppersForNumericList(popover.numericList, numeric_items)
 
-        # Update features settings using helper method
-        feature_tags = self._get_font_features()
-        feature_items = self._build_feature_settings(proof_key, feature_tags)
+        # Update features settings using settings manager
+        feature_items = self.proof_settings_manager.get_opentype_features_for_proof(
+            proof_key
+        )
         popover.featuresList.set(feature_items)
 
         # Update alignment control for supported proof types
         if proof_supports_formatting(proof_key):
-            # Update align control
-            align_key = f"{proof_key}_align"
-            # Get default alignment based on proof type
-            from settings_manager import get_default_alignment_for_proof
-
-            default_align = get_default_alignment_for_proof(proof_key)
-            align_value = self.proof_settings.get(align_key, default_align)
+            align_value = self.proof_settings_manager.get_alignment_value_for_proof(
+                proof_key
+            )
             if align_value in self.ALIGNMENT_OPTIONS:
                 popover.alignPopUp.set(self.ALIGNMENT_OPTIONS.index(align_value))
             else:
@@ -1101,64 +967,12 @@ class ProofWindow:
             if hasattr(popover, "proofTypePopup"):
                 popover.proofTypePopup.show(False)
 
-            # Update numeric settings for this specific instance
-            numeric_items = []
-
-            # Font size setting
-            font_size_key = f"{unique_proof_key}_fontSize"
-            # Set default font size using registry
-            default_font_size = get_proof_default_font_size(base_proof_key)
-
-            font_size_value = self.proof_settings.get(font_size_key, default_font_size)
-            numeric_items.append(
-                {
-                    "Setting": "Font Size",
-                    "Value": font_size_value,
-                    "_key": font_size_key,
-                }
+            # Update numeric settings for this specific instance using settings manager
+            numeric_items = (
+                self.proof_settings_manager.get_popover_settings_for_proof_instance(
+                    unique_proof_key, base_proof_key
+                )
             )
-
-            # Columns setting (if applicable)
-            if base_proof_key not in [
-                "filtered_character_set",
-                "ar_character_set",
-            ]:
-                cols_key = f"{unique_proof_key}_cols"
-
-                # Get proof info from registry
-                proof_info = get_proof_by_storage_key(base_proof_key)
-                if proof_info:
-                    default_cols = proof_info["default_cols"]
-                else:
-                    default_cols = 2  # Fallback
-
-                cols_value = self.proof_settings.get(cols_key, default_cols)
-                numeric_items.append(
-                    {"Setting": "Columns", "Value": cols_value, "_key": cols_key}
-                )
-
-            # Paragraphs setting (only for proofs that have paragraphs)
-            # Get proof info from registry
-            proof_info = get_proof_by_settings_key(base_proof_key)
-            if proof_info and proof_info["has_paragraphs"]:
-                para_key = f"{unique_proof_key}_para"
-                para_value = self.proof_settings.get(para_key, 5)
-                numeric_items.append(
-                    {"Setting": "Paragraphs", "Value": para_value, "_key": para_key}
-                )
-
-            # Add tracking for supported proof types
-            if proof_supports_formatting(base_proof_key):
-                tracking_key = f"{unique_proof_key}_tracking"
-                tracking_value = self.proof_settings.get(tracking_key, 0)
-                numeric_items.append(
-                    {
-                        "Setting": "Tracking",
-                        "Value": tracking_value,
-                        "_key": tracking_key,
-                    }
-                )
-
             popover.numericList.set(numeric_items)
 
             # Populate the row setting registry for stepper auto-configuration
@@ -1170,20 +984,17 @@ class ProofWindow:
             # Configure steppers for the numeric settings
             self.configureSteppersForNumericList(popover.numericList, numeric_items)
 
-            # Update OpenType features for this specific instance using helper method
-            feature_tags = self._get_font_features()
-            feature_items = self._build_feature_settings(unique_proof_key, feature_tags)
+            # Update OpenType features for this specific instance using settings manager
+            feature_items = self.proof_settings_manager.get_opentype_features_for_proof(
+                unique_proof_key
+            )
             popover.featuresList.set(feature_items)
 
             # Update alignment control for supported proof types
             if proof_supports_formatting(base_proof_key):
-                # Update align control
-                align_key = f"{unique_proof_key}_align"
-                # Get default alignment based on proof type
-                from settings_manager import get_default_alignment_for_proof
-
-                default_align = get_default_alignment_for_proof(base_proof_key)
-                align_value = self.proof_settings.get(align_key, default_align)
+                align_value = self.proof_settings_manager.get_alignment_value_for_proof(
+                    unique_proof_key
+                )
                 if align_value in self.ALIGNMENT_OPTIONS:
                     popover.alignPopUp.set(self.ALIGNMENT_OPTIONS.index(align_value))
                 else:
