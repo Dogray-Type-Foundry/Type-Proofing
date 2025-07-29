@@ -57,8 +57,6 @@ class FilesTab:
             self.parent_window.settings, custom_location, use_custom
         )
 
-
-
     def create_ui(self):
         """Create the Files tab UI components."""
         self.group = vanilla.Group((0, 0, -0, -0))

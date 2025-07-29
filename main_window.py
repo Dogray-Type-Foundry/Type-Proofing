@@ -221,10 +221,6 @@ class ProofWindow:
         self.filesTab.group.show(idx == 0)
         self.controlsTab.group.show(idx == 1)
 
-
-
-
-
     def _setup_category_controls(self, popover, proof_key, show=True):
         """Setup character category controls for popover."""
         controls = [
