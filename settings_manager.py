@@ -22,6 +22,7 @@ from proof_config import (
 from proof_handlers import create_unique_proof_key
 from utils import safe_json_load, safe_json_save, log_error, validate_setting_value
 
+
 class Settings:
     """Unified settings management for the proof generator."""
 
@@ -43,6 +44,7 @@ class Settings:
         else:
             # Load from auto-save file
             return auto_save_data
+
     def _load_auto_save_file(self):
         """Load settings from the auto-save file."""
         return self._load_settings_file(self.settings_path, is_auto_save=True)
@@ -51,6 +53,7 @@ class Settings:
         """Load settings from a specific file."""
         if not os.path.exists(file_path):
             return self._get_defaults()
+
         try:
             with open(file_path, "r") as f:
                 content = f.read().strip()
@@ -58,26 +61,42 @@ class Settings:
                     if raise_on_error:
                         raise ValueError(f"Settings file {file_path} is empty.")
                     return self._get_defaults()
+
                 data = json.loads(content)
+
                 # Auto-save specific logic
-                if is_auto_save and "user_settings_file" in data and len(data.keys()) == 1:
+                if (
+                    is_auto_save
+                    and "user_settings_file" in data
+                    and len(data.keys()) == 1
+                ):
                     return self._get_defaults()
+
                 # Merge with defaults if not auto-save
                 if not is_auto_save:
                     defaults = self._get_defaults()
                     data = self._merge_settings(defaults, data)
+
                 # Validate fonts
                 if self._validate_fonts(data):
                     return data
                 else:
-                    msg = "Some saved fonts no longer exist. Resetting to defaults." if is_auto_save else f"Some fonts in {file_path} no longer exist. Keeping paths for user reference."
+                    msg = (
+                        "Some saved fonts no longer exist. Resetting to defaults."
+                        if is_auto_save
+                        else f"Some fonts in {file_path} no longer exist. Keeping paths for user reference."
+                    )
                     print(msg)
                     return self._get_defaults() if is_auto_save else data
+
         except Exception as e:
-            print(f"Error loading {'auto-save' if is_auto_save else 'settings file'} {file_path}: {e}")
+            print(
+                f"Error loading {'auto-save' if is_auto_save else 'settings file'} {file_path}: {e}"
+            )
             if raise_on_error:
                 raise
             return self._get_defaults()
+
     def _merge_settings(self, defaults, user_data):
         """Merge user settings with defaults, ensuring all required keys exist."""
         merged = defaults.copy()
