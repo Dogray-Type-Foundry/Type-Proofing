@@ -82,6 +82,17 @@ except ImportError:
     pte = None
 
 
+def get_font_display_name(indFont):
+    """Get the display name for a font, extracting the style from the font name."""
+    try:
+        font_name = db.font(indFont)
+        if "-" in font_name:
+            return font_name.split("-")[1]
+        return font_name
+    except (IndexError, AttributeError):
+        return "Unknown"
+
+
 def drawFooter(title, indFont, otFeatures=None, tracking=None):
     """Draw a simple footer with some minimal but useful info."""
     with db.savedState():
@@ -704,7 +715,7 @@ def charsetProof(
             )
             drawContent(
                 charsetString,
-                sectionName + " - " + db.font(indFont).split("-")[1],
+                sectionName + " - " + get_font_display_name(indFont),
                 1,
                 indFont,
                 "ltr",
@@ -781,7 +792,7 @@ def spacingProof(
         used_features = dict(liga=False, kern=False) if otFea is None else otFea
         drawContent(
             spacingString,
-            sectionName + " - " + db.font(indFont).split("-")[1],
+            sectionName + " - " + get_font_display_name(indFont),
             proof_columns,
             indFont,
             "ltr",
@@ -907,7 +918,7 @@ def textProof(
             return
         drawContent(
             textString,
-            sectionName + " - " + db.font(indFont).split("-")[1],
+            sectionName + " - " + get_font_display_name(indFont),
             columnNumber=cols,
             currentFont=indFont,
             direction=text_direction,
@@ -992,7 +1003,7 @@ def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=N
             )
             drawContent(
                 formattedString,
-                sectionName + " - " + db.font(indFont).split("-")[1],
+                sectionName + " - " + get_font_display_name(indFont),
                 1,
                 indFont,
                 direction="rtl",
@@ -1093,7 +1104,7 @@ def arabicContextualFormsProof(
             )
             drawContent(
                 formattedString,
-                sectionName + " - " + db.font(indFont).split("-")[1],
+                sectionName + " - " + get_font_display_name(indFont),
                 1,
                 indFont,
                 direction="rtl",

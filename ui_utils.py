@@ -94,16 +94,7 @@ def update_table_selection(table, new_data):
 # DrawBot and PDF Utilities
 # =============================================================================
 
-# Page format dimensions mapping (in points)
-PAGE_DIMENSIONS = {
-    "A3Landscape": (1190, 842),  # A3 landscape: 420mm x 297mm
-    "A4Landscape": (842, 595),  # A4 landscape: 297mm x 210mm
-    "A4SmallLandscape": (756, 531),  # A4 small landscape: 267mm x 187mm
-    "A5Landscape": (595, 420),  # A5 landscape: 210mm x 148mm
-    "LegalLandscape": (1008, 612),  # Legal landscape: 14" x 8.5"
-    "LetterLandscape": (792, 612),  # Letter landscape: 11" x 8.5"
-    "LetterSmallLandscape": (720, 540),  # Letter small landscape: 10" x 7.5"
-}
+from core_config import PAGE_DIMENSIONS
 
 
 def setup_page_format(page_format):

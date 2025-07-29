@@ -57,9 +57,7 @@ class FilesTab:
             self.parent_window.settings, custom_location, use_custom
         )
 
-    def _normalize_folder_result(self, result):
-        """Normalize folder selection result from getFolder dialog."""
-        return normalize_folder_result(result)
+
 
     def create_ui(self):
         """Create the Files tab UI components."""
@@ -416,7 +414,7 @@ class FilesTab:
 
             result = getFolder(messageText="Choose a folder for PDF output:")
 
-            selected_path = self._normalize_folder_result(result)
+            selected_path = normalize_folder_result(result)
             if selected_path:
                 # Convert to proper file URL for PathControl
                 file_url = (
