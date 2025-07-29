@@ -19,9 +19,9 @@ from core_config import (
     DEFAULT_ON_FEATURES,
     HIDDEN_FEATURES,
     PAGE_FORMAT_OPTIONS,
+    PAGE_DIMENSIONS,
 )
 from proof_config import (
-    get_proof_default_font_size,
     proof_supports_formatting,
     get_proof_settings_mapping,
     get_proof_by_storage_key,
@@ -221,18 +221,9 @@ class ProofWindow:
         self.filesTab.group.show(idx == 0)
         self.controlsTab.group.show(idx == 1)
 
-    def get_proof_font_size(self, proof_identifier):
-        """Get font size for a specific proof from its settings."""
-        return self.proof_settings_manager.get_proof_font_size(proof_identifier)
 
-    def _get_font_features(self):
-        """Get OpenType features from the first loaded font."""
-        if not self.font_manager.fonts:
-            return []
-        try:
-            return db.listOpenTypeFeatures(self.font_manager.fonts[0])
-        except Exception:
-            return []
+
+
 
     def _setup_category_controls(self, popover, proof_key, show=True):
         """Setup character category controls for popover."""
@@ -847,7 +838,7 @@ class ProofWindow:
                     base_proof_type,
                     proof_name,
                     self.proof_settings,
-                    self.get_proof_font_size,
+                    self.proof_settings_manager.get_proof_font_size,
                 )
 
                 if handler:
