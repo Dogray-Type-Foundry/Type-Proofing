@@ -7,7 +7,7 @@ from proof_generation import (
     textProof,
     arabicContextualFormsProof,
 )
-from script_texts import arabicVocalization, arabicLatinMixed, arabicFarsiUrduNumbers
+import core_config as _cc
 
 try:
     from sample_texts import bigRandomNumbers, additionalSmallText
@@ -201,21 +201,21 @@ class StandardTextProofHandler(BaseProofHandler):
             "character_set_key": "arabic",
             "default_columns": 2,
             "default_paragraphs": 5,
-            "inject_text": arabicLatinMixed,
+            "inject_text": _cc.arabicLatinMixed,
             "language": "ar",
         },
         "ar_farsi_urdu_numbers": {
             "character_set_key": "arabic",
             "default_columns": 2,
             "default_paragraphs": 5,
-            "inject_text": arabicFarsiUrduNumbers,
+            "inject_text": _cc.arabicFarsiUrduNumbers,
             "language": "ar",
         },
         "ar_vocalization": {
             "character_set_key": "arabic",
             "default_columns": 2,
             "default_paragraphs": 5,
-            "inject_text": arabicVocalization,
+            "inject_text": _cc.arabicVocalization,
             "language": "ar",
         },
     }

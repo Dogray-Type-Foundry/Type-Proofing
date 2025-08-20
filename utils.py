@@ -82,21 +82,6 @@ def make_safe_filename(name, extension=""):
     return safe_name or "unnamed"
 
 
-def resolve_icloud_path(path):
-    """Resolve iCloud Drive paths to user-friendly display format"""
-    if not path:
-        return path
-
-    user_home = os.path.expanduser("~")
-    icloud_base = f"{user_home}/Library/Mobile Documents/com~apple~CloudDocs"
-
-    if path.startswith(icloud_base):
-        relative_path = path[len(icloud_base) :].lstrip("/")
-        return f"iCloud Drive/{relative_path}" if relative_path else "iCloud Drive"
-
-    return path
-
-
 def get_file_size_formatted(path):
     """Get formatted file size string"""
     try:
@@ -173,32 +158,19 @@ def format_timestamp(datetime_obj=None):
     return datetime_obj.strftime("%Y-%m-%d_%H%M")
 
 
+def resolve_icloud_path(path):
+    # Deprecated: no longer used
+    return path
+
+
 def sanitize_filename(filename):
-    """Sanitize filename for cross-platform compatibility"""
-    if not filename:
-        return "unnamed"
-
-    # Remove path components
-    filename = os.path.basename(filename)
-
-    # Replace problematic characters
-    sanitized = re.sub(r"[^\w\-_\.]", "_", filename)
-
-    # Remove multiple underscores
-    sanitized = re.sub(r"_+", "_", sanitized)
-
-    # Remove leading/trailing underscores and dots
-    sanitized = sanitized.strip("_.")
-
-    return sanitized or "unnamed"
+    # Deprecated: no longer used
+    return os.path.basename(filename) if filename else "unnamed"
 
 
 def truncate_text(text, max_length=100, suffix="..."):
-    """Truncate text to specified length"""
-    if not text or len(text) <= max_length:
-        return text
-
-    return text[: max_length - len(suffix)] + suffix
+    # Deprecated: no longer used
+    return text
 
 
 def validate_font_path(path):
@@ -225,52 +197,13 @@ def validate_font_path(path):
 
 
 def validate_axis_values(axis_dict):
-    """Validate variable font axis values"""
-    if not isinstance(axis_dict, dict):
-        return False, "Axis values must be a dictionary"
-
-    for axis_name, values in axis_dict.items():
-        if not isinstance(axis_name, str):
-            return False, f"Axis name must be string, got {type(axis_name)}"
-
-        if isinstance(values, (int, float)):
-            continue  # Single value is OK
-
-        if isinstance(values, (list, tuple)):
-            for value in values:
-                if not isinstance(value, (int, float)):
-                    return (
-                        False,
-                        f"Axis values must be numeric, got {type(value)} in {axis_name}",
-                    )
-        else:
-            return (
-                False,
-                f"Axis values must be number or list, got {type(values)} for {axis_name}",
-            )
-
+    # Deprecated: no longer used
     return True, "Valid axis values"
 
 
 def validate_pdf_output_path(path):
-    """Validate PDF output path"""
-    try:
-        if not path:
-            return False, "No path provided"
-
-        normalized = normalize_path(path)
-        directory = os.path.dirname(normalized)
-
-        if not os.path.exists(directory):
-            return False, f"Directory does not exist: {directory}"
-
-        if not os.access(directory, os.W_OK):
-            return False, f"Directory is not writable: {directory}"
-
-        return True, "Valid PDF output path"
-
-    except Exception as e:
-        return False, f"Path validation error: {e}"
+    # Deprecated: no longer used
+    return True, "Valid PDF output path"
 
 
 def is_valid_numeric_input(value):

@@ -139,51 +139,14 @@ def setup_page_format(page_format):
         return False
 
 
-def add_footer_info(font_name, proof_type, page_number, page_width, page_height):
-    """Add footer information to drawBot canvas"""
-    try:
-        import drawBot as db
-
-        # Footer settings
-        footer_height = 30
-        footer_margin = 20
-        font_size = 10
-
-        # Set footer font
-        db.font("Arial", font_size)
-        db.fill(0.5)  # Gray color
-
-        # Generate footer text
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-        left_text = f"{timestamp} | {font_name} | {proof_type} | Page {page_number}"
-        right_text = f"Page {page_number} of {core_config.totalPages}"
-
-        # Position footer at bottom
-        y_position = footer_margin
-
-        # Draw footer text
-        db.text(left_text, (footer_margin, footer_margin))
-        db.text(
-            right_text,
-            (page_width - db.textSize(right_text)[0] - footer_margin, footer_margin),
-        )
-
-    except Exception as e:
-        log_error(f"Failed to add footer info: {e}", "add_footer_info")
+def add_footer_info(*args, **kwargs):
+    # Deprecated: no longer used
+    pass
 
 
-def calculate_text_bounds(text, font_size, font_name="Arial"):
-    """Calculate text bounds for layout purposes"""
-    try:
-        import drawBot as db
-
-        db.font(font_name, font_size)
-        width, height = db.textSize(text)
-        return {"width": width, "height": height}
-
-    except Exception as e:
-        log_error(f"Failed to calculate text bounds: {e}")
-        return {"width": 0, "height": 0}
+def calculate_text_bounds(*args, **kwargs):
+    # Deprecated: no longer used
+    return {"width": 0, "height": 0}
 
 
 # =============================================================================
