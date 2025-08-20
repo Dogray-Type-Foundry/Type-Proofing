@@ -648,27 +648,27 @@ def _generate_arabic_farsi_text(
 
 
 def generateSpacingString(characterSet):
-    """Create empty formatted string that we will fill with spacing strings."""
-    spacingString = ""
+    """Create the spacing proof string efficiently using list accumulation."""
+    lines = []
+    append = lines.append
     for char in characterSet:
-        # determine control characters for each character
         if useFontContainsCharacters and not db.fontContainsCharacters(char):
             continue
+        if char in ("\n", " "):
+            continue
 
-        # ignoring linebreaks and space characters
-        if char not in ["\n", " "]:
-            control1 = "H"
-            control2 = "O"
-            if unicodedata.category(char) == "Ll":
-                control1 = "n"
-                control2 = "o"
-            elif unicodedata.category(char) == "Nd":
-                control1 = "0"
-                control2 = "1"
+        cat = unicodedata.category(char)
+        if cat == "Ll":
+            control1, control2 = "n", "o"
+        elif cat == "Nd":
+            control1, control2 = "0", "1"
+        else:
+            control1, control2 = "H", "O"
 
-            perCharSpacingString = f"{control1}{control1}{control1}{char}{control1}{control2}{control1}{char}{control2}{char}{control2}{control2}{control2}\n"
-            spacingString += perCharSpacingString
-    return spacingString
+        append(
+            f"{control1}{control1}{control1}{char}{control1}{control2}{control1}{char}{control2}{char}{control2}{control2}{control2}"
+        )
+    return "\n".join(lines) + ("\n" if lines else "")
 
 
 def charsetProof(
