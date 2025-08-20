@@ -29,6 +29,10 @@ PROOF_REGISTRY = {
         "default_cols": 1,
         "has_paragraphs": False,
         "default_size": 28,  # largeTextFontSize
+        "text": {
+            "character_set_key": "base_letters",
+            "default_paragraphs": 2,
+        },
     },
     "diacritic_words_large": {
         "display_name": "Diacritic Words Large",
@@ -37,6 +41,11 @@ PROOF_REGISTRY = {
         "default_cols": 1,
         "has_paragraphs": False,
         "default_size": 28,  # largeTextFontSize
+        "text": {
+            "character_set_key": "accented_plus",
+            "default_paragraphs": 3,
+            "accents": 3,
+        },
     },
     "basic_paragraph_small": {
         "display_name": "Basic Paragraph Small",
@@ -45,6 +54,10 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "base_letters",
+            "default_paragraphs": 5,
+        },
     },
     "paired_styles_paragraph_small": {
         "display_name": "Paired Styles Paragraph Small",
@@ -53,6 +66,12 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "base_letters",
+            "default_paragraphs": 5,
+            "mixed_styles": True,
+            "force_wordsiv": True,
+        },
     },
     "generative_text_small": {
         "display_name": "Generative Text Small",
@@ -61,6 +80,11 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": True,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "base_letters",
+            "default_paragraphs": 5,
+            "force_wordsiv": True,
+        },
     },
     "diacritic_words_small": {
         "display_name": "Diacritic Words Small",
@@ -69,6 +93,11 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "accented_plus",
+            "default_paragraphs": 5,
+            "accents": 3,
+        },
     },
     "misc_paragraph_small": {
         "display_name": "Misc Paragraph Small",
@@ -77,6 +106,11 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "base_letters",
+            "default_paragraphs": 5,
+            # bigRandomNumbers, additionalSmallText resolved in handler if present
+        },
     },
     "ar_character_set": {
         "display_name": "Ar Character Set",
@@ -93,6 +127,11 @@ PROOF_REGISTRY = {
         "default_cols": 1,
         "has_paragraphs": False,
         "default_size": 28,  # largeTextFontSize
+        "text": {
+            "character_set_key": "arabic",
+            "default_paragraphs": 2,
+            "language": "ar",
+        },
     },
     "fa_paragraph_large": {
         "display_name": "Fa Paragraph Large",
@@ -101,6 +140,11 @@ PROOF_REGISTRY = {
         "default_cols": 1,
         "has_paragraphs": False,
         "default_size": 28,  # largeTextFontSize
+        "text": {
+            "character_set_key": "farsi",
+            "default_paragraphs": 2,
+            "language": "fa",
+        },
     },
     "ar_paragraph_small": {
         "display_name": "Ar Paragraph Small",
@@ -109,6 +153,11 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "arabic",
+            "default_paragraphs": 5,
+            "language": "ar",
+        },
     },
     "fa_paragraph_small": {
         "display_name": "Fa Paragraph Small",
@@ -117,6 +166,11 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "farsi",
+            "default_paragraphs": 5,
+            "language": "fa",
+        },
     },
     "ar_vocalization_paragraph_small": {
         "display_name": "Ar Vocalization Paragraph Small",
@@ -125,6 +179,12 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "arabic",
+            "default_paragraphs": 5,
+            "language": "ar",
+            "inject_text_key": "arabicVocalization",
+        },
     },
     "ar_lat_mixed_paragraph_small": {
         "display_name": "Ar-Lat Mixed Paragraph Small",
@@ -133,6 +193,12 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "arabic",
+            "default_paragraphs": 5,
+            "language": "ar",
+            "inject_text_key": "arabicLatinMixed",
+        },
     },
     "ar_numbers_small": {
         "display_name": "Ar Numbers Small",
@@ -141,6 +207,12 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "arabic",
+            "default_paragraphs": 5,
+            "language": "ar",
+            "inject_text_key": "arabicFarsiUrduNumbers",
+        },
     },
 }
 
@@ -148,95 +220,15 @@ PROOF_REGISTRY = {
 # PROOF REGISTRY HELPER FUNCTIONS
 # =============================================================================
 
-# Centralized configs for text-based proofs to be consumed by handlers
-TEXT_PROOF_CONFIGS = {
-    "basic_paragraph_large": {
-        "character_set_key": "base_letters",
-        "default_columns": 1,
-        "default_paragraphs": 2,
-    },
-    "diacritic_words_large": {
-        "character_set_key": "accented_plus",
-        "default_columns": 1,
-        "default_paragraphs": 3,
-        "accents": 3,
-    },
-    "basic_paragraph_small": {
-        "character_set_key": "base_letters",
-        "default_columns": 2,
-        "default_paragraphs": 5,
-    },
-    "paired_styles_paragraph_small": {
-        "character_set_key": "base_letters",
-        "default_columns": 2,
-        "default_paragraphs": 5,
-        "mixed_styles": True,
-        "force_wordsiv": True,
-    },
-    "generative_text_small": {
-        "character_set_key": "base_letters",
-        "default_columns": 2,
-        "default_paragraphs": 5,
-        "force_wordsiv": True,
-    },
-    "diacritic_words_small": {
-        "character_set_key": "accented_plus",
-        "default_columns": 2,
-        "default_paragraphs": 5,
-        "accents": 3,
-    },
-    "misc_paragraph_small": {
-        "character_set_key": "base_letters",
-        "default_columns": 2,
-        "default_paragraphs": 5,
-        # bigRandomNumbers, additionalSmallText are optional in handler if present
-    },
-    "ar_paragraph_large": {
-        "character_set_key": "arabic",
-        "default_columns": 1,
-        "default_paragraphs": 2,
-        "language": "ar",
-    },
-    "fa_paragraph_large": {
-        "character_set_key": "farsi",
-        "default_columns": 1,
-        "default_paragraphs": 2,
-        "language": "fa",
-    },
-    "ar_paragraph_small": {
-        "character_set_key": "arabic",
-        "default_columns": 2,
-        "default_paragraphs": 5,
-        "language": "ar",
-    },
-    "fa_paragraph_small": {
-        "character_set_key": "farsi",
-        "default_columns": 2,
-        "default_paragraphs": 5,
-        "language": "fa",
-    },
-    "ar_lat_mixed_paragraph_small": {
-        "character_set_key": "arabic",
-        "default_columns": 2,
-        "default_paragraphs": 5,
-        "language": "ar",
-        "inject_text_key": "arabicLatinMixed",
-    },
-    "ar_numbers_small": {
-        "character_set_key": "arabic",
-        "default_columns": 2,
-        "default_paragraphs": 5,
-        "language": "ar",
-        "inject_text_key": "arabicFarsiUrduNumbers",
-    },
-    "ar_vocalization_paragraph_small": {
-        "character_set_key": "arabic",
-        "default_columns": 2,
-        "default_paragraphs": 5,
-        "language": "ar",
-        "inject_text_key": "arabicVocalization",
-    },
-}
+
+def get_text_proof_config(proof_key):
+    """Get nested text config for a proof from the registry, if present."""
+    info = PROOF_REGISTRY.get(proof_key)
+    return info.get("text") if info else None
+
+
+# Derived view for compatibility; single source remains PROOF_REGISTRY
+TEXT_PROOF_CONFIGS = {k: v["text"] for k, v in PROOF_REGISTRY.items() if "text" in v}
 
 
 def get_proof_display_names(include_arabic=True):

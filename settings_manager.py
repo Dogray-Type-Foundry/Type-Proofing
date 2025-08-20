@@ -2,6 +2,7 @@
 
 import json
 import os
+from functools import lru_cache
 from core_config import (
     DEFAULT_ON_FEATURES,
     HIDDEN_FEATURES,
@@ -18,9 +19,21 @@ from proof_config import (
     get_default_alignment_for_proof,
     get_proof_name_to_key_mapping,
     get_proof_display_names,
+    get_otf_prefix,
 )
 from proof_handlers import create_unique_proof_key
 from utils import safe_json_load, safe_json_save, log_error, validate_setting_value
+
+
+@lru_cache(maxsize=16)
+def _cached_list_ot_features(font_path):
+    """LRU-cached wrapper around drawBot.listOpenTypeFeatures for a font path."""
+    try:
+        import drawBot as db
+
+        return tuple(db.listOpenTypeFeatures(font_path))
+    except Exception:
+        return tuple()
 
 
 class Settings:
@@ -406,7 +419,7 @@ class ProofSettingsManager:
         # OpenType features
         for tag in self._get_font_features():
             if tag not in HIDDEN_FEATURES:
-                feature_key = f"otf_{settings_key}_{tag}"
+                feature_key = self._feature_key(settings_key, tag)
                 if feature_key not in self.proof_settings:
                     self.proof_settings[feature_key] = tag in DEFAULT_ON_FEATURES
 
@@ -415,9 +428,7 @@ class ProofSettingsManager:
         if not self.font_manager.fonts:
             return []
         try:
-            import drawBot as db
-
-            return db.listOpenTypeFeatures(self.font_manager.fonts[0])
+            return list(_cached_list_ot_features(self.font_manager.fonts[0]))
         except Exception:
             return []
 
@@ -427,6 +438,10 @@ class ProofSettingsManager:
         if proof_info is None:
             return
         self._apply_settings_for_key(proof_key, proof_key)
+
+    def _feature_key(self, base_key, tag):
+        """Build consistent OpenType feature storage key for a base/unique key."""
+        return f"{get_otf_prefix(base_key)}{tag}"
 
     def _get_proof_key_for_identifier(self, proof_identifier):
         """Get proof key and font size key for a given proof identifier."""
@@ -526,7 +541,7 @@ class ProofSettingsManager:
         """Build settings data for a single proof."""
         cols_key = f"{unique_key}_cols"
         para_key = f"{unique_key}_para"
-        otf_prefix = f"otf_{unique_key}_"
+        otf_prefix = get_otf_prefix(unique_key)
 
         result = {"cols": None, "paras": None, "otf": {}}
 
@@ -644,7 +659,7 @@ class ProofSettingsManager:
             if tag in HIDDEN_FEATURES:
                 continue
 
-            feature_key = f"otf_{proof_key}_{tag}"
+            feature_key = self._feature_key(proof_key, tag)
 
             # Special handling for spacing proof kern feature
             if proof_key == "spacing_proof" and tag == "kern":
