@@ -26,8 +26,8 @@ from utils import safe_json_load, safe_json_save, log_error, validate_setting_va
 
 
 @lru_cache(maxsize=16)
-def _cached_list_ot_features(font_path):
-    """LRU-cached wrapper around drawBot.listOpenTypeFeatures for a font path."""
+def _cached_list_ot_features(font_path, mtime):
+    """LRU-cached wrapper around drawBot.listOpenTypeFeatures keyed by path+mtime."""
     try:
         import drawBot as db
 
@@ -323,9 +323,7 @@ class Settings:
             return True
         return False
 
-    # Backward-compatible alias used by main_window
-    def load_user_settings_file(self, file_path):
-        return self.load_from_file(file_path)
+    # load_user_settings_file removed; use load_from_file directly
 
     def export_to_file(self, file_path):
         """Export current settings to a file."""
@@ -428,7 +426,12 @@ class ProofSettingsManager:
         if not self.font_manager.fonts:
             return []
         try:
-            return list(_cached_list_ot_features(self.font_manager.fonts[0]))
+            font_path = self.font_manager.fonts[0]
+            try:
+                mtime = os.path.getmtime(font_path)
+            except Exception:
+                mtime = 0
+            return list(_cached_list_ot_features(font_path, mtime))
         except Exception:
             return []
 

@@ -109,7 +109,8 @@ PROOF_REGISTRY = {
         "text": {
             "character_set_key": "base_letters",
             "default_paragraphs": 5,
-            # bigRandomNumbers, additionalSmallText resolved in handler if present
+            # Provide key so handler stays generic; resolved at runtime
+            "inject_text_key": "misc_small_injects",
         },
     },
     "ar_character_set": {
@@ -225,6 +226,19 @@ def get_text_proof_config(proof_key):
     """Get nested text config for a proof from the registry, if present."""
     info = PROOF_REGISTRY.get(proof_key)
     return info.get("text") if info else None
+
+
+def resolve_character_set_by_key(cat: dict, key: str) -> str:
+    """Map a character_set_key to an actual string using the category dict."""
+    if key == "base_letters":
+        return (cat.get("uniLu", "") or "") + (cat.get("uniLl", "") or "")
+    if key == "accented_plus":
+        return cat.get("accented_plus", "") or ""
+    if key == "arabic":
+        return cat.get("ar", "") or cat.get("arab", "") or ""
+    if key == "farsi":
+        return cat.get("fa", "") or cat.get("arab", "") or ""
+    return cat.get(key, "") or ""
 
 
 def get_proof_display_names(include_arabic=True):
