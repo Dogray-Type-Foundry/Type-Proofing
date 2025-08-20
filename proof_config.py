@@ -300,35 +300,6 @@ def get_proof_settings_mapping():
 # get_proof_popover_mapping removed; use get_proof_settings_mapping() directly
 
 
-def get_proof_storage_mapping():
-    """Get mapping from proof keys to storage keys (now the same)."""
-    return {proof_key: proof_key for proof_key in PROOF_REGISTRY.keys()}
-
-
-def get_proof_name_to_key_mapping():
-    """Get complete mapping from proof display names to internal keys."""
-    return {
-        "Show Baselines/Grid": "show_baselines",
-        "Filtered Character Set": "filtered_character_set",
-        "Spacing Proof": "spacing_proof",
-        "Basic Paragraph Large": "basic_paragraph_large",
-        "Diacritic Words Large": "diacritic_words_large",
-        "Basic Paragraph Small": "basic_paragraph_small",
-        "Paired Styles Paragraph Small": "paired_styles_paragraph_small",
-        "Generative Text Small": "generative_text_small",
-        "Diacritic Words Small": "diacritic_words_small",
-        "Misc Paragraph Small": "misc_paragraph_small",
-        "Ar Character Set": "ar_character_set",
-        "Ar Paragraph Large": "ar_paragraph_large",
-        "Fa Paragraph Large": "fa_paragraph_large",
-        "Ar Paragraph Small": "ar_paragraph_small",
-        "Fa Paragraph Small": "fa_paragraph_small",
-        "Ar Vocalization Paragraph Small": "ar_vocalization_paragraph_small",
-        "Ar-Lat Mixed Paragraph Small": "ar_lat_mixed_paragraph_small",
-        "Ar Numbers Small": "ar_numbers_small",
-    }
-
-
 def get_proof_default_columns():
     """Get default column counts for all proofs."""
     return {
