@@ -482,8 +482,9 @@ class ProofSettingsManager:
             if base_proof_type == "Show Baselines/Grid":
                 return
 
-            proof_name_to_key = get_proof_name_to_key_mapping()
-            base_proof_key = proof_name_to_key.get(base_proof_type)
+            from proof_config import resolve_base_proof_key
+
+            _, base_proof_key = resolve_base_proof_key(base_proof_type)
             if not base_proof_key:
                 return
 
@@ -552,7 +553,13 @@ class ProofSettingsManager:
         if cols_key in self.proof_settings:
             result["cols"] = self.proof_settings[cols_key]
 
-        if "Wordsiv" in proof_name and para_key in self.proof_settings:
+        # Paragraphs only for proofs that declare has_paragraphs
+        settings_proof = get_proof_by_settings_key(settings_key)
+        if (
+            settings_proof
+            and settings_proof.get("has_paragraphs", False)
+            and (para_key in self.proof_settings)
+        ):
             result["paras"] = self.proof_settings[para_key]
 
         # Get OpenType features
@@ -569,8 +576,6 @@ class ProofSettingsManager:
         cols_by_proof = {}
         paras_by_proof = {}
 
-        display_name_to_settings_key = get_proof_settings_mapping()
-
         for item in proof_options_items:
             if not item["Enabled"]:
                 continue
@@ -578,13 +583,10 @@ class ProofSettingsManager:
             proof_name = item["Option"]
             unique_key = create_unique_proof_key(proof_name)
 
-            # Determine base proof type
-            settings_key = None
-            for display_name, base_settings_key in display_name_to_settings_key.items():
-                if proof_name.startswith(display_name):
-                    settings_key = base_settings_key
-                    break
+            # Determine base proof type via resolver
+            from proof_config import resolve_base_proof_key
 
+            _, settings_key = resolve_base_proof_key(proof_name)
             if not settings_key:
                 settings_key = "basic_paragraph_small"
 

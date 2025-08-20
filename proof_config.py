@@ -273,6 +273,22 @@ def get_proof_display_names(include_arabic=True):
     return result
 
 
+def resolve_base_proof_key(proof_name: str) -> tuple[str | None, str | None]:
+    """Resolve a user-visible proof option name to (base_display_name, base_key).
+
+    Returns (display_name, key) or (None, None) if not found.
+    """
+    mapping = get_proof_settings_mapping()
+    # Exact match
+    if proof_name in mapping:
+        return proof_name, mapping[proof_name]
+    # Prefix match for numbered variants
+    for display_name in mapping.keys():
+        if proof_name.startswith(display_name):
+            return display_name, mapping[display_name]
+    return None, None
+
+
 def get_proof_settings_mapping():
     """Get mapping from display names to proof keys."""
     return {
@@ -281,9 +297,7 @@ def get_proof_settings_mapping():
     }
 
 
-def get_proof_popover_mapping():
-    """Get mapping from display names to proof keys (for popover compatibility)."""
-    return get_proof_settings_mapping()
+# get_proof_popover_mapping removed; use get_proof_settings_mapping() directly
 
 
 def get_proof_storage_mapping():

@@ -466,10 +466,10 @@ class ControlsTab:
     def show_popover_for_option(self, option, row_index):
         """Show popover for the specified option."""
         # Import the helper function from proof_config
-        from proof_config import get_proof_popover_mapping
+        from proof_config import get_proof_settings_mapping
 
         # Get proof name to key mapping from registry
-        proof_name_to_key = get_proof_popover_mapping()
+        proof_name_to_key = get_proof_settings_mapping()
 
         # Check if this is a base proof type or a numbered variant
         base_proof_type = option
