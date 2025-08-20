@@ -9,7 +9,7 @@ from proof_generation import (
     arabicContextualFormsProof,
 )
 import core_config as _cc
-from proof_config import TEXT_PROOF_CONFIGS
+from proof_config import get_text_proof_config
 
 try:
     from sample_texts import bigRandomNumbers, additionalSmallText
@@ -132,16 +132,20 @@ class BaseProofHandler(ABC):
 class StandardTextProofHandler(BaseProofHandler):
     """Standard handler for text-based proofs with configurable parameters."""
 
-    # Configuration mapping moved to proof_config.TEXT_PROOF_CONFIGS
+    # Configuration mapping is provided via proof_config.get_text_proof_config
 
     def __init__(
         self, proof_name, proof_settings, get_proof_font_size_func, proof_key=None
     ):
         super().__init__(proof_name, proof_settings, get_proof_font_size_func)
 
-        # If proof_key is provided, use configuration from TEXT_PROOF_CONFIGS
-        if proof_key and proof_key in TEXT_PROOF_CONFIGS:
-            config = TEXT_PROOF_CONFIGS[proof_key]
+        # If proof_key is provided, use configuration from registry helper
+        if proof_key:
+            config = get_text_proof_config(proof_key)
+        else:
+            config = None
+
+        if config:
             self.character_set_key = config["character_set_key"]
             self.default_columns = config.get("default_columns", 2)
             self.default_paragraphs = config.get("default_paragraphs", 5)

@@ -227,10 +227,6 @@ def get_text_proof_config(proof_key):
     return info.get("text") if info else None
 
 
-# Derived view for compatibility; single source remains PROOF_REGISTRY
-TEXT_PROOF_CONFIGS = {k: v["text"] for k, v in PROOF_REGISTRY.items() if "text" in v}
-
-
 def get_proof_display_names(include_arabic=True):
     """Get list of proof display names in default order."""
     proof_order = [
