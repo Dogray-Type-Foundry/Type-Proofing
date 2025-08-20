@@ -25,7 +25,8 @@ from font_utils import (
     UPPER_TEMPLATE as upperTemplate,
     LOWER_TEMPLATE as lowerTemplate,
 )
-from variable_font_utils import product_dict
+
+# product_dict not used in this module
 
 try:
     from drawBotGrid import BaselineGrid, columnBaselineGridTextBox
@@ -80,6 +81,27 @@ try:
 except ImportError:
     print("Warning: prooftexts module not found. Using fallback text.")
     pte = None
+
+
+# Internal helpers
+def _normalize_axes(axesProduct, indFont):
+    """Yield (suffix, axisDictOrNone) for variable and static fonts uniformly.
+
+    suffix is used only for section title decoration.
+    axisDictOrNone is passed to stringMaker's fontVariations when present.
+    """
+    if axesProduct:
+        for axisData in axesProduct:
+            try:
+                axis_dict = dict(axisData)
+            except Exception:
+                axis_dict = None
+            yield str(axisData), axis_dict
+    else:
+        # Static font case in this app is represented by empty string ""
+        from proof_generation import get_font_display_name  # local import safe
+
+        yield get_font_display_name(indFont), None
 
 
 def get_font_display_name(indFont):
@@ -676,11 +698,9 @@ def charsetProof(
 
     # sectionName parameter is now passed from the caller
     try:
-        if axesProduct:
-            axisDict = {}
-            for axisData in axesProduct:
-                axisDict = dict(axisData)
-                charsetString = stringMaker(
+        for suffix, axisDict in _normalize_axes(axesProduct, indFont):
+            charsetString = (
+                stringMaker(
                     characterSet,
                     proof_font_size,
                     indFont,
@@ -689,33 +709,25 @@ def charsetProof(
                     "center",
                     tracking_value,
                     otFea,
-                    axisDict,
+                    VFAxisInput=axisDict,
                     mixedStyles=False,
                 )
-                drawContent(
-                    charsetString,
-                    sectionName + " - " + str(axisData),
-                    1,
+                if axisDict is not None
+                else stringMaker(
+                    characterSet,
+                    proof_font_size,
                     indFont,
-                    "ltr",
+                    axesProduct,
+                    pairedStaticStyles,
+                    "center",
+                    tracking_value,
                     otFea,
-                    tracking,
+                    mixedStyles=False,
                 )
-        elif axesProduct == "":
-            charsetString = stringMaker(
-                characterSet,
-                proof_font_size,
-                indFont,
-                axesProduct,
-                pairedStaticStyles,
-                "center",
-                tracking_value,
-                otFea,
-                mixedStyles=False,
             )
             drawContent(
                 charsetString,
-                sectionName + " - " + get_font_display_name(indFont),
+                sectionName + " - " + suffix,
                 1,
                 indFont,
                 "ltr",
@@ -749,50 +761,36 @@ def spacingProof(
     # Use provided columns or fall back to default spacing proof columns (2)
     proof_columns = columns if columns is not None else 2
 
-    # Use the provided sectionName parameter
-    if axesProduct:
-        axisDict = {}
-        for axisData in axesProduct:
-            axisDict = dict(axisData)
-            spacingStringInput = generateSpacingString(characterSet)
-            spacingString = stringMaker(
+    # Precompute spacing input and used features
+    spacingStringInput = generateSpacingString(characterSet)
+    used_features = dict(liga=False, kern=False) if otFea is None else otFea
+
+    for suffix, axisDict in _normalize_axes(axesProduct, indFont):
+        spacingString = (
+            stringMaker(
                 spacingStringInput,
                 proof_font_size,
                 indFont,
                 axesProduct,
                 pairedStaticStyles,
-                OTFeaInput=dict(liga=False, kern=False) if otFea is None else otFea,
+                OTFeaInput=used_features,
                 VFAxisInput=axisDict,
                 mixedStyles=False,
             )
-            # Get the actual features being used for the footer
-            used_features = dict(liga=False, kern=False) if otFea is None else otFea
-            drawContent(
-                spacingString,
-                sectionName + " - " + str(axisData),
-                proof_columns,
+            if axisDict is not None
+            else stringMaker(
+                spacingStringInput,
+                proof_font_size,
                 indFont,
-                "ltr",
-                used_features,
-                tracking,
+                axesProduct,
+                pairedStaticStyles,
+                OTFeaInput=used_features,
+                mixedStyles=False,
             )
-
-    elif axesProduct == "":
-        spacingStringInput = generateSpacingString(characterSet)
-        spacingString = stringMaker(
-            spacingStringInput,
-            proof_font_size,
-            indFont,
-            axesProduct,
-            pairedStaticStyles,
-            OTFeaInput=dict(liga=False, kern=False) if otFea is None else otFea,
-            mixedStyles=False,
         )
-        # Get the actual features being used for the footer
-        used_features = dict(liga=False, kern=False) if otFea is None else otFea
         drawContent(
             spacingString,
-            sectionName + " - " + get_font_display_name(indFont),
+            sectionName + " - " + suffix,
             proof_columns,
             indFont,
             "ltr",
@@ -868,14 +866,12 @@ def textProof(
         for t in injectText:
             textStringInput += t + "\n"
 
-    # Generate proof for each axis variation
-    if axesProduct:
-        axisDict = {}
-        for axisData in axesProduct:
-            axisDict = dict(axisData)
-            # Use rtl direction for Arabic/Farsi text
-            text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
-            textString = stringMaker(
+    # Use rtl direction for Arabic/Farsi text
+    text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
+
+    for suffix, axisDict in _normalize_axes(axesProduct, indFont):
+        textString = (
+            stringMaker(
                 textStringInput,
                 textSize,
                 indFont,
@@ -887,130 +883,31 @@ def textProof(
                 VFAxisInput=axisDict,
                 mixedStyles=mixedStyles,
             )
-            # Skip this font if no valid pairing found for mixed styles
-            if mixedStyles and textString is None:
-                continue
-            drawContent(
-                textString,
-                sectionName + " - " + str(axisData),
-                columnNumber=cols,
-                currentFont=indFont,
-                direction=text_direction,
-                otFeatures=otFea,
-                tracking=tracking,
+            if axisDict is not None
+            else stringMaker(
+                textStringInput,
+                textSize,
+                indFont,
+                axesProduct,
+                pairedStaticStyles,
+                alignInput=align,
+                trackingInput=tracking,
+                OTFeaInput=otFea,
+                mixedStyles=mixedStyles,
             )
-    elif axesProduct == "":
-        # Use rtl direction for Arabic/Farsi text
-        text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
-        textString = stringMaker(
-            textStringInput,
-            textSize,
-            indFont,
-            axesProduct,
-            pairedStaticStyles,
-            alignInput=align,
-            trackingInput=tracking,
-            OTFeaInput=otFea,
-            mixedStyles=mixedStyles,
         )
         # Skip this font if no valid pairing found for mixed styles
         if mixedStyles and textString is None:
-            return
+            continue
         drawContent(
             textString,
-            sectionName + " - " + get_font_display_name(indFont),
+            sectionName + " - " + suffix,
             columnNumber=cols,
             currentFont=indFont,
             direction=text_direction,
             otFeatures=otFea,
             tracking=tracking,
         )
-
-
-def generateArabicContextualProof(cat):
-    """Generate Arabic contextual form proofs for dual-joining and right-joining characters."""
-    contextualProof = ""
-
-    # Dual-joining characters proof
-    dualJoins = ""
-    for char in cat.get("arab", ""):
-        if char == "ء":  # Hamza special case
-            dualJoins += char + " "
-        elif char in cat.get("arfaDualJoin", ""):
-            # Show character in isolation and repeated forms
-            dualJoins += char + " " + char + char + char + " "
-
-    if dualJoins:
-        contextualProof += "Dual-joining forms:\n" + dualJoins + "\n\n"
-
-    # Right-joining characters proof
-    rightJoins = ""
-    for char in cat.get("arab", ""):
-        if char in cat.get("arfaRightJoin", ""):
-            # Show character with connecting letter
-            rightJoins += char + " " + "ب" + char + " "
-
-    if rightJoins:
-        contextualProof += "Right-joining forms:\n" + rightJoins + "\n\n"
-
-    return contextualProof
-
-
-def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=None):
-    """Generate Arabic character set proof pages."""
-    contextualString = generateArabicContextualProof(cat)
-
-    if not contextualString:
-        return
-
-    sectionName = "Ar Character Set"
-
-    try:
-        if axesProduct:
-            axisDict = {}
-            for axisData in axesProduct:
-                axisDict = dict(axisData)
-                formattedString = stringMaker(
-                    contextualString,
-                    get_proof_default_font_size("ar_character_set"),
-                    indFont,
-                    axesProduct,
-                    pairedStaticStyles,
-                    "center",
-                    0,  # No tracking for contextual forms
-                    otFea,
-                    axisDict,
-                    mixedStyles=False,
-                )
-                drawContent(
-                    formattedString,
-                    sectionName + " - " + str(axisData),
-                    1,
-                    indFont,
-                    direction="rtl",
-                )
-        elif axesProduct == "":
-            formattedString = stringMaker(
-                contextualString,
-                get_proof_default_font_size("ar_character_set"),
-                indFont,
-                axesProduct,
-                pairedStaticStyles,
-                "center",
-                0,
-                otFea,
-                mixedStyles=False,
-            )
-            drawContent(
-                formattedString,
-                sectionName + " - " + get_font_display_name(indFont),
-                1,
-                indFont,
-                direction="rtl",
-            )
-    except Exception as e:
-        print(f"Error in arabicContextualProof: {e}")
-        traceback.print_exc()
 
 
 def generateArabicContextualFormsProof(cat):
@@ -1065,46 +962,36 @@ def arabicContextualFormsProof(
         return
 
     try:
-        if axesProduct:
-            axisDict = {}
-            for axisData in axesProduct:
-                axisDict = dict(axisData)
-                formattedString = stringMaker(
+        for suffix, axisDict in _normalize_axes(axesProduct, indFont):
+            formattedString = (
+                stringMaker(
                     contextualString,
                     proof_font_size,
                     indFont,
                     axesProduct,
                     pairedStaticStyles,
                     "center",
-                    0,  # No tracking for contextual forms
+                    0,
                     otFea,
-                    axisDict,
+                    VFAxisInput=axisDict,
                     mixedStyles=False,
                 )
-                drawContent(
-                    formattedString,
-                    sectionName + " - " + str(axisData),
-                    1,
+                if axisDict is not None
+                else stringMaker(
+                    contextualString,
+                    proof_font_size,
                     indFont,
-                    direction="rtl",
-                    otFeatures=otFea,
-                    tracking=tracking,
+                    axesProduct,
+                    pairedStaticStyles,
+                    "center",
+                    0,
+                    otFea,
+                    mixedStyles=False,
                 )
-        elif axesProduct == "":
-            formattedString = stringMaker(
-                contextualString,
-                proof_font_size,
-                indFont,
-                axesProduct,
-                pairedStaticStyles,
-                "center",
-                0,
-                otFea,
-                mixedStyles=False,
             )
             drawContent(
                 formattedString,
-                sectionName + " - " + get_font_display_name(indFont),
+                sectionName + " - " + suffix,
                 1,
                 indFont,
                 direction="rtl",
