@@ -1,6 +1,7 @@
 # Proof Type Handlers - Modular proof generation system
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from proof_generation import (
     charsetProof,
     spacingProof,
@@ -8,6 +9,7 @@ from proof_generation import (
     arabicContextualFormsProof,
 )
 import core_config as _cc
+from proof_config import TEXT_PROOF_CONFIGS
 
 try:
     from sample_texts import bigRandomNumbers, additionalSmallText
@@ -130,110 +132,33 @@ class BaseProofHandler(ABC):
 class StandardTextProofHandler(BaseProofHandler):
     """Standard handler for text-based proofs with configurable parameters."""
 
-    # Configuration mapping for different proof types
-    PROOF_CONFIGS = {
-        "basic_paragraph_large": {
-            "character_set_key": "base_letters",
-            "default_columns": 1,
-            "default_paragraphs": 2,
-        },
-        "diacritic_words_large": {
-            "character_set_key": "accented_plus",
-            "default_columns": 1,
-            "default_paragraphs": 3,
-            "accents": 3,
-        },
-        "basic_paragraph_small": {
-            "character_set_key": "base_letters",
-            "default_columns": 2,
-            "default_paragraphs": 5,
-        },
-        "paired_styles_paragraph_small": {
-            "character_set_key": "base_letters",
-            "default_columns": 2,
-            "default_paragraphs": 5,
-            "mixed_styles": True,
-            "force_wordsiv": True,
-        },
-        "generative_text_small": {
-            "character_set_key": "base_letters",
-            "default_columns": 2,
-            "default_paragraphs": 5,
-            "force_wordsiv": True,
-        },
-        "diacritic_words_small": {
-            "character_set_key": "accented_plus",
-            "default_columns": 2,
-            "default_paragraphs": 5,
-            "accents": 3,
-        },
-        "misc_paragraph_small": {
-            "character_set_key": "base_letters",
-            "default_columns": 2,
-            "default_paragraphs": 5,
-            "inject_text": (bigRandomNumbers, additionalSmallText),
-        },
-        "ar_paragraph_large": {
-            "character_set_key": "arabic",
-            "default_columns": 1,
-            "default_paragraphs": 2,
-            "language": "ar",
-        },
-        "fa_paragraph_large": {
-            "character_set_key": "farsi",
-            "default_columns": 1,
-            "default_paragraphs": 2,
-            "language": "fa",
-        },
-        "ar_paragraph_small": {
-            "character_set_key": "arabic",
-            "default_columns": 2,
-            "default_paragraphs": 5,
-            "language": "ar",
-        },
-        "fa_paragraph_small": {
-            "character_set_key": "farsi",
-            "default_columns": 2,
-            "default_paragraphs": 5,
-            "language": "fa",
-        },
-        "ar_latin_mixed": {
-            "character_set_key": "arabic",
-            "default_columns": 2,
-            "default_paragraphs": 5,
-            "inject_text": _cc.arabicLatinMixed,
-            "language": "ar",
-        },
-        "ar_farsi_urdu_numbers": {
-            "character_set_key": "arabic",
-            "default_columns": 2,
-            "default_paragraphs": 5,
-            "inject_text": _cc.arabicFarsiUrduNumbers,
-            "language": "ar",
-        },
-        "ar_vocalization": {
-            "character_set_key": "arabic",
-            "default_columns": 2,
-            "default_paragraphs": 5,
-            "inject_text": _cc.arabicVocalization,
-            "language": "ar",
-        },
-    }
+    # Configuration mapping moved to proof_config.TEXT_PROOF_CONFIGS
 
     def __init__(
         self, proof_name, proof_settings, get_proof_font_size_func, proof_key=None
     ):
         super().__init__(proof_name, proof_settings, get_proof_font_size_func)
 
-        # If proof_key is provided, use configuration from PROOF_CONFIGS
-        if proof_key and proof_key in self.PROOF_CONFIGS:
-            config = self.PROOF_CONFIGS[proof_key]
+        # If proof_key is provided, use configuration from TEXT_PROOF_CONFIGS
+        if proof_key and proof_key in TEXT_PROOF_CONFIGS:
+            config = TEXT_PROOF_CONFIGS[proof_key]
             self.character_set_key = config["character_set_key"]
             self.default_columns = config.get("default_columns", 2)
             self.default_paragraphs = config.get("default_paragraphs", 5)
             self.mixed_styles = config.get("mixed_styles", False)
             self.force_wordsiv = config.get("force_wordsiv", False)
-            self.inject_text = config.get("inject_text", None)
+            # Some configs refer to centralized text content by key
+            inject_key = config.get("inject_text_key")
+            if inject_key:
+                self.inject_text = getattr(_cc, inject_key, None)
+            else:
+                # Keep misc_paragraph_small fallback using sample_texts if available
+                if proof_key == "misc_paragraph_small" and (
+                    bigRandomNumbers or additionalSmallText
+                ):
+                    self.inject_text = (bigRandomNumbers, additionalSmallText)
+                else:
+                    self.inject_text = config.get("inject_text", None)
             self.accents = config.get("accents", 0)
             self.language = config.get("language", None)
         else:
@@ -278,30 +203,19 @@ class StandardTextProofHandler(BaseProofHandler):
         )
 
 
+@dataclass
 class ProofContext:
     """Context object containing all data needed for proof generation."""
 
-    def __init__(
-        self,
-        full_character_set,
-        axes_product,
-        ind_font,
-        paired_static_styles,
-        otfeatures_by_proof,
-        cols_by_proof,
-        paras_by_proof,
-        cat,
-        proof_name,
-    ):
-        self.full_character_set = full_character_set
-        self.axes_product = axes_product
-        self.ind_font = ind_font
-        self.paired_static_styles = paired_static_styles
-        self.otfeatures_by_proof = otfeatures_by_proof
-        self.cols_by_proof = cols_by_proof
-        self.paras_by_proof = paras_by_proof
-        self.cat = cat
-        self.proof_name = proof_name
+    full_character_set: str
+    axes_product: object
+    ind_font: str
+    paired_static_styles: object
+    otfeatures_by_proof: dict
+    cols_by_proof: dict
+    paras_by_proof: dict
+    cat: dict
+    proof_name: str | None
 
 
 class CategoryBasedProofHandler(BaseProofHandler):

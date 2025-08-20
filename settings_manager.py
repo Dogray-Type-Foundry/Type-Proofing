@@ -55,39 +55,34 @@ class Settings:
             return self._get_defaults()
 
         try:
-            with open(file_path, "r") as f:
-                content = f.read().strip()
-                if not content:
-                    if raise_on_error:
-                        raise ValueError(f"Settings file {file_path} is empty.")
-                    return self._get_defaults()
+            data = safe_json_load(file_path, default={}) or {}
 
-                data = json.loads(content)
+            # Treat empty files as defaults
+            if not data:
+                if raise_on_error:
+                    raise ValueError(f"Settings file {file_path} is empty.")
+                return self._get_defaults()
 
-                # Auto-save specific logic
-                if (
-                    is_auto_save
-                    and "user_settings_file" in data
-                    and len(data.keys()) == 1
-                ):
-                    return self._get_defaults()
+            # Auto-save pointer-only file -> ignore and use defaults
+            if is_auto_save and set(data.keys()) == {"user_settings_file"}:
+                return self._get_defaults()
 
-                # Merge with defaults if not auto-save
-                if not is_auto_save:
-                    defaults = self._get_defaults()
-                    data = self._merge_settings(defaults, data)
+            # Merge with defaults if not auto-save
+            if not is_auto_save:
+                defaults = self._get_defaults()
+                data = self._merge_settings(defaults, data)
 
-                # Validate fonts
-                if self._validate_fonts(data):
-                    return data
-                else:
-                    msg = (
-                        "Some saved fonts no longer exist. Resetting to defaults."
-                        if is_auto_save
-                        else f"Some fonts in {file_path} no longer exist. Keeping paths for user reference."
-                    )
-                    print(msg)
-                    return self._get_defaults() if is_auto_save else data
+            # Validate fonts
+            if self._validate_fonts(data):
+                return data
+            else:
+                msg = (
+                    "Some saved fonts no longer exist. Resetting to defaults."
+                    if is_auto_save
+                    else f"Some fonts in {file_path} no longer exist. Keeping paths for user reference."
+                )
+                print(msg)
+                return self._get_defaults() if is_auto_save else data
 
         except Exception as e:
             print(
@@ -174,18 +169,14 @@ class Settings:
     def save(self):
         """Save current settings to file."""
         try:
-            os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
             save_path = self.user_settings_file or self.settings_path
+            safe_json_save(self.data, save_path)
 
-            with open(save_path, "w") as f:
-                json.dump(self.data, f, indent=2)
-
-            # Update auto-save file if using user settings
+            # Update auto-save pointer if using a user settings file
             if self.user_settings_file and save_path != self.settings_path:
-                with open(self.settings_path, "w") as f:
-                    json.dump(
-                        {"user_settings_file": self.user_settings_file}, f, indent=2
-                    )
+                safe_json_save(
+                    {"user_settings_file": self.user_settings_file}, self.settings_path
+                )
         except Exception as e:
             print(f"Error saving settings: {e}")
 
@@ -319,14 +310,13 @@ class Settings:
             return True
         return False
 
+    # Backward-compatible alias used by main_window
+    def load_user_settings_file(self, file_path):
+        return self.load_from_file(file_path)
+
     def export_to_file(self, file_path):
         """Export current settings to a file."""
-        try:
-            with open(file_path, "w") as f:
-                json.dump(self.data, f, indent=2)
-            return True
-        except IOError:
-            return False
+        return safe_json_save(self.data, file_path)
 
 
 class ProofSettingsManager:

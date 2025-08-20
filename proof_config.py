@@ -148,6 +148,96 @@ PROOF_REGISTRY = {
 # PROOF REGISTRY HELPER FUNCTIONS
 # =============================================================================
 
+# Centralized configs for text-based proofs to be consumed by handlers
+TEXT_PROOF_CONFIGS = {
+    "basic_paragraph_large": {
+        "character_set_key": "base_letters",
+        "default_columns": 1,
+        "default_paragraphs": 2,
+    },
+    "diacritic_words_large": {
+        "character_set_key": "accented_plus",
+        "default_columns": 1,
+        "default_paragraphs": 3,
+        "accents": 3,
+    },
+    "basic_paragraph_small": {
+        "character_set_key": "base_letters",
+        "default_columns": 2,
+        "default_paragraphs": 5,
+    },
+    "paired_styles_paragraph_small": {
+        "character_set_key": "base_letters",
+        "default_columns": 2,
+        "default_paragraphs": 5,
+        "mixed_styles": True,
+        "force_wordsiv": True,
+    },
+    "generative_text_small": {
+        "character_set_key": "base_letters",
+        "default_columns": 2,
+        "default_paragraphs": 5,
+        "force_wordsiv": True,
+    },
+    "diacritic_words_small": {
+        "character_set_key": "accented_plus",
+        "default_columns": 2,
+        "default_paragraphs": 5,
+        "accents": 3,
+    },
+    "misc_paragraph_small": {
+        "character_set_key": "base_letters",
+        "default_columns": 2,
+        "default_paragraphs": 5,
+        # bigRandomNumbers, additionalSmallText are optional in handler if present
+    },
+    "ar_paragraph_large": {
+        "character_set_key": "arabic",
+        "default_columns": 1,
+        "default_paragraphs": 2,
+        "language": "ar",
+    },
+    "fa_paragraph_large": {
+        "character_set_key": "farsi",
+        "default_columns": 1,
+        "default_paragraphs": 2,
+        "language": "fa",
+    },
+    "ar_paragraph_small": {
+        "character_set_key": "arabic",
+        "default_columns": 2,
+        "default_paragraphs": 5,
+        "language": "ar",
+    },
+    "fa_paragraph_small": {
+        "character_set_key": "farsi",
+        "default_columns": 2,
+        "default_paragraphs": 5,
+        "language": "fa",
+    },
+    "ar_lat_mixed_paragraph_small": {
+        "character_set_key": "arabic",
+        "default_columns": 2,
+        "default_paragraphs": 5,
+        "language": "ar",
+        "inject_text_key": "arabicLatinMixed",
+    },
+    "ar_numbers_small": {
+        "character_set_key": "arabic",
+        "default_columns": 2,
+        "default_paragraphs": 5,
+        "language": "ar",
+        "inject_text_key": "arabicFarsiUrduNumbers",
+    },
+    "ar_vocalization_paragraph_small": {
+        "character_set_key": "arabic",
+        "default_columns": 2,
+        "default_paragraphs": 5,
+        "language": "ar",
+        "inject_text_key": "arabicVocalization",
+    },
+}
+
 
 def get_proof_display_names(include_arabic=True):
     """Get list of proof display names in default order."""
