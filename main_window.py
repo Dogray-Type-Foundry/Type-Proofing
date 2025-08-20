@@ -867,7 +867,7 @@ class ProofWindow:
             if result and len(result) > 0:
                 settings_file_path = result[0]
 
-                if self.settings.load_user_settings_file(settings_file_path):
+                if self.settings.load_from_file(settings_file_path):
                     # Clear and reload font manager
                     self.font_manager.fonts = tuple()
                     self.font_manager.font_info = {}

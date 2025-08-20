@@ -9,7 +9,7 @@ from proof_generation import (
     arabicContextualFormsProof,
 )
 import core_config as _cc
-from proof_config import get_text_proof_config
+from proof_config import get_text_proof_config, resolve_character_set_by_key
 
 try:
     from sample_texts import bigRandomNumbers, additionalSmallText
@@ -154,7 +154,13 @@ class StandardTextProofHandler(BaseProofHandler):
             # Some configs refer to centralized text content by key
             inject_key = config.get("inject_text_key")
             if inject_key:
-                self.inject_text = getattr(_cc, inject_key, None)
+                # First try core_config for named text blocks
+                injected = getattr(_cc, inject_key, None)
+                if injected is None and inject_key == "misc_small_injects":
+                    # Fallback to sample_texts tuple when available
+                    if bigRandomNumbers or additionalSmallText:
+                        injected = (bigRandomNumbers, additionalSmallText)
+                self.inject_text = injected
             else:
                 # Keep misc_paragraph_small fallback using sample_texts if available
                 if proof_key == "misc_paragraph_small" and (
@@ -177,17 +183,8 @@ class StandardTextProofHandler(BaseProofHandler):
             self.language = None
 
     def get_character_set(self, context):
-        """Get character set based on the key."""
-        if self.character_set_key == "base_letters":
-            return context.cat["uniLu"] + context.cat["uniLl"]
-        elif self.character_set_key == "accented_plus":
-            return context.cat["accented_plus"]
-        elif self.character_set_key == "arabic":
-            return context.cat.get("ar", "") or context.cat.get("arab", "")
-        elif self.character_set_key == "farsi":
-            return context.cat.get("fa", "") or context.cat.get("arab", "")
-        else:
-            return context.cat.get(self.character_set_key, "")
+        """Get character set based on the key using centralized resolver."""
+        return resolve_character_set_by_key(context.cat, self.character_set_key)
 
     def generate_proof(self, context):
         character_set = self.get_character_set(context)
