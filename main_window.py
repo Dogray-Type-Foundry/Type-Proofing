@@ -26,7 +26,6 @@ from proof_config import (
     get_proof_settings_mapping,
     get_proof_by_storage_key,
     get_proof_by_settings_key,
-    get_proof_name_to_key_mapping,
 )
 from font_manager import FontManager
 from variable_font_utils import product_dict, variableFont, pairStaticStyles
@@ -267,8 +266,10 @@ class ProofWindow:
 
             # Override proof options to all be False (unchecked)
             # Use the centralized mapping to get all proof keys
+            from proof_config import get_proof_settings_mapping
+
             proof_option_keys = ["show_baselines"] + list(
-                get_proof_name_to_key_mapping().values()
+                get_proof_settings_mapping().values()
             )
             for option_key in proof_option_keys:
                 self.settings.set_proof_option(option_key, False)
@@ -942,7 +943,9 @@ class ProofWindow:
         """Update the proof settings popover for a specific proof instance."""
         try:
             # Use centralized mapping
-            base_proof_key = get_proof_name_to_key_mapping().get(base_proof_type)
+            from proof_config import resolve_base_proof_key
+
+            _, base_proof_key = resolve_base_proof_key(base_proof_type)
             if not base_proof_key:
                 return
 

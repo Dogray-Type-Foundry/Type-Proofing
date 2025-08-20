@@ -17,7 +17,6 @@ from proof_config import (
     proof_supports_formatting,
     get_proof_settings_mapping,
     get_default_alignment_for_proof,
-    get_proof_name_to_key_mapping,
     get_proof_display_names,
     get_otf_prefix,
 )
