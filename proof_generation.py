@@ -915,25 +915,22 @@ def generateArabicContextualFormsProof(cat):
     contextualProof = ""
 
     # Get Arabic characters
-    arabic_chars = cat.get("arab", "")
+    arabic_chars = cat.get("arabTyped", "")
+    print(arabic_chars)
     if not arabic_chars:
         return ""
 
-    # Dual-joining characters proof - show isolated and connected forms
     for char in arabic_chars:
         if char == "ء":  # Hamza special case
             contextualProof += char + " "
         elif char in cat.get("arfaDualJoin", ""):
             # Show character: isolated, then connected forms
             contextualProof += char + " " + char + char + char + " "
-
-    contextualProof += "\n\n"
-
-    # Right-joining characters proof - show with connecting letter
-    for char in arabic_chars:
-        if char in cat.get("arfaRightJoin", ""):
+        elif char in cat.get("arfaRightJoin", ""):
             # Show character with connecting letter
             contextualProof += char + " " + "ب" + char + " "
+
+    contextualProof += "\n\n"
 
     return contextualProof
 

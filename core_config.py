@@ -113,10 +113,10 @@ def filter_visible_features(feature_tags):
 # =============================================================================
 
 # Arabic/Farsi character templates for script analysis
-AR_TEMPLATE = "ابجدهوزحطيكلمنسعفصقرشتثخذضظغء"
-FA_TEMPLATE = "یهونملگکقفغعظطضصشسژزرذدخحچجثتپباء"
-ARFA_DUAL_JOIN = "بتثپنقفڤسشصضطظكلهةمعغحخجچيئىکگی"
-ARFA_RIGHT_JOIN = "اأإآٱرزدذوؤژ"
+AR_TEMPLATE = "ءاأإآٱبتثجچحخدذرزسشصضطظعغفڤقكلمنهةوؤىيﻻ"
+FA_TEMPLATE = "اآبپتثجچحخدذرزژسشصضطظعغفقکگلمنهویﻻ"
+ARFA_DUAL_JOIN = "بپتثجچحخسصضطظعغفڤقكکگلمنهہھيئی"
+ARFA_RIGHT_JOIN = "اأإآٱدذرزژوﻻ"
 
 # Positional forms for Arabic/Farsi contextual analysis
 POS_FORMS = ("init", "medi", "fina")
