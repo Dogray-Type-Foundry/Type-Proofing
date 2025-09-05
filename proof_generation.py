@@ -916,7 +916,6 @@ def generateArabicContextualFormsProof(cat):
 
     # Get Arabic characters
     arabic_chars = cat.get("arabTyped", "")
-    print(arabic_chars)
     if not arabic_chars:
         return ""
 
@@ -929,8 +928,6 @@ def generateArabicContextualFormsProof(cat):
         elif char in cat.get("arfaRightJoin", ""):
             # Show character with connecting letter
             contextualProof += char + " " + "ب" + char + " "
-
-    contextualProof += "\n\n"
 
     return contextualProof
 
