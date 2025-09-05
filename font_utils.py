@@ -1,6 +1,7 @@
 # Font Utilities - Basic font operations and helpers
 
 import os
+import unicodedata
 from fontTools.ttLib import TTFont
 from fontTools.agl import toUnicode
 from utils import safe_font_load, log_error, normalize_path
@@ -32,37 +33,83 @@ def clear_font_cache():
 
 
 def filteredCharset(input_font):
-    """Get charset excluding glyphs without outlines."""
+    """Get charset excluding glyphs without outlines.
+
+    Updated logic: Prefer cmap-based collection of characters so we keep
+    actual encoded Unicode codepoints (including ligature codepoints)
+    instead of deriving characters from glyph names via AGL which can
+    expand a ligature glyph name like 'f_i' into the sequence 'fi'.
+    This prevents noisy "split" ligatures in proofs while still showing
+    ligatures that have real Unicode codepoints (detected by a unicode
+    name containing 'LIGATURE').
+    """
     try:
         f = get_ttfont(input_font)
         if not f:
             return ""
 
         gset = f.getGlyphSet()
-        charset = ""
 
-        for i in gset:
-            if "." in i:
-                continue
+        def _has_outline(gname):
+            # Skip synthesized or non-export glyphs indicated by dot names
+            if "." in gname:
+                return False
+            try:
+                if "CFF " in f:
+                    top_dict = f["CFF "].cff.topDictIndex[0]
+                    cs = top_dict.CharStrings[gname]
+                    return cs.calcBounds(top_dict.CharStrings) is not None
+                elif "glyf" in f:
+                    return f["glyf"][gname].numberOfContours != 0
+            except Exception:
+                return False
+            # Other outline table types – assume present
+            return True
 
-            if "CFF " in f:
-                top_dict = f["CFF "].cff.topDictIndex[0]
-                char_strings = top_dict.CharStrings
-                char_string = char_strings[i]
-                bounds = char_string.calcBounds(char_strings)
-                if bounds is None:
+        charset_chars = []
+        seen = set()
+
+        # 1. Primary path: iterate cmap so we only collect encoded chars
+        try:
+            cmap = f.getBestCmap() or {}
+        except Exception:
+            cmap = {}
+
+        if cmap:
+            for codepoint, gname in sorted(cmap.items()):
+                if gname not in gset:
                     continue
-                else:
-                    charset = charset + toUnicode(i)
-            elif "glyf" in f:
-                if f["glyf"][i].numberOfContours == 0:
+                if not _has_outline(gname):
                     continue
+                ch = chr(codepoint)
+                # Keep each codepoint once
+                if ch in seen:
+                    continue
+                # If it's a ligature codepoint we rely on the single char; no decomposition
+                # (The check below is mostly informational; we don't alter ch.)
+                if "LIGATURE" in unicodedata.name(ch, ""):
+                    charset_chars.append(ch)
+                    seen.add(ch)
                 else:
-                    charset = charset + toUnicode(i)
-            else:
-                charset = charset + toUnicode(i)
+                    charset_chars.append(ch)
+                    seen.add(ch)
 
-        return charset
+        # 2. Fallback: previous glyph-name based logic if cmap empty (e.g. bitmap/special fonts)
+        if not charset_chars:
+            for gname in gset.keys():
+                if not _has_outline(gname):
+                    continue
+                try:
+                    chars = toUnicode(gname)
+                    # If AGL mapping returns multi-character sequence that looks like a decomposed ligature
+                    # we skip it to avoid noise; only keep single characters.
+                    if len(chars) == 1 and chars not in seen:
+                        charset_chars.append(chars)
+                        seen.add(chars)
+                except Exception:
+                    continue
+
+        return "".join(charset_chars)
 
     except Exception as e:
         log_error(f"Error filtering charset for {input_font}: {e}")
