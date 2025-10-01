@@ -8,7 +8,7 @@ Usage:
 from setuptools import setup
 
 NAME = "TypeProofing"
-VERSION = "1.3.1"
+VERSION = "1.5.0"
 APP = ["TypeProofing.py"]
 DATA_FILES = [
     "variable_font_utils.py",
