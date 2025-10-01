@@ -863,8 +863,16 @@ def textProof(
             lang=lang,
         )
     elif injectText:
-        for t in injectText:
-            textStringInput += t + "\n"
+        # Accept either an iterable of strings (list/tuple) or a single string.
+        # Previously, iterating over a single injected string produced one-character-per-line output.
+        if isinstance(injectText, (list, tuple)):
+            for t in injectText:
+                if not t:
+                    continue
+                textStringInput += t.rstrip() + "\n"
+        else:
+            # Single block of text
+            textStringInput += str(injectText).rstrip() + "\n"
 
     # Use rtl direction for Arabic/Farsi text
     text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
