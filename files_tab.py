@@ -3,6 +3,7 @@
 import os
 import traceback
 import vanilla
+import AppKit
 from utils import normalize_path, validate_font_path, log_error
 from ui_utils import (
     refresh_path_control,
@@ -303,9 +304,36 @@ class FilesTab:
 
     def removeFontsCallback(self, sender):
         """Handle the Remove Selected button click."""
-        self.group.tableView.removeSelection()
-        # The table selection removal automatically updates the backend
-        self._refresh_after_font_changes()
+        try:
+            # Try primary API
+            try:
+                selection = self.group.tableView.getSelection()
+            except AttributeError:
+                # Fallback to NSTableView selection indices
+                table_view = self.group.tableView.getNSTableView()
+                selection_indexes = table_view.selectedRowIndexes()
+                selection = []
+                index = selection_indexes.firstIndex()
+                while index != AppKit.NSNotFound:
+                    selection.append(index)
+                    index = selection_indexes.indexGreaterThanIndex_(index)
+
+            if not selection:
+                return
+
+            # Remove from backend using the same logic as deleteCallback
+            self.font_manager.remove_fonts_by_indices(selection)
+
+            # Refresh UI components and proof settings
+            self.update_table()
+            self.parent_window.initialize_proof_settings()
+
+            # If no fonts remain, reset columns to base; also update PDF location UI
+            if not self.font_manager.fonts:
+                self.reset_table_columns()
+            self.update_pdf_location_ui()
+        except Exception as e:
+            print(f"Error removing selected fonts: {e}")
 
     def axisEditCallback(self, sender):
         """Handle axis editing in the table."""
