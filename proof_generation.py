@@ -81,6 +81,8 @@ try:
 except ImportError:
     print("Warning: prooftexts module not found. Using fallback text.")
     pte = None
+# Module-level page counter to control displayed page numbers independent of DrawBot internals
+_PROOF_PAGE_INDEX = 0
 
 
 # Internal helpers
@@ -115,7 +117,7 @@ def get_font_display_name(indFont):
         return "Unknown"
 
 
-def drawFooter(title, indFont, otFeatures=None, tracking=None):
+def drawFooter(title, indFont, otFeatures=None, tracking=None, pageNumber=None):
     """Draw a simple footer with some minimal but useful info."""
     with db.savedState():
         # get date and font name
@@ -129,8 +131,12 @@ def drawFooter(title, indFont, otFeatures=None, tracking=None):
         footer = db.FormattedString(
             footerText, font="Courier", fontSize=9, lineHeight=9
         )
+        # Use provided pageNumber when available; fallback to DrawBot's pageCount
+        current_page_str = (
+            str(pageNumber) if pageNumber is not None else str(db.pageCount())
+        )
         folio = db.FormattedString(
-            str(db.pageCount()),
+            current_page_str,
             font="Courier",
             fontSize=9,
             lineHeight=9,
@@ -384,9 +390,22 @@ def drawContent(
             getattr(db, "showBaselines", True) if hasattr(db, "showBaselines") else True
         )
 
+        global _PROOF_PAGE_INDEX
+
+        # Reset our page counter when a new drawing starts
+        if db.pageCount() == 0:
+            _PROOF_PAGE_INDEX = 0
+
         while textToDraw:
             db.newPage(pageDimensions)
-            drawFooter(pageTitle, currentFont, otFeatures, tracking)
+            _PROOF_PAGE_INDEX += 1
+            drawFooter(
+                pageTitle,
+                currentFont,
+                otFeatures,
+                tracking,
+                pageNumber=_PROOF_PAGE_INDEX,
+            )
             db.hyphenation(False)
 
             if BaselineGrid and columnBaselineGridTextBox:

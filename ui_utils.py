@@ -100,8 +100,6 @@ from core_config import PAGE_DIMENSIONS
 def setup_page_format(page_format):
     """Set up page format for drawBot based on format string"""
     try:
-        import drawBot as db
-
         # Get dimensions first
         width, height = None, None
 
@@ -115,19 +113,9 @@ def setup_page_format(page_format):
             log_error(f"Invalid page format: {page_format}")
             return False
 
-        # Try to set the size, but catch the error if drawing has already started
-        try:
-            db.size(width, height)
-        except Exception as size_error:
-            # If size() fails because drawing has started, just log it but don't fail
-            if "drawing has begun" in str(size_error):
-                log_error(
-                    f"Cannot set page size after drawing has started, using current dimensions"
-                )
-            else:
-                # Re-raise other errors
-                raise size_error
-
+        # Do not call db.size() here to avoid creating an implicit page.
+        # The proof generation flow explicitly calls db.newPage(pageDimensions)
+        # for each page, so we only update the shared dimensions.
         # Always update the global pageDimensions variable for compatibility
         import core_config
 
