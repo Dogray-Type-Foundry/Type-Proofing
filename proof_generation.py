@@ -270,15 +270,56 @@ def _handle_mixed_styles(
 
     random.seed(a=dualStyleSeed)
     f = get_ttfont(indFont)
+    # Basic font properties used for pairing decisions
+    try:
+        weight = f["OS/2"].usWeightClass
+    except Exception:
+        weight = None
+    try:
+        isItalic = bool(f["OS/2"].fsSelection & FsSelection.ITALIC)
+    except Exception:
+        isItalic = False
+    try:
+        subfamilyName = f["name"].getBestSubFamilyName()
+    except Exception:
+        subfamilyName = ""
 
-    # Static font upright/italic mixing
-    if pairedStaticStyles[0] and f["OS/2"].fsSelection & FsSelection.ITALIC:
-        upFont, itFont = pairedStaticStyles[0][f["OS/2"].usWeightClass]
-        print("UI", f["name"].getBestSubFamilyName())
-        _apply_alternating_fonts(textString, textInput, [upFont, itFont])
+    # 1) Static Regular/Bold pairing: generate once using Regular as the base
+    if (
+        pairedStaticStyles[1]
+        and subfamilyName == "Regular"
+        and subfamilyName in pairedStaticStyles[1]
+    ):
+        try:
+            rgFont, bdFont = pairedStaticStyles[1][subfamilyName]
+            _apply_alternating_fonts(textString, textInput, [rgFont, bdFont])
+            return textString
+        except Exception:
+            # If RB mapping not available, fall through
+            pass
+
+    # 2) Static upright/italic pairing.
+    # Non-Regular weights: generate on the upright only to avoid duplicates.
+    # Regular weight (OS/2 usWeightClass == 400): generate UI on the Italic run so Regular can produce RB above.
+    if pairedStaticStyles[0] and weight is not None and weight in pairedStaticStyles[0]:
+        try:
+            upFont, itFont = pairedStaticStyles[0][weight]
+            if weight == 400:
+                # For Regular weight, only generate UI when current font is the Italic instance
+                if isItalic:
+                    _apply_alternating_fonts(textString, textInput, [upFont, itFont])
+                    return textString
+            else:
+                # For non-Regular weights, generate UI once from the upright
+                if not isItalic:
+                    _apply_alternating_fonts(textString, textInput, [upFont, itFont])
+                    return textString
+        except Exception:
+            # Fall through to other strategies if mapping not available
+            pass
 
     # Variable font italic axis mixing
-    elif (
+    if (
         axesProduct
         and VFAxisInput
         and "ital" in VFAxisInput
@@ -287,18 +328,13 @@ def _handle_mixed_styles(
         _apply_alternating_variations(
             textString, textInput, VFAxisInput, "ital", [0.0, 1.0]
         )
+        return textString
 
     # Static font regular/bold mixing
-    elif pairedStaticStyles[1] and (
-        f["name"].getBestSubFamilyName() == "Regular"
-        or f["name"].getBestSubFamilyName() == "Italic"
-    ):
-        rgFont, bdFont = pairedStaticStyles[1][f["name"].getBestSubFamilyName()]
-        print("RB", f["name"].getBestSubFamilyName())
-        _apply_alternating_fonts(textString, textInput, [rgFont, bdFont])
+    # Note: We intentionally avoid generating RB for Italic to keep RB single-sourced from Regular
 
     # Variable font weight axis mixing
-    elif (
+    if (
         axesProduct
         and VFAxisInput
         and "wght" in VFAxisInput
@@ -307,6 +343,7 @@ def _handle_mixed_styles(
         _apply_alternating_variations(
             textString, textInput, VFAxisInput, "wght", [400.0, 700.0]
         )
+        return textString
 
     else:
         # No valid pairing found - return None to indicate this font should be skipped
