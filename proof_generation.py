@@ -120,12 +120,14 @@ def get_font_display_name(indFont):
 def drawFooter(title, indFont, otFeatures=None, tracking=None, pageNumber=None):
     """Draw a simple footer with some minimal but useful info."""
     with db.savedState():
-        # get date and font name
-        today = datetime.date.today()
+        # get date/time and font name
+        now = datetime.datetime.now()
+        date_str = now.date()
+        time_str = now.strftime("%H:%M")
         fontFileName = os.path.basename(indFont)
         familyName = os.path.splitext(fontFileName)[0].split("-")[0]
         # assemble footer text
-        footerText = f"{today} | {familyName} | {title}"
+        footerText = f"{date_str} {time_str} | {familyName} | {title}"
 
         # and display formatted string
         footer = db.FormattedString(
