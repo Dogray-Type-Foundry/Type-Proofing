@@ -1,189 +1,13 @@
-# Proof Generation Functions and Text Processing
+"""Compatibility shim for `proof_generation` — re-exports names from `proofing`.
 
-from __future__ import annotations
+This keeps existing imports (`from proof_generation import charsetProof`) working
+while the real implementation lives in `proofing` during the migration.
+"""
 
-import datetime
-import os
-import random
-import traceback
-import unicodedata
-from typing import Optional, Iterator, Any
+from proofing import *  # noqa: F401,F403
 
-import drawBot as db
-from wordsiv import WordSiv
-from config import (
-    marginHorizontal,
-    marginVertical,
-    pageDimensions,
-    myFallbackFont,
-    useFontContainsCharacters,
-    wordsivSeed,
-    dualStyleSeed,
-    FsSelection,
-    posForms,
-    DEFAULT_ON_FEATURES,
-    DEFAULT_CHARSET_TRACKING,
-    FOOTER_FONT_NAME,
-    FOOTER_FONT_SIZE,
-    FOOTER_FEATURES_FONT_SIZE,
-    get_proof_default_font_size,
-)
-from fonts import (
-    get_ttfont,
-    UPPER_TEMPLATE as upperTemplate,
-    LOWER_TEMPLATE as lowerTemplate,
-)
+__all__ = [name for name in globals() if not name.startswith("_")]
 
-# product_dict not used in this module
-
-try:
-    from drawBotGrid import BaselineGrid, columnBaselineGridTextBox
-except ImportError:
-    print("Warning: drawBotGrid not found. Grid functionality will be limited.")
-    BaselineGrid = None
-    columnBaselineGridTextBox = None
-
-try:
-    from sample_texts import (
-        bigMixedText,
-        bigLowerText,
-        bigUpperText,
-        smallMixedText,
-        smallLowerText,
-        smallUpperText,
-        bigRandomNumbers,
-        additionalSmallText,
-    )
-    from script_texts import (
-        arabicVocalization,
-        arabicLatinMixed,
-        arabicFarsiUrduNumbers,
-    )
-    from accented_dictionary import (
-        accentedDict,
-        get_accented_words,
-        get_accented_characters,
-    )
-    from ui import text_generator, TextGenerator
-
-    class ProofTexts:
-        def __init__(self):
-            self.bigMixedText = bigMixedText
-            self.bigLowerText = bigLowerText
-            self.bigUpperText = bigUpperText
-            self.smallMixedText = smallMixedText
-            self.smallLowerText = smallLowerText
-            self.smallUpperText = smallUpperText
-            self.bigRandomNumbers = bigRandomNumbers
-            self.additionalSmallText = additionalSmallText
-            self.arabicVocalization = arabicVocalization
-            self.arabicLatinMixed = arabicLatinMixed
-            self.arabicFarsiUrduNumbers = arabicFarsiUrduNumbers
-            self.accentedDict = accentedDict
-            self.get_accented_words = get_accented_words
-            self.get_accented_characters = get_accented_characters
-            self.text_generator = text_generator
-            self.TextGenerator = TextGenerator
-
-    pte = ProofTexts()
-except ImportError:
-    print("Warning: prooftexts module not found. Using fallback text.")
-    pte = None
-# Module-level page counter to control displayed page numbers independent of DrawBot internals
-_PROOF_PAGE_INDEX = 0
-
-
-def reset_proof_page_counter() -> None:
-    """Reset the proof page counter. Call this when starting a new PDF generation."""
-    global _PROOF_PAGE_INDEX
-    _PROOF_PAGE_INDEX = 0
-
-
-# Internal helpers
-def _normalize_axes(
-    axesProduct: Any, indFont: str
-) -> Iterator[tuple[str, Optional[dict]]]:
-    """Yield (suffix, axisDictOrNone) for variable and static fonts uniformly.
-
-    suffix is used only for section title decoration.
-    axisDictOrNone is passed to stringMaker's fontVariations when present.
-    """
-    if axesProduct:
-        for axisData in axesProduct:
-            try:
-                axis_dict = dict(axisData)
-            except Exception:
-                axis_dict = None
-            yield str(axisData), axis_dict
-    else:
-        # Static font case in this app is represented by empty string ""
-        from proof_generation import get_font_display_name  # local import safe
-
-        yield get_font_display_name(indFont), None
-
-
-def _render_proof_content(
-    textInput: str,
-    fontSize: int | float,
-    indFont: str,
-    axesProduct: Any,
-    pairedStaticStyles: Any,
-    sectionName: str,
-    columns: int,
-    alignInput: str = "left",
-    trackingInput: int | float = 0,
-    otFeatures: Optional[dict] = None,
-    mixedStyles: bool = False,
-    direction: str = "ltr",
-    skip_none_result: bool = False,
-) -> None:
-    """Unified helper to render proof content across all axes variations.
-
-    This consolidates the repeated pattern of iterating over axes,
-    calling stringMaker, and then drawContent.
-
-    Args:
-        textInput: The text content to render
-        fontSize: Font size in points
-        indFont: Font path/identifier
-        axesProduct: Variable font axes product or empty for static
-        pairedStaticStyles: Paired styles for mixed style proofs
-        sectionName: Base section name (suffix will be appended)
-        columns: Number of columns for layout
-        alignInput: Text alignment ("left", "center", "right")
-        trackingInput: Tracking value
-        otFeatures: OpenType features dict
-        mixedStyles: Whether to use mixed styles (italic/bold alternation)
-        direction: Text direction ("ltr" or "rtl")
-        skip_none_result: If True, skip rendering when stringMaker returns None
-    """
-    for suffix, axisDict in _normalize_axes(axesProduct, indFont):
-        formatted_string = stringMaker(
-            textInput,
-            fontSize,
-            indFont,
-            axesProduct,
-            pairedStaticStyles,
-            alignInput,
-            trackingInput,
-            otFeatures,
-            VFAxisInput=axisDict,
-            mixedStyles=mixedStyles,
-        )
-
-        # Skip if no valid result (e.g., mixed styles with no valid pairing)
-        if skip_none_result and formatted_string is None:
-            continue
-
-        drawContent(
-            formatted_string,
-            f"{sectionName} - {suffix}",
-            columns,
-            indFont,
-            direction,
-            otFeatures,
-            trackingInput,
-        )
 
 
 def get_font_display_name(indFont: str) -> str:
@@ -603,10 +427,15 @@ def generateTextProofString(
 def _generate_wordsiv_text(cat, para, fullCharacterSet, characterSet):
     """Generate text using WordSiv for mixed case scenarios."""
     caplc = []
+
+    # Ensure we have a fallback WordSiv instance even if uniLuBase is empty
+    wsv = WordSiv(glyphs=(fullCharacterSet if fullCharacterSet else characterSet), seed=wordsivSeed)
+
     for u in cat["uniLuBase"]:
         capAndLower = u + cat["uniLlBase"]
-        wsv = WordSiv(vocab="en", seed=wordsivSeed)
-        capitalisedList = wsv.words(
+        # Use a short-lived WordSiv configured for capitalized word generation
+        local_wsv = WordSiv(vocab="en", seed=wordsivSeed)
+        capitalisedList = local_wsv.words(
             glyphs=capAndLower,
             case="cap",
             n_words=2,
@@ -616,7 +445,7 @@ def _generate_wordsiv_text(cat, para, fullCharacterSet, characterSet):
         if capitalisedList:
             capitalisedString = " ".join(str(elem) for elem in capitalisedList)
             caplc.append(capitalisedString + " ")
-        lcList = wsv.words(
+        lcList = local_wsv.words(
             glyphs=capAndLower,
             case="lc_force",
             contains=u.lower(),
@@ -639,13 +468,13 @@ def _generate_wordsiv_text(cat, para, fullCharacterSet, characterSet):
         + cat["uniPi"]
         + cat["uniPf"]
         + "()",
+        vocab="en",
         numbers=0.1,
         rnd_punc=0.1,
         n_paras=para,
         para_sep=" ",
     )
     return caplc_str + "\n\n" + wsvtext + "\n\n" + wsvtext.upper()
-
 
 def _generate_uppercase_text(cat, para, fullCharacterSet, characterSet):
     """Generate text for uppercase-only fonts."""

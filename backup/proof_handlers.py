@@ -8,9 +8,9 @@ from proof_generation import (
     textProof,
     arabicContextualFormsProof,
 )
-import config as _cc
-from config import get_text_proof_config, resolve_character_set_by_key
-from settings import make_settings_key, create_unique_proof_key
+import core_config as _cc
+from proof_config import get_text_proof_config, resolve_character_set_by_key
+from settings_manager import make_settings_key, create_unique_proof_key
 
 try:
     from sample_texts import bigRandomNumbers, additionalSmallText
@@ -230,7 +230,7 @@ class CategoryBasedProofHandler(BaseProofHandler):
 
     def get_proof_sections(self, context):
         """Get proof sections based on user settings."""
-        from fonts import get_charset_proof_categories
+        from character_analysis import get_charset_proof_categories
 
         categories = get_charset_proof_categories(context.cat)
         proof_sections = []
@@ -369,7 +369,7 @@ def get_proof_handler(proof_type, proof_name, proof_settings, get_proof_font_siz
             return None
 
     # For text-based proofs, use StandardTextProofHandler with configuration
-    from config import PROOF_REGISTRY
+    from proof_config import PROOF_REGISTRY
 
     # Find the proof key by looking up the display name in the registry
     proof_key = None

@@ -6,7 +6,7 @@ import traceback
 import AppKit
 import Quartz.PDFKit as PDFKit
 import drawBot as db
-from settings import (
+from utils import (
     normalize_path,
     ensure_directory_exists,
     format_timestamp,
@@ -14,7 +14,7 @@ from settings import (
     log_error,
     get_file_size_formatted,
 )
-from ui import setup_page_format
+from ui_utils import setup_page_format
 from proof_generation import reset_proof_page_counter
 
 
