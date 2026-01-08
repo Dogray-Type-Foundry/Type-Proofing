@@ -158,21 +158,6 @@ def format_timestamp(datetime_obj=None):
     return datetime_obj.strftime("%Y-%m-%d_%H%M")
 
 
-def resolve_icloud_path(path):
-    # Deprecated: no longer used
-    return path
-
-
-def sanitize_filename(filename):
-    # Deprecated: no longer used
-    return os.path.basename(filename) if filename else "unnamed"
-
-
-def truncate_text(text, max_length=100, suffix="..."):
-    # Deprecated: no longer used
-    return text
-
-
 def validate_font_path(path):
     """Validate that path points to a valid font file"""
     try:
@@ -194,16 +179,6 @@ def validate_font_path(path):
 
     except Exception as e:
         return False, f"Validation error: {e}"
-
-
-def validate_axis_values(axis_dict):
-    # Deprecated: no longer used
-    return True, "Valid axis values"
-
-
-def validate_pdf_output_path(path):
-    # Deprecated: no longer used
-    return True, "Valid PDF output path"
 
 
 def is_valid_numeric_input(value):

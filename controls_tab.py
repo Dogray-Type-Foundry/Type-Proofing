@@ -4,7 +4,7 @@ import traceback
 import vanilla
 import AppKit
 from AppKit import NSBezelStyleRegularSquare, NSTextAlignmentCenter
-from proof_handlers import create_unique_proof_key
+from settings_manager import create_unique_proof_key
 
 
 class ControlsTab:

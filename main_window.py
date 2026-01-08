@@ -20,6 +20,10 @@ from core_config import (
     HIDDEN_FEATURES,
     PAGE_FORMAT_OPTIONS,
     PAGE_DIMENSIONS,
+    WINDOW_SIZE,
+    WINDOW_MIN_SIZE,
+    SPLIT_MAIN_SIZE,
+    SPLIT_DEBUG_SIZE,
 )
 from proof_config import (
     proof_supports_formatting,
@@ -42,10 +46,15 @@ from proof_generation import charsetProof, spacingProof
 from proof_handlers import (
     ProofContext,
     get_proof_handler,
-    create_unique_proof_key,
     clear_handler_cache,
 )
-from settings_manager import Settings, ProofSettingsManager, get_app_settings
+from settings_manager import (
+    Settings,
+    ProofSettingsManager,
+    get_app_settings,
+    make_settings_key,
+    create_unique_proof_key,
+)
 from files_tab import FilesTab
 from controls_tab import ControlsTab
 from pdf_manager import PDFManager
@@ -149,7 +158,7 @@ class ProofWindow:
 
         # Create main window
         self.w = vanilla.Window(
-            (1000, 700), WINDOW_TITLE, minSize=(1000, 700), closable=True
+            WINDOW_SIZE, WINDOW_TITLE, minSize=WINDOW_MIN_SIZE, closable=True
         )
 
         # Set the window close callback to handle the window close button
@@ -193,8 +202,10 @@ class ProofWindow:
         self.w.splitView = vanilla.SplitView(
             (0, 0, -0, -0),
             [
-                dict(view=self.mainContent, identifier="main", size=600),
-                dict(view=self.debugTextEditor, identifier="debug", size=100),
+                dict(view=self.mainContent, identifier="main", size=SPLIT_MAIN_SIZE),
+                dict(
+                    view=self.debugTextEditor, identifier="debug", size=SPLIT_DEBUG_SIZE
+                ),
             ],
             isVertical=False,
         )
@@ -234,7 +245,7 @@ class ProofWindow:
         for control, category_key in controls:
             control.show(show)
             if show and category_key:
-                setting_key = f"{proof_key}_cat_{category_key}"
+                setting_key = make_settings_key(proof_key, "cat", category_key)
                 # Use the defaults from settings manager
                 value = self.proof_settings_manager.proof_settings.get(
                     setting_key,
@@ -635,7 +646,7 @@ class ProofWindow:
 
         category_key = category_mapping.get(sender)
         if category_key:
-            setting_key = f"{self.current_proof_key}_cat_{category_key}"
+            setting_key = make_settings_key(self.current_proof_key, "cat", category_key)
             self.proof_settings[setting_key] = sender.get()
 
     def alignPopUpCallback(self, sender):
@@ -646,7 +657,7 @@ class ProofWindow:
         selected_idx = sender.get()
         if 0 <= selected_idx < len(self.ALIGNMENT_OPTIONS):
             align_value = self.ALIGNMENT_OPTIONS[selected_idx]
-            align_key = f"{self.current_proof_key}_align"
+            align_key = make_settings_key(self.current_proof_key, "align")
             self.proof_settings[align_key] = align_value
 
     def stepperChangeCallback(self, setting_key, value):

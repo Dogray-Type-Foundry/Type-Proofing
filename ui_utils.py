@@ -127,16 +127,6 @@ def setup_page_format(page_format):
         return False
 
 
-def add_footer_info(*args, **kwargs):
-    # Deprecated: no longer used
-    pass
-
-
-def calculate_text_bounds(*args, **kwargs):
-    # Deprecated: no longer used
-    return {"width": 0, "height": 0}
-
-
 # =============================================================================
 # Data Processing for UI
 # =============================================================================
