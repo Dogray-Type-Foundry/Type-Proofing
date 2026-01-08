@@ -5,14 +5,12 @@ Type Proofing Application - Main Entry Point
 This is the main entry point for the font proofing application.
 The application has been modularized into the following components:
 
-- config.py: Configuration constants and proof registry
-- settings.py: Settings management and core utilities
-- fonts.py: Font processing and character set analysis
-- ui.py: UI components, tabs, and helpers
-- app.py: Main application window and controller
-- proof_generation.py: Proof generation functions
-- proof_handlers.py: Proof handler system
-- pdf_manager.py: PDF generation and preview
+- config.py: Configuration constants and settings management
+- font_analysis.py: Font processing and character set analysis
+- proof_generation.py: Proof generation functions and text processing
+- main_window.py: User interface components and main application window
+- utils.py: Core utility functions for file operations, validation, error handling
+- ui_utils.py: UI-specific utilities and drawing helpers
 
 Usage:
     python "Type Proofing.py"
@@ -28,7 +26,7 @@ Dependencies:
 """
 
 import logging
-from settings import log_error
+from utils import log_error
 
 # Configure logging
 log = logging.getLogger("wordsiv")
@@ -37,7 +35,7 @@ log.setLevel(logging.ERROR)
 # Import and run the main application
 if __name__ == "__main__":
     try:
-        from app import ProofWindow
+        from main_window import ProofWindow
         from PyObjCTools import AppHelper
 
         # Create and show the main window

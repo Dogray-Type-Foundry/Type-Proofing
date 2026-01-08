@@ -11,7 +11,7 @@ from typing import Optional, Iterator, Any
 
 import drawBot as db
 from wordsiv import WordSiv
-from config import (
+from core_config import (
     marginHorizontal,
     marginVertical,
     pageDimensions,
@@ -26,9 +26,9 @@ from config import (
     FOOTER_FONT_NAME,
     FOOTER_FONT_SIZE,
     FOOTER_FEATURES_FONT_SIZE,
-    get_proof_default_font_size,
 )
-from fonts import (
+from proof_config import get_proof_default_font_size
+from font_utils import (
     get_ttfont,
     UPPER_TEMPLATE as upperTemplate,
     LOWER_TEMPLATE as lowerTemplate,
@@ -64,7 +64,7 @@ try:
         get_accented_words,
         get_accented_characters,
     )
-    from ui import text_generator, TextGenerator
+    from text_generators import text_generator, TextGenerator
 
     class ProofTexts:
         def __init__(self):
