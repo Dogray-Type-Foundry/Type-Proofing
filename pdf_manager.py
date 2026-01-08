@@ -15,7 +15,7 @@ from settings import (
     get_file_size_formatted,
 )
 from ui import setup_page_format
-from proof_generation import reset_proof_page_counter
+from proof import reset_proof_page_counter
 
 
 class PDFManager:
