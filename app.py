@@ -42,8 +42,8 @@ from ui import (
     clear_row_settings,
 )
 from fonts import categorize
-from proof_generation import charsetProof, spacingProof
-from proof_handlers import (
+from proof import charsetProof, spacingProof
+from proof import (
     ProofContext,
     get_proof_handler,
     clear_handler_cache,
