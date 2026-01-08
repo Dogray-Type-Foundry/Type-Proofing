@@ -69,6 +69,35 @@ AXES_VALUES = {}
 
 
 # =============================================================================
+# UI Layout Constants
+# =============================================================================
+
+# Main window dimensions
+WINDOW_SIZE = (1000, 700)
+WINDOW_MIN_SIZE = (1000, 700)
+
+# SplitView panel sizes
+SPLIT_MAIN_SIZE = 600
+SPLIT_DEBUG_SIZE = 100
+
+# Table column widths
+TABLE_FONT_NAME_WIDTH = 200
+TABLE_AXIS_COLUMN_WIDTH = 180
+
+# Popover dimensions
+POPOVER_PROOF_SETTINGS_SIZE = (400, 620)
+POPOVER_ADD_PROOF_SIZE = (300, 100)
+
+# Default tracking value for character set proofs
+DEFAULT_CHARSET_TRACKING = 24
+
+# Footer font settings
+FOOTER_FONT_NAME = "Courier"
+FOOTER_FONT_SIZE = 9
+FOOTER_FEATURES_FONT_SIZE = 7
+
+
+# =============================================================================
 # OpenType Feature Configuration
 # =============================================================================
 

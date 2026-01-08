@@ -20,8 +20,56 @@ from proof_config import (
     get_proof_display_names,
     get_otf_prefix,
 )
-from proof_handlers import create_unique_proof_key
 from utils import safe_json_load, safe_json_save, log_error, validate_setting_value
+
+
+# =============================================================================
+# Centralized Settings Key Construction
+# =============================================================================
+
+
+def create_unique_proof_key(proof_name):
+    """Create a unique key from proof name for settings storage."""
+    unique_proof_key = (
+        proof_name.lower().replace(" ", "_").replace("/", "_").replace("-", "_")
+    )
+    return unique_proof_key
+
+
+def make_settings_key(base_key, setting_type, category=None):
+    """Construct a consistent settings key.
+
+    Args:
+        base_key: The proof key or unique proof key (e.g., "basic_paragraph_small")
+        setting_type: The type of setting (e.g., "fontSize", "cols", "tracking", "align")
+        category: Optional category for category-specific settings (e.g., "uppercase_base")
+
+    Returns:
+        Formatted settings key string
+
+    Examples:
+        make_settings_key("basic_paragraph_small", "fontSize") -> "basic_paragraph_small_fontSize"
+        make_settings_key("filtered_character_set", "cat", "uppercase_base") -> "filtered_character_set_cat_uppercase_base"
+    """
+    if category:
+        return f"{base_key}_{setting_type}_{category}"
+    return f"{base_key}_{setting_type}"
+
+
+def make_feature_key(base_key, feature_tag):
+    """Construct a consistent OpenType feature settings key.
+
+    Args:
+        base_key: The proof key or unique proof key
+        feature_tag: The OpenType feature tag (e.g., "kern", "liga")
+
+    Returns:
+        Formatted feature key string
+
+    Example:
+        make_feature_key("basic_paragraph_small", "kern") -> "otf_basic_paragraph_small_kern"
+    """
+    return f"{get_otf_prefix(base_key)}{feature_tag}"
 
 
 @lru_cache(maxsize=16)
@@ -402,21 +450,21 @@ class ProofSettingsManager:
             if condition_func and not condition_func(proof_key):
                 continue
 
-            setting_key = f"{settings_key}_{setting_type}"
-            if setting_key not in self.proof_settings:
-                self.proof_settings[setting_key] = default_func(proof_key)
+            setting_key_full = make_settings_key(settings_key, setting_type)
+            if setting_key_full not in self.proof_settings:
+                self.proof_settings[setting_key_full] = default_func(proof_key)
 
         # Category settings for applicable proofs
         if proof_key in ["filtered_character_set", "spacing_proof"]:
             for category_key, default_value in self._CATEGORY_DEFAULTS.items():
-                setting_key = f"{settings_key}_cat_{category_key}"
-                if setting_key not in self.proof_settings:
-                    self.proof_settings[setting_key] = default_value
+                setting_key_full = make_settings_key(settings_key, "cat", category_key)
+                if setting_key_full not in self.proof_settings:
+                    self.proof_settings[setting_key_full] = default_value
 
         # OpenType features
         for tag in self._get_font_features():
             if tag not in HIDDEN_FEATURES:
-                feature_key = self._feature_key(settings_key, tag)
+                feature_key = make_feature_key(settings_key, tag)
                 if feature_key not in self.proof_settings:
                     self.proof_settings[feature_key] = tag in DEFAULT_ON_FEATURES
 
@@ -443,7 +491,7 @@ class ProofSettingsManager:
 
     def _feature_key(self, base_key, tag):
         """Build consistent OpenType feature storage key for a base/unique key."""
-        return f"{get_otf_prefix(base_key)}{tag}"
+        return make_feature_key(base_key, tag)
 
     def _get_proof_key_for_identifier(self, proof_identifier):
         """Get proof key and font size key for a given proof identifier."""
@@ -452,18 +500,18 @@ class ProofSettingsManager:
         if proof_identifier in display_name_to_settings_key:
             # Direct match
             proof_key = display_name_to_settings_key[proof_identifier]
-            return proof_key, f"{proof_key}_fontSize"
+            return proof_key, make_settings_key(proof_key, "fontSize")
 
         # Check for numbered variants
         for display_name, settings_key in display_name_to_settings_key.items():
             if proof_identifier.startswith(display_name):
                 unique_key = create_unique_proof_key(proof_identifier)
-                return settings_key, f"{unique_key}_fontSize"
+                return settings_key, make_settings_key(unique_key, "fontSize")
 
         # Fallback
         proof_key = "basic_paragraph_small"
         unique_key = create_unique_proof_key(proof_identifier)
-        return proof_key, f"{unique_key}_fontSize"
+        return proof_key, make_settings_key(unique_key, "fontSize")
 
     def get_proof_font_size(self, proof_identifier):
         """Get font size for a specific proof from its settings."""
@@ -542,8 +590,8 @@ class ProofSettingsManager:
 
     def _build_settings_for_proof(self, proof_name, unique_key, settings_key):
         """Build settings data for a single proof."""
-        cols_key = f"{unique_key}_cols"
-        para_key = f"{unique_key}_para"
+        cols_key = make_settings_key(unique_key, "cols")
+        para_key = make_settings_key(unique_key, "para")
         otf_prefix = get_otf_prefix(unique_key)
 
         result = {"cols": None, "paras": None, "otf": {}}
@@ -634,7 +682,7 @@ class ProofSettingsManager:
 
         for display_name, setting_type, condition, default_func in setting_configs:
             if condition:
-                setting_key = f"{settings_key}_{setting_type}"
+                setting_key = make_settings_key(settings_key, setting_type)
                 default_value = default_func()
                 current_value = self.proof_settings.get(setting_key, default_value)
                 items.append(
@@ -689,7 +737,7 @@ class ProofSettingsManager:
         """Get alignment value for a specific proof type."""
         if not proof_supports_formatting(proof_key):
             return None
-        align_key = f"{proof_key}_align"
+        align_key = make_settings_key(proof_key, "align")
         return self.proof_settings.get(
             align_key, get_default_alignment_for_proof(proof_key)
         )
@@ -697,7 +745,7 @@ class ProofSettingsManager:
     def set_alignment_value_for_proof(self, proof_key, align_value):
         """Set alignment value for a specific proof type."""
         if proof_supports_formatting(proof_key):
-            self.proof_settings[f"{proof_key}_align"] = align_value
+            self.proof_settings[make_settings_key(proof_key, "align")] = align_value
 
     def update_numeric_setting(self, key, value):
         """Update a numeric setting with validation."""

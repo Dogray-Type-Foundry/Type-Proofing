@@ -10,20 +10,13 @@ from proof_generation import (
 )
 import core_config as _cc
 from proof_config import get_text_proof_config, resolve_character_set_by_key
+from settings_manager import make_settings_key, create_unique_proof_key
 
 try:
     from sample_texts import bigRandomNumbers, additionalSmallText
 except ImportError:
     bigRandomNumbers = ""
     additionalSmallText = ""
-
-
-def create_unique_proof_key(proof_name):
-    """Create a unique key from proof name for settings storage."""
-    unique_proof_key = (
-        proof_name.lower().replace(" ", "_").replace("/", "_").replace("-", "_")
-    )
-    return unique_proof_key
 
 
 class BaseProofHandler(ABC):
@@ -50,7 +43,7 @@ class BaseProofHandler(ABC):
         """Get tracking value for this proof."""
         if self._cached_tracking is None:
             self._cached_tracking = self.proof_settings.get(
-                f"{self.unique_proof_key}_tracking", 0
+                make_settings_key(self.unique_proof_key, "tracking"), 0
             )
         return self._cached_tracking
 
@@ -58,7 +51,7 @@ class BaseProofHandler(ABC):
         """Get alignment value for this proof."""
         if self._cached_align is None:
             self._cached_align = self.proof_settings.get(
-                f"{self.unique_proof_key}_align", "left"
+                make_settings_key(self.unique_proof_key, "align"), "left"
             )
         return self._cached_align
 
@@ -224,7 +217,7 @@ class CategoryBasedProofHandler(BaseProofHandler):
 
     def get_character_category_setting(self, category):
         """Get character category setting value with appropriate defaults."""
-        key = f"{self.unique_proof_key}_cat_{category}"
+        key = make_settings_key(self.unique_proof_key, "cat", category)
         # Default values: most categories enabled except accented
         defaults = {
             "uppercase_base": True,

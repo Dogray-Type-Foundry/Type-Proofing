@@ -14,7 +14,8 @@ from utils import (
     log_error,
     get_file_size_formatted,
 )
-from ui_utils import setup_page_format, add_footer_info
+from ui_utils import setup_page_format
+from proof_generation import reset_proof_page_counter
 
 
 class PDFManager:
@@ -243,6 +244,7 @@ class PDFManager:
         """Initialize a new PDF document for generation."""
         try:
             self.setup_page_format()
+            reset_proof_page_counter()  # Reset page counter for new proof
             db.newDrawing()
             return True
         except Exception as e:
