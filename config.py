@@ -13,7 +13,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Store settings file in user's home directory
 SETTINGS_PATH = os.path.expanduser("~/.type-proofing-prefs.json")
 WINDOW_TITLE = "Type Proofing"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.6.0"
 
 # Fallback font. Adobe Blank should be in the same folder as the script
 FALLBACK_FONT = os.path.abspath("AdobeBlank.otf")
@@ -172,7 +172,9 @@ def load_arabic_texts():
         return {
             "arabic_vocalization": "Arabic vocalization text not available",
             "arabic_latin_mixed": "Arabic-Latin mixed text not available",
-            "arabic_farsi_urdu_numbers": "Arabic-Farsi-Urdu numbers text not available",
+            "arabic_farsi_urdu_numbers": (
+                "Arabic-Farsi-Urdu numbers text not available"
+            ),
         }
 
 
