@@ -12,3 +12,4 @@ build_app_local.sh
 *.otf
 *.pdf
 *.json
+.github

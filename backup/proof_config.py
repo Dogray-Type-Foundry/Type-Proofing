@@ -29,6 +29,10 @@ PROOF_REGISTRY = {
         "default_cols": 1,
         "has_paragraphs": False,
         "default_size": 28,  # largeTextFontSize
+        "text": {
+            "character_set_key": "base_letters",
+            "default_paragraphs": 2,
+        },
     },
     "diacritic_words_large": {
         "display_name": "Diacritic Words Large",
@@ -37,6 +41,11 @@ PROOF_REGISTRY = {
         "default_cols": 1,
         "has_paragraphs": False,
         "default_size": 28,  # largeTextFontSize
+        "text": {
+            "character_set_key": "accented_plus",
+            "default_paragraphs": 3,
+            "accents": 3,
+        },
     },
     "basic_paragraph_small": {
         "display_name": "Basic Paragraph Small",
@@ -45,6 +54,10 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "base_letters",
+            "default_paragraphs": 5,
+        },
     },
     "paired_styles_paragraph_small": {
         "display_name": "Paired Styles Paragraph Small",
@@ -53,6 +66,12 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "base_letters",
+            "default_paragraphs": 5,
+            "mixed_styles": True,
+            "force_wordsiv": True,
+        },
     },
     "generative_text_small": {
         "display_name": "Generative Text Small",
@@ -61,6 +80,11 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": True,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "base_letters",
+            "default_paragraphs": 5,
+            "force_wordsiv": True,
+        },
     },
     "diacritic_words_small": {
         "display_name": "Diacritic Words Small",
@@ -69,6 +93,11 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "accented_plus",
+            "default_paragraphs": 5,
+            "accents": 3,
+        },
     },
     "misc_paragraph_small": {
         "display_name": "Misc Paragraph Small",
@@ -77,6 +106,12 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "base_letters",
+            "default_paragraphs": 5,
+            # Provide key so handler stays generic; resolved at runtime
+            "inject_text_key": "misc_small_injects",
+        },
     },
     "ar_character_set": {
         "display_name": "Ar Character Set",
@@ -93,6 +128,11 @@ PROOF_REGISTRY = {
         "default_cols": 1,
         "has_paragraphs": False,
         "default_size": 28,  # largeTextFontSize
+        "text": {
+            "character_set_key": "arabic",
+            "default_paragraphs": 2,
+            "language": "ar",
+        },
     },
     "fa_paragraph_large": {
         "display_name": "Fa Paragraph Large",
@@ -101,6 +141,11 @@ PROOF_REGISTRY = {
         "default_cols": 1,
         "has_paragraphs": False,
         "default_size": 28,  # largeTextFontSize
+        "text": {
+            "character_set_key": "farsi",
+            "default_paragraphs": 2,
+            "language": "fa",
+        },
     },
     "ar_paragraph_small": {
         "display_name": "Ar Paragraph Small",
@@ -109,6 +154,11 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "arabic",
+            "default_paragraphs": 5,
+            "language": "ar",
+        },
     },
     "fa_paragraph_small": {
         "display_name": "Fa Paragraph Small",
@@ -117,6 +167,11 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "farsi",
+            "default_paragraphs": 5,
+            "language": "fa",
+        },
     },
     "ar_vocalization_paragraph_small": {
         "display_name": "Ar Vocalization Paragraph Small",
@@ -125,6 +180,12 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "arabic",
+            "default_paragraphs": 5,
+            "language": "ar",
+            "inject_text_key": "arabicVocalization",
+        },
     },
     "ar_lat_mixed_paragraph_small": {
         "display_name": "Ar-Lat Mixed Paragraph Small",
@@ -133,6 +194,12 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "arabic",
+            "default_paragraphs": 5,
+            "language": "ar",
+            "inject_text_key": "arabicLatinMixed",
+        },
     },
     "ar_numbers_small": {
         "display_name": "Ar Numbers Small",
@@ -141,12 +208,37 @@ PROOF_REGISTRY = {
         "default_cols": 2,
         "has_paragraphs": False,
         "default_size": 10,  # smallTextFontSize
+        "text": {
+            "character_set_key": "arabic",
+            "default_paragraphs": 5,
+            "language": "ar",
+            "inject_text_key": "arabicFarsiUrduNumbers",
+        },
     },
 }
 
 # =============================================================================
 # PROOF REGISTRY HELPER FUNCTIONS
 # =============================================================================
+
+
+def get_text_proof_config(proof_key):
+    """Get nested text config for a proof from the registry, if present."""
+    info = PROOF_REGISTRY.get(proof_key)
+    return info.get("text") if info else None
+
+
+def resolve_character_set_by_key(cat: dict, key: str) -> str:
+    """Map a character_set_key to an actual string using the category dict."""
+    if key == "base_letters":
+        return (cat.get("uniLu", "") or "") + (cat.get("uniLl", "") or "")
+    if key == "accented_plus":
+        return cat.get("accented_plus", "") or ""
+    if key == "arabic":
+        return cat.get("ar", "") or cat.get("arab", "") or ""
+    if key == "farsi":
+        return cat.get("fa", "") or cat.get("arab", "") or ""
+    return cat.get(key, "") or ""
 
 
 def get_proof_display_names(include_arabic=True):
@@ -181,6 +273,22 @@ def get_proof_display_names(include_arabic=True):
     return result
 
 
+def resolve_base_proof_key(proof_name: str) -> tuple[str | None, str | None]:
+    """Resolve a user-visible proof option name to (base_display_name, base_key).
+
+    Returns (display_name, key) or (None, None) if not found.
+    """
+    mapping = get_proof_settings_mapping()
+    # Exact match
+    if proof_name in mapping:
+        return proof_name, mapping[proof_name]
+    # Prefix match for numbered variants
+    for display_name in mapping.keys():
+        if proof_name.startswith(display_name):
+            return display_name, mapping[display_name]
+    return None, None
+
+
 def get_proof_settings_mapping():
     """Get mapping from display names to proof keys."""
     return {
@@ -189,14 +297,7 @@ def get_proof_settings_mapping():
     }
 
 
-def get_proof_popover_mapping():
-    """Get mapping from display names to proof keys (for popover compatibility)."""
-    return get_proof_settings_mapping()
-
-
-def get_proof_storage_mapping():
-    """Get mapping from proof keys to storage keys (now the same)."""
-    return {proof_key: proof_key for proof_key in PROOF_REGISTRY.keys()}
+# get_proof_popover_mapping removed; use get_proof_settings_mapping() directly
 
 
 def get_proof_default_columns():
@@ -284,3 +385,11 @@ def get_display_name(proof_key):
 def get_otf_prefix(proof_key):
     """Get OpenType feature prefix for a proof key."""
     return f"otf_{proof_key}_"
+
+
+def get_default_alignment_for_proof(proof_key):
+    """Get the default alignment for a proof type based on whether it's Arabic/Persian."""
+    proof_info = get_proof_by_settings_key(proof_key)
+    if proof_info and proof_info.get("is_arabic", False):
+        return "right"
+    return "left"

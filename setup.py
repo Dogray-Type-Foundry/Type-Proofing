@@ -8,33 +8,22 @@ Usage:
 from setuptools import setup
 
 NAME = "TypeProofing"
-VERSION = "1.3.1"
+VERSION = "1.6.0"
 APP = ["TypeProofing.py"]
 DATA_FILES = [
-    "variable_font_utils.py",
-    "utils.py",
-    "ui_utils.py",
-    "ui_interface.py",
-    "ui_config.py",
-    "text_generators.py",
-    "stepper_cell.py",
-    "settings_manager.py",
-    "script_texts.py",
-    "sample_texts.py",
-    "proof_handlers.py",
-    "proof_generation.py",
-    "proof_config.py",
-    "pdf_manager.py",
-    "main_window.py",
-    "font_utils.py",
-    "font_manager.py",
-    "files_tab.py",
-    "core_config.py",
-    "controls_tab.py",
-    "character_analysis.py",
     "accented_dictionary.py",
-    "TypeProofing.py",
     "AdobeBlank.otf",
+    "app.py",
+    "config.py",
+    "fonts.py",
+    "pdf_manager.py",
+    "proof.py",
+    "sample_texts.py",
+    "script_texts.py",
+    "settings.py",
+    "setup.py",
+    "TypeProofing.py",
+    "ui.py",
 ]
 OPTIONS = {
     "packages": [
@@ -58,12 +47,20 @@ OPTIONS = {
         "CFBundleShortVersionString": VERSION,
         "CFBundleGetInfoString": " ".join([NAME, VERSION]),
         "CFBundleExecutable": NAME,
-        "CFBundleIdentifier": "xyz.dogray.typeproofing",
+        "CFBundleIdentifier": "com.dograytype.typeproofing",
         "CFBundleDisplayName": NAME,
-        "NSAppleEventsUsageDescription": "This app needs access to Apple Events for file operations.",
-        "NSDocumentsFolderUsageDescription": "This app needs access to Documents folder to save proof files.",
-        "NSDesktopFolderUsageDescription": "This app needs access to Desktop folder to save proof files.",
-        "NSDownloadsFolderUsageDescription": "This app needs access to Downloads folder to save proof files.",
+        "NSAppleEventsUsageDescription": (
+            "This app needs access to Apple Events for file operations."
+        ),
+        "NSDocumentsFolderUsageDescription": (
+            "This app needs access to Documents folder to save proof files."
+        ),
+        "NSDesktopFolderUsageDescription": (
+            "This app needs access to Desktop folder to save proof files."
+        ),
+        "NSDownloadsFolderUsageDescription": (
+            "This app needs access to Downloads folder to save proof files."
+        ),
         # Disable automatic state restoration to eliminate secure coding warning
         "NSApplicationSupportsSecureRestorableState": False,
     },

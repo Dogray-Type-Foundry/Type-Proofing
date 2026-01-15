@@ -2,33 +2,17 @@
 
 import os
 import traceback
-import urllib.parse
 import vanilla
-from Foundation import NSObject
-import objc
+import AppKit
 from utils import normalize_path, validate_font_path, log_error
-from ui_utils import refresh_path_control, create_font_drop_data, format_table_data
-
-
-class FontListDelegate(NSObject):
-    """Delegate for handling font list drag and drop operations."""
-
-    def init(self):
-        """Initialize and return self."""
-        self = objc.super(FontListDelegate, self).init()
-        if self is None:
-            return None
-        return self
-
-    def tableView_validateDrop_proposedRow_proposedDropOperation_(
-        self, table_view, info, row, operation
-    ):
-        """Validate drop operations for the font list."""
-        return True
-
-    def tableView_acceptDrop_row_dropOperation_(self, table_view, info, row, operation):
-        """Handle drop operations for the font list."""
-        return True
+from ui_utils import (
+    refresh_path_control,
+    normalize_folder_result,
+    set_path_control_with_refresh,
+    reorder_table_items,
+    update_pdf_settings_helper,
+    create_font_drop_data,
+)
 
 
 class FilesTab:
@@ -43,6 +27,36 @@ class FilesTab:
         self.update_pdf_location_ui()
         # Update table with any fonts loaded from settings
         self.update_table()
+
+    # ============ Helper Methods ============
+
+    def _refresh_after_font_changes(self):
+        """Refresh UI components after font changes."""
+        self.update_table()
+        self.parent_window.initialize_proof_settings()
+
+    def _reorder_table_items(self, table_data, indexes, insert_index):
+        """Reorder table items based on provided indexes."""
+        return reorder_table_items(table_data, indexes, insert_index)
+
+    def _update_backend_from_table(self, table_data):
+        """Update font manager backend based on table data."""
+        new_font_paths = [row["_path"] for row in table_data if "_path" in row]
+        if new_font_paths:
+            self.font_manager.fonts = tuple(new_font_paths)
+            # Update axis values
+            if hasattr(self, "current_axes"):
+                self.font_manager.update_axis_values_from_table(
+                    table_data, self.current_axes
+                )
+            else:
+                self.font_manager.update_axis_values_from_table(table_data)
+
+    def _update_pdf_settings(self, custom_location=None, use_custom=None):
+        """Helper to update PDF output settings consistently."""
+        update_pdf_settings_helper(
+            self.parent_window.settings, custom_location, use_custom
+        )
 
     def create_ui(self):
         """Create the Files tab UI components."""
@@ -133,10 +147,11 @@ class FilesTab:
 
     def get_first_font_folder(self):
         """Get the folder path of the first font in the list."""
-        if self.font_manager.fonts:
-            first_font_path = self.font_manager.fonts[0]
-            return os.path.dirname(first_font_path)
-        return ""
+        return (
+            os.path.dirname(self.font_manager.fonts[0])
+            if self.font_manager.fonts
+            else ""
+        )
 
     def update_table(self):
         """Update the table with current font data."""
@@ -195,56 +210,41 @@ class FilesTab:
         if not self.font_manager.fonts:
             return
 
-        # Get the desired axis order from the first font
         desired_axes_order = self.font_manager.get_all_axes()
-
-        # Get current column identifiers
         current_columns = self.group.tableView.getColumnIdentifiers()
-
-        # Base columns that should always be first
         base_column_ids = [desc["identifier"] for desc in self.base_column_descriptions]
-
-        # Find which axis columns currently exist
         existing_axis_columns = [
             col for col in current_columns if col not in base_column_ids
         ]
 
-        # Only reorder if we have axis columns and they're not already in the right order
         if existing_axis_columns and existing_axis_columns != desired_axes_order:
-            # Build the new column order: base columns + axes in first font's order
-            new_column_order = base_column_ids[:]
+            # Build new column order: base + axes in first font's order
+            new_column_order = base_column_ids + [
+                axis for axis in desired_axes_order if axis in existing_axis_columns
+            ]
+            # Add remaining axis columns not in the first font
+            new_column_order.extend(
+                [axis for axis in existing_axis_columns if axis not in new_column_order]
+            )
 
-            # Add axes in the order they appear in the first font
-            for axis in desired_axes_order:
-                if axis in existing_axis_columns:
-                    new_column_order.append(axis)
-
-            # Add any remaining axis columns that aren't in the first font
-            for axis in existing_axis_columns:
-                if axis not in new_column_order:
-                    new_column_order.append(axis)
-
-            # Apply the new column order if it's different from current
             if new_column_order != current_columns:
-                # Store current table data
                 current_data = self.group.tableView.get()
 
-                # Remove all axis columns
+                # Remove and re-add axis columns in new order
                 for axis in existing_axis_columns:
                     self.group.tableView.removeColumn(axis)
 
-                # Re-add axis columns in the new order
                 for axis in new_column_order:
-                    if axis not in base_column_ids:  # Skip base columns
-                        column_desc = {
-                            "identifier": axis,
-                            "title": axis,
-                            "width": 180,
-                            "editable": True,
-                        }
-                        self.group.tableView.appendColumn(column_desc)
+                    if axis not in base_column_ids:
+                        self.group.tableView.appendColumn(
+                            {
+                                "identifier": axis,
+                                "title": axis,
+                                "width": 180,
+                                "editable": True,
+                            }
+                        )
 
-                # Restore table data
                 self.group.tableView.set(current_data)
 
     def reset_table_columns(self):
@@ -294,8 +294,7 @@ class FilesTab:
                     print(f"Skipping invalid font file: {path}")
 
             if validated_paths and self.font_manager.add_fonts(validated_paths):
-                self.update_table()
-                self.parent_window.initialize_proof_settings()
+                self._refresh_after_font_changes()
                 # Update PDF location UI to populate PathControl with first font's folder
                 self.update_pdf_location_ui()
             else:
@@ -305,52 +304,53 @@ class FilesTab:
 
     def removeFontsCallback(self, sender):
         """Handle the Remove Selected button click."""
-        self.group.tableView.removeSelection()
-        # Sync backend with UI
-        table_data = self.group.tableView.get()
-        font_paths = [row["_path"] for row in table_data if "_path" in row]
-        # Find indices of fonts to remove
-        indices_to_remove = []
-        for i, font_path in enumerate(self.font_manager.fonts):
-            if font_path not in font_paths:
-                indices_to_remove.append(i)
-        self.font_manager.remove_fonts_by_indices(indices_to_remove)
-        self.update_table()
-        self.parent_window.initialize_proof_settings()
+        try:
+            # Try primary API
+            try:
+                selection = self.group.tableView.getSelection()
+            except AttributeError:
+                # Fallback to NSTableView selection indices
+                table_view = self.group.tableView.getNSTableView()
+                selection_indexes = table_view.selectedRowIndexes()
+                selection = []
+                index = selection_indexes.firstIndex()
+                while index != AppKit.NSNotFound:
+                    selection.append(index)
+                    index = selection_indexes.indexGreaterThanIndex_(index)
+
+            if not selection:
+                return
+
+            # Remove from backend using the same logic as deleteCallback
+            self.font_manager.remove_fonts_by_indices(selection)
+
+            # Refresh UI components and proof settings
+            self.update_table()
+            self.parent_window.initialize_proof_settings()
+
+            # If no fonts remain, reset columns to base; also update PDF location UI
+            if not self.font_manager.fonts:
+                self.reset_table_columns()
+            self.update_pdf_location_ui()
+        except Exception as e:
+            print(f"Error removing selected fonts: {e}")
 
     def axisEditCallback(self, sender):
         """Handle axis editing in the table."""
         table_data = sender.get()
-        if hasattr(self, "current_axes"):
-            self.font_manager.update_axis_values_from_individual_axes_table(
-                table_data, self.current_axes
-            )
-        else:
-            # Fallback to old method if current_axes not available
-            self.font_manager.update_axis_values_from_table(table_data)
+        axes = getattr(self, "current_axes", None)
+        self.font_manager.update_axis_values_from_table(table_data, axes)
 
     def makeDragDataCallback(self, index):
         """Create drag data for internal reordering."""
         table_data = self.group.tableView.get()
-        if 0 <= index < len(table_data):
-            row = table_data[index]
-            typesAndValues = {
-                "dev.drawbot.proof.fontListIndexes": index,
-                "dev.drawbot.proof.fontData": row,
-            }
-            return typesAndValues
-        return {}
+        if not (0 <= index < len(table_data)):
+            return {}
+        return create_font_drop_data(table_data[index], index)
 
     def dropCandidateCallback(self, info):
         """Handle drop candidate validation for both file drops and reordering."""
-        source = info["source"]
-
-        # Internal reordering
-        if source == self.group.tableView:
-            return "move"
-
-        # File drops from external sources
-        return "copy"
+        return "move" if info["source"] == self.group.tableView else "copy"
 
     def performDropCallback(self, info):
         """Handle both file drops and internal reordering."""
@@ -367,39 +367,15 @@ class FilesTab:
             if not indexes:
                 return False
 
-            # Get current table data
+            # Get current table data and reorder
             table_data = list(self.group.tableView.get())
+            table_data = self._reorder_table_items(table_data, indexes, index)
 
-            # Remove items to move (in reverse order to maintain indices)
-            moved_items = []
-            for idx in sorted(indexes, reverse=True):
-                if 0 <= idx < len(table_data):
-                    moved_items.insert(0, table_data.pop(idx))
-
-            # Insert items at new position
-            if index is not None:
-                table_data[index:index] = moved_items
-            else:
-                table_data.extend(moved_items)
-
-            # Update the table
+            # Update table and backend
             self.group.tableView.set(table_data)
-
-            # Update backend font order
-            new_font_paths = [row["_path"] for row in table_data if "_path" in row]
-            if new_font_paths:
-                self.font_manager.fonts = tuple(new_font_paths)
-                # Update axis values using the appropriate method
-                if hasattr(self, "current_axes"):
-                    self.font_manager.update_axis_values_from_individual_axes_table(
-                        table_data, self.current_axes
-                    )
-                else:
-                    self.font_manager.update_axis_values_from_table(table_data)
-                # Reorder columns to match new first font's axis order
-                self.reorder_columns_by_first_font()
-                self.parent_window.initialize_proof_settings()
-
+            self._update_backend_from_table(table_data)
+            self.reorder_columns_by_first_font()
+            self.parent_window.initialize_proof_settings()
             return True
 
         # File drops from external sources
@@ -437,33 +413,13 @@ class FilesTab:
 
     def pdfLocationRadioCallback(self, sender):
         """Handle PDF location radio button changes."""
-        # Update the settings based on which radio button is selected
         use_custom = self.group.pdfOutputBox.customLocationRadio.get()
-
-        # Update settings - ensure pdf_output key exists
-        settings = self.parent_window.settings
-        if "pdf_output" not in settings.data:
-            settings.data["pdf_output"] = {
-                "use_custom_location": False,
-                "custom_location": "",
-            }
-        settings.data["pdf_output"]["use_custom_location"] = use_custom
-        settings.save()
-
-        # Update UI state
+        self._update_pdf_settings(use_custom=use_custom)
         self.update_pdf_location_ui()
 
     def _set_path_control_with_refresh(self, path_control, url):
-        """
-        Set PathControl URL with enhanced compatibility for py2app bundles.
-        This addresses iCloud Drive path display issues in app bundles.
-        """
-        if not url:
-            path_control.set("")
-            return
-
-        # Use utility function for refreshing path control
-        refresh_path_control(path_control, url)
+        """Set PathControl URL with enhanced compatibility for py2app bundles."""
+        set_path_control_with_refresh(path_control, url)
 
     def pdfPathControlCallback(self, sender):
         """Handle PathControl changes for PDF output location."""
@@ -471,18 +427,7 @@ class FilesTab:
         if url:
             # Use helper method to set PathControl with refresh for app bundle compatibility
             self._set_path_control_with_refresh(sender, url)
-
-            # Update settings
-            settings = self.parent_window.settings
-            if "pdf_output" not in settings.data:
-                settings.data["pdf_output"] = {
-                    "use_custom_location": False,
-                    "custom_location": "",
-                }
-
-            settings.data["pdf_output"]["custom_location"] = url
-            settings.data["pdf_output"]["use_custom_location"] = True
-            settings.save()
+            self._update_pdf_settings(custom_location=url, use_custom=True)
 
             # Update UI - select custom location radio button
             self.group.pdfOutputBox.customLocationRadio.set(True)
@@ -493,60 +438,25 @@ class FilesTab:
         try:
             from vanilla.dialogs import getFolder
 
-            # Get current path as starting point
-            current_path = self.group.pdfOutputBox.pathControl.get()
-            if not current_path or not os.path.exists(current_path):
-                # Fall back to first font's folder if available
-                current_path = self.get_first_font_folder()
-
             result = getFolder(messageText="Choose a folder for PDF output:")
 
-            if result:
-                # Handle the Objective-C array properly
-                selected_path = None
-                if hasattr(result, "__iter__") and hasattr(result, "__len__"):
-                    # It's an iterable with length, try to get the first item
-                    if len(result) > 0:
-                        selected_path = result[0]
-                        # If it's still an array-like object, convert to string
-                        if hasattr(selected_path, "__iter__") and not isinstance(
-                            selected_path, str
-                        ):
-                            selected_path = str(selected_path).strip('()"')
-                        else:
-                            selected_path = str(selected_path)
-                else:
-                    selected_path = str(result)
-
-                # Clean up the path string - remove any remaining array formatting
-                selected_path = selected_path.strip('()"').strip()
-                if selected_path.startswith('"') and selected_path.endswith('"'):
-                    selected_path = selected_path[1:-1]
-
+            selected_path = normalize_folder_result(result)
+            if selected_path:
                 # Convert to proper file URL for PathControl
-                if not selected_path.startswith("file://"):
-                    file_url = f"file://{selected_path}"
-                    print(f"PDF will be saved at: {file_url}")
-                else:
-                    file_url = selected_path
-                    print(f"PDF will be saved at: {file_url}")
+                file_url = (
+                    f"file://{selected_path}"
+                    if not selected_path.startswith("file://")
+                    else selected_path
+                )
+                print(f"PDF will be saved at: {file_url}")
 
-                # Update the PathControl to display the selected path
+                # Update the PathControl and settings
                 self._set_path_control_with_refresh(
                     self.group.pdfOutputBox.pathControl, file_url
                 )
-
-                # Update settings
-                settings = self.parent_window.settings
-                if "pdf_output" not in settings.data:
-                    settings.data["pdf_output"] = {
-                        "use_custom_location": False,
-                        "custom_location": "",
-                    }
-
-                settings.data["pdf_output"]["custom_location"] = selected_path
-                settings.data["pdf_output"]["use_custom_location"] = True
-                settings.save()
+                self._update_pdf_settings(
+                    custom_location=selected_path, use_custom=True
+                )
 
                 # Update UI to reflect the change
                 self.group.pdfOutputBox.customLocationRadio.set(True)

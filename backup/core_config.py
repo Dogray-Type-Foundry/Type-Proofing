@@ -48,6 +48,17 @@ PAGE_FORMAT_OPTIONS = [
     "LetterSmallLandscape",
 ]
 
+# Page format dimensions mapping (in points)
+PAGE_DIMENSIONS = {
+    "A3Landscape": (1190, 842),  # A3 landscape: 420mm x 297mm
+    "A4Landscape": (842, 595),  # A4 landscape: 297mm x 210mm
+    "A4SmallLandscape": (756, 531),  # A4 small landscape: 267mm x 187mm
+    "A5Landscape": (595, 420),  # A5 landscape: 210mm x 148mm
+    "LegalLandscape": (1008, 612),  # Legal landscape: 14" x 8.5"
+    "LetterLandscape": (792, 612),  # Letter landscape: 11" x 8.5"
+    "LetterSmallLandscape": (720, 540),  # Letter small landscape: 10" x 7.5"
+}
+
 # Default page dimensions and margins
 DEFAULT_PAGE_FORMAT = "A4Landscape"
 MARGIN_VERTICAL = 50
@@ -55,6 +66,35 @@ MARGIN_HORIZONTAL = 40
 
 # Predefined axes values for variable fonts (empty by default)
 AXES_VALUES = {}
+
+
+# =============================================================================
+# UI Layout Constants
+# =============================================================================
+
+# Main window dimensions
+WINDOW_SIZE = (1000, 700)
+WINDOW_MIN_SIZE = (1000, 700)
+
+# SplitView panel sizes
+SPLIT_MAIN_SIZE = 600
+SPLIT_DEBUG_SIZE = 100
+
+# Table column widths
+TABLE_FONT_NAME_WIDTH = 200
+TABLE_AXIS_COLUMN_WIDTH = 180
+
+# Popover dimensions
+POPOVER_PROOF_SETTINGS_SIZE = (400, 620)
+POPOVER_ADD_PROOF_SIZE = (300, 100)
+
+# Default tracking value for character set proofs
+DEFAULT_CHARSET_TRACKING = 24
+
+# Footer font settings
+FOOTER_FONT_NAME = "Courier"
+FOOTER_FONT_SIZE = 9
+FOOTER_FEATURES_FONT_SIZE = 7
 
 
 # =============================================================================
@@ -102,10 +142,10 @@ def filter_visible_features(feature_tags):
 # =============================================================================
 
 # Arabic/Farsi character templates for script analysis
-AR_TEMPLATE = "ابجدهوزحطيكلمنسعفصقرشتثخذضظغء"
-FA_TEMPLATE = "یهونملگکقفغعظطضصشسژزرذدخحچجثتپباء"
-ARFA_DUAL_JOIN = "بتثپنقفڤسشصضطظكلهةمعغحخجچيئىکگی"
-ARFA_RIGHT_JOIN = "اأإآٱرزدذوؤژ"
+AR_TEMPLATE = "ءاأإآٱبتثجچحخدذرزسشصضطظعغفڤقكلمنهةوؤىيﻻ"
+FA_TEMPLATE = "اآبپتثجچحخدذرزژسشصضطظعغفقکگلمنهویﻻ"
+ARFA_DUAL_JOIN = "بپتثجچحخسصضطظعغفڤقكکگلمنهہھيئی"
+ARFA_RIGHT_JOIN = "اأإآٱدذرزژوﻻ"
 
 # Positional forms for Arabic/Farsi contextual analysis
 POS_FORMS = ("init", "medi", "fina")

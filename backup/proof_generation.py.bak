@@ -1,113 +1,60 @@
-# Proof Generation Functions and Text Processing
+"""Compatibility shim for `proof_generation` — re-exports names from `proofing`.
 
-import datetime
-import os
-import random
-import traceback
-import unicodedata
+This keeps existing imports (`from proof_generation import charsetProof`) working
+while the real implementation lives in `proofing` during the migration.
+"""
 
-# Third-party imports
-import drawBot as db
-from wordsiv import WordSiv
+from proofing import *  # noqa: F401,F403
 
-# Local imports
-from core_config import (
-    marginHorizontal,
-    marginVertical,
-    pageDimensions,
-    myFallbackFont,
-    useFontContainsCharacters,
-    wordsivSeed,
-    dualStyleSeed,
-    FsSelection,
-    posForms,
-    DEFAULT_ON_FEATURES,
-)
-from proof_config import get_proof_default_font_size
-from font_utils import (
-    get_ttfont,
-    UPPER_TEMPLATE as upperTemplate,
-    LOWER_TEMPLATE as lowerTemplate,
-)
-from variable_font_utils import product_dict
-
-# Import drawbot grid extension
-try:
-    from drawBotGrid import BaselineGrid, columnBaselineGridTextBox
-except ImportError:
-    print("Warning: drawBotGrid not found. Grid functionality will be limited.")
-    BaselineGrid = None
-    columnBaselineGridTextBox = None
-
-# Import proof texts
-try:
-    from sample_texts import (
-        bigMixedText,
-        bigLowerText,
-        bigUpperText,
-        smallMixedText,
-        smallLowerText,
-        smallUpperText,
-        bigRandomNumbers,
-        additionalSmallText,
-    )
-    from script_texts import (
-        arabicVocalization,
-        arabicLatinMixed,
-        arabicFarsiUrduNumbers,
-    )
-    from accented_dictionary import (
-        accentedDict,
-        get_accented_words,
-        get_accented_characters,
-    )
-    from text_generators import text_generator, TextGenerator
-
-    # Create a namespace object to mimic the old prooftexts module
-    class ProofTexts:
-        def __init__(self):
-            self.bigMixedText = bigMixedText
-            self.bigLowerText = bigLowerText
-            self.bigUpperText = bigUpperText
-            self.smallMixedText = smallMixedText
-            self.smallLowerText = smallLowerText
-            self.smallUpperText = smallUpperText
-            self.bigRandomNumbers = bigRandomNumbers
-            self.additionalSmallText = additionalSmallText
-            self.arabicVocalization = arabicVocalization
-            self.arabicLatinMixed = arabicLatinMixed
-            self.arabicFarsiUrduNumbers = arabicFarsiUrduNumbers
-            self.accentedDict = accentedDict
-            self.get_accented_words = get_accented_words
-            self.get_accented_characters = get_accented_characters
-            self.text_generator = text_generator
-            self.TextGenerator = TextGenerator
-
-    pte = ProofTexts()
-except ImportError:
-    print("Warning: prooftexts module not found. Using fallback text.")
-    pte = None
+__all__ = [name for name in globals() if not name.startswith("_")]
 
 
-def drawFooter(title, indFont, otFeatures=None, tracking=None):
+
+def get_font_display_name(indFont: str) -> str:
+    """Get the display name for a font, extracting the style from the font name."""
+    try:
+        font_name = db.font(indFont)
+        if "-" in font_name:
+            return font_name.split("-")[1]
+        return font_name
+    except (IndexError, AttributeError):
+        return "Unknown"
+
+
+def drawFooter(
+    title: str,
+    indFont: str,
+    otFeatures: Optional[dict] = None,
+    tracking: Optional[int | float] = None,
+    pageNumber: Optional[int] = None,
+) -> None:
     """Draw a simple footer with some minimal but useful info."""
     with db.savedState():
-        # get date and font name
-        today = datetime.date.today()
+        # get date/time and font name
+        now = datetime.datetime.now()
+        date_str = now.date()
+        time_str = now.strftime("%H:%M")
         fontFileName = os.path.basename(indFont)
         familyName = os.path.splitext(fontFileName)[0].split("-")[0]
         # assemble footer text
-        footerText = f"{today} | {familyName} | {title}"
+        footerText = f"{date_str} {time_str} | {familyName} | {title}"
 
         # and display formatted string
         footer = db.FormattedString(
-            footerText, font="Courier", fontSize=9, lineHeight=9
+            footerText,
+            font=FOOTER_FONT_NAME,
+            fontSize=FOOTER_FONT_SIZE,
+            lineHeight=FOOTER_FONT_SIZE,
+        )
+        # Use provided pageNumber when available; fallback to DrawBot's pageCount
+        current_page_str = (
+            str(pageNumber) if pageNumber is not None else str(db.pageCount())
         )
         folio = db.FormattedString(
-            str(db.pageCount()),
-            font="Courier",
-            fontSize=9,
-            lineHeight=9,
+            current_page_str,
+            font=FOOTER_FONT_NAME,
+            fontSize=FOOTER_FONT_SIZE,
+            lineHeight=FOOTER_FONT_SIZE,
             align="right",
         )
 
@@ -150,7 +97,7 @@ def drawFooter(title, indFont, otFeatures=None, tracking=None):
                 marginHorizontal,
                 marginVertical - 18,
                 db.width() - marginHorizontal * 2,
-                9,
+                FOOTER_FONT_SIZE,
             ),
         )
         db.textBox(
@@ -159,7 +106,7 @@ def drawFooter(title, indFont, otFeatures=None, tracking=None):
                 marginHorizontal,
                 marginVertical - 18,
                 db.width() - marginHorizontal * 2,
-                9,
+                FOOTER_FONT_SIZE,
             ),
         )
 
@@ -167,9 +114,9 @@ def drawFooter(title, indFont, otFeatures=None, tracking=None):
         if features_text:
             features_footer = db.FormattedString(
                 f"OT Fea: {features_text}",
-                font="Courier",
-                fontSize=7,
-                lineHeight=7,
+                font=FOOTER_FONT_NAME,
+                fontSize=FOOTER_FEATURES_FONT_SIZE,
+                lineHeight=FOOTER_FEATURES_FONT_SIZE,
             )
             db.textBox(
                 features_footer,
@@ -177,7 +124,7 @@ def drawFooter(title, indFont, otFeatures=None, tracking=None):
                     marginHorizontal,
                     marginVertical - 28,  # 10 points below main footer
                     db.width() - marginHorizontal * 2,
-                    7,
+                    FOOTER_FEATURES_FONT_SIZE,
                 ),
             )
 
@@ -244,15 +191,56 @@ def _handle_mixed_styles(
 
     random.seed(a=dualStyleSeed)
     f = get_ttfont(indFont)
+    # Basic font properties used for pairing decisions
+    try:
+        weight = f["OS/2"].usWeightClass
+    except Exception:
+        weight = None
+    try:
+        isItalic = bool(f["OS/2"].fsSelection & FsSelection.ITALIC)
+    except Exception:
+        isItalic = False
+    try:
+        subfamilyName = f["name"].getBestSubFamilyName()
+    except Exception:
+        subfamilyName = ""
 
-    # Static font upright/italic mixing
-    if pairedStaticStyles[0] and f["OS/2"].fsSelection & FsSelection.ITALIC:
-        upFont, itFont = pairedStaticStyles[0][f["OS/2"].usWeightClass]
-        print("UI", f["name"].getBestSubFamilyName())
-        _apply_alternating_fonts(textString, textInput, [upFont, itFont])
+    # 1) Static Regular/Bold pairing: generate once using Regular as the base
+    if (
+        pairedStaticStyles[1]
+        and subfamilyName == "Regular"
+        and subfamilyName in pairedStaticStyles[1]
+    ):
+        try:
+            rgFont, bdFont = pairedStaticStyles[1][subfamilyName]
+            _apply_alternating_fonts(textString, textInput, [rgFont, bdFont])
+            return textString
+        except Exception:
+            # If RB mapping not available, fall through
+            pass
+
+    # 2) Static upright/italic pairing.
+    # Non-Regular weights: generate on the upright only to avoid duplicates.
+    # Regular weight (OS/2 usWeightClass == 400): generate UI on the Italic run so Regular can produce RB above.
+    if pairedStaticStyles[0] and weight is not None and weight in pairedStaticStyles[0]:
+        try:
+            upFont, itFont = pairedStaticStyles[0][weight]
+            if weight == 400:
+                # For Regular weight, only generate UI when current font is the Italic instance
+                if isItalic:
+                    _apply_alternating_fonts(textString, textInput, [upFont, itFont])
+                    return textString
+            else:
+                # For non-Regular weights, generate UI once from the upright
+                if not isItalic:
+                    _apply_alternating_fonts(textString, textInput, [upFont, itFont])
+                    return textString
+        except Exception:
+            # Fall through to other strategies if mapping not available
+            pass
 
     # Variable font italic axis mixing
-    elif (
+    if (
         axesProduct
         and VFAxisInput
         and "ital" in VFAxisInput
@@ -261,18 +249,13 @@ def _handle_mixed_styles(
         _apply_alternating_variations(
             textString, textInput, VFAxisInput, "ital", [0.0, 1.0]
         )
+        return textString
 
     # Static font regular/bold mixing
-    elif pairedStaticStyles[1] and (
-        f["name"].getBestSubFamilyName() == "Regular"
-        or f["name"].getBestSubFamilyName() == "Italic"
-    ):
-        rgFont, bdFont = pairedStaticStyles[1][f["name"].getBestSubFamilyName()]
-        print("RB", f["name"].getBestSubFamilyName())
-        _apply_alternating_fonts(textString, textInput, [rgFont, bdFont])
+    # Note: We intentionally avoid generating RB for Italic to keep RB single-sourced from Regular
 
     # Variable font weight axis mixing
-    elif (
+    if (
         axesProduct
         and VFAxisInput
         and "wght" in VFAxisInput
@@ -281,12 +264,10 @@ def _handle_mixed_styles(
         _apply_alternating_variations(
             textString, textInput, VFAxisInput, "wght", [400.0, 700.0]
         )
+        return textString
 
-    else:
-        # No valid pairing found - return None to indicate this font should be skipped
-        return None
-
-    return textString
+    # No valid pairing found - return None to indicate this font should be skipped
+    return None
 
 
 def _apply_alternating_fonts(textString, textInput, fonts):
@@ -307,23 +288,32 @@ def _apply_alternating_variations(textString, textInput, VFAxisInput, axis, valu
 
 
 def drawContent(
-    textToDraw,
-    pageTitle,
-    columnNumber,
-    currentFont,
-    direction="ltr",
-    otFeatures=None,
-    tracking=None,
-):
+    textToDraw: db.FormattedString,
+    pageTitle: str,
+    columnNumber: int,
+    currentFont: str,
+    direction: str = "ltr",
+    otFeatures: Optional[dict] = None,
+    tracking: Optional[int | float] = None,
+) -> None:
     """Function to draw content with proper layout."""
     try:
         showBaselines = (
             getattr(db, "showBaselines", True) if hasattr(db, "showBaselines") else True
         )
 
+        global _PROOF_PAGE_INDEX
+
         while textToDraw:
             db.newPage(pageDimensions)
-            drawFooter(pageTitle, currentFont, otFeatures, tracking)
+            _PROOF_PAGE_INDEX += 1
+            drawFooter(
+                pageTitle,
+                currentFont,
+                otFeatures,
+                tracking,
+                pageNumber=_PROOF_PAGE_INDEX,
+            )
             db.hyphenation(False)
 
             if BaselineGrid and columnBaselineGridTextBox:
@@ -437,10 +427,15 @@ def generateTextProofString(
 def _generate_wordsiv_text(cat, para, fullCharacterSet, characterSet):
     """Generate text using WordSiv for mixed case scenarios."""
     caplc = []
+
+    # Ensure we have a fallback WordSiv instance even if uniLuBase is empty
+    wsv = WordSiv(glyphs=(fullCharacterSet if fullCharacterSet else characterSet), seed=wordsivSeed)
+
     for u in cat["uniLuBase"]:
         capAndLower = u + cat["uniLlBase"]
-        wsv = WordSiv(vocab="en", seed=wordsivSeed)
-        capitalisedList = wsv.words(
+        # Use a short-lived WordSiv configured for capitalized word generation
+        local_wsv = WordSiv(vocab="en", seed=wordsivSeed)
+        capitalisedList = local_wsv.words(
             glyphs=capAndLower,
             case="cap",
             n_words=2,
@@ -450,7 +445,7 @@ def _generate_wordsiv_text(cat, para, fullCharacterSet, characterSet):
         if capitalisedList:
             capitalisedString = " ".join(str(elem) for elem in capitalisedList)
             caplc.append(capitalisedString + " ")
-        lcList = wsv.words(
+        lcList = local_wsv.words(
             glyphs=capAndLower,
             case="lc_force",
             contains=u.lower(),
@@ -473,13 +468,13 @@ def _generate_wordsiv_text(cat, para, fullCharacterSet, characterSet):
         + cat["uniPi"]
         + cat["uniPf"]
         + "()",
+        vocab="en",
         numbers=0.1,
         rnd_punc=0.1,
         n_paras=para,
         para_sep=" ",
     )
     return caplc_str + "\n\n" + wsvtext + "\n\n" + wsvtext.upper()
-
 
 def _generate_uppercase_text(cat, para, fullCharacterSet, characterSet):
     """Generate text for uppercase-only fonts."""
@@ -622,39 +617,39 @@ def _generate_arabic_farsi_text(
 
 
 def generateSpacingString(characterSet):
-    """Create empty formatted string that we will fill with spacing strings."""
-    spacingString = ""
+    """Create the spacing proof string efficiently using list accumulation."""
+    lines = []
+    append = lines.append
     for char in characterSet:
-        # determine control characters for each character
         if useFontContainsCharacters and not db.fontContainsCharacters(char):
             continue
+        if char in ("\n", " "):
+            continue
 
-        # ignoring linebreaks and space characters
-        if char not in ["\n", " "]:
-            control1 = "H"
-            control2 = "O"
-            if unicodedata.category(char) == "Ll":
-                control1 = "n"
-                control2 = "o"
-            elif unicodedata.category(char) == "Nd":
-                control1 = "0"
-                control2 = "1"
+        cat = unicodedata.category(char)
+        if cat == "Ll":
+            control1, control2 = "n", "o"
+        elif cat == "Nd":
+            control1, control2 = "0", "1"
+        else:
+            control1, control2 = "H", "O"
 
-            perCharSpacingString = f"{control1}{control1}{control1}{char}{control1}{control2}{control1}{char}{control2}{char}{control2}{control2}{control2}\n"
-            spacingString += perCharSpacingString
-    return spacingString
+        append(
+            f"{control1}{control1}{control1}{char}{control1}{control2}{control1}{char}{control2}{char}{control2}{control2}{control2}"
+        )
+    return "\n".join(lines) + ("\n" if lines else "")
 
 
 def charsetProof(
-    characterSet,
-    axesProduct,
-    indFont,
-    pairedStaticStyles,
-    otFea=None,
-    fontSize=None,
-    sectionName="Filtered Character Set",
-    tracking=None,
-):
+    characterSet: str,
+    axesProduct: list,
+    indFont: str,
+    pairedStaticStyles: tuple,
+    otFea: Optional[dict] = None,
+    fontSize: Optional[int | float] = None,
+    sectionName: str = "Filtered Character Set",
+    tracking: Optional[int | float] = None,
+) -> None:
     """Generate Filtered Character Set."""
     if not characterSet:
         print("Empty character set, skipping")
@@ -668,72 +663,39 @@ def charsetProof(
     )
 
     # Use provided tracking or fall back to default
-    tracking_value = tracking if tracking is not None else 24
+    tracking_value = tracking if tracking is not None else DEFAULT_CHARSET_TRACKING
 
-    # sectionName parameter is now passed from the caller
     try:
-        if axesProduct:
-            axisDict = {}
-            for axisData in axesProduct:
-                axisDict = dict(axisData)
-                charsetString = stringMaker(
-                    characterSet,
-                    proof_font_size,
-                    indFont,
-                    axesProduct,
-                    pairedStaticStyles,
-                    "center",
-                    tracking_value,
-                    otFea,
-                    axisDict,
-                    mixedStyles=False,
-                )
-                drawContent(
-                    charsetString,
-                    sectionName + " - " + str(axisData),
-                    1,
-                    indFont,
-                    "ltr",
-                    otFea,
-                    tracking,
-                )
-        elif axesProduct == "":
-            charsetString = stringMaker(
-                characterSet,
-                proof_font_size,
-                indFont,
-                axesProduct,
-                pairedStaticStyles,
-                "center",
-                tracking_value,
-                otFea,
-                mixedStyles=False,
-            )
-            drawContent(
-                charsetString,
-                sectionName + " - " + db.font(indFont).split("-")[1],
-                1,
-                indFont,
-                "ltr",
-                otFea,
-                tracking,
-            )
+        _render_proof_content(
+            characterSet,
+            proof_font_size,
+            indFont,
+            axesProduct,
+            pairedStaticStyles,
+            sectionName,
+            columns=1,
+            alignInput="center",
+            trackingInput=tracking_value,
+            otFeatures=otFea,
+            mixedStyles=False,
+            direction="ltr",
+        )
     except Exception as e:
         print(f"Error in charsetProof: {e}")
         traceback.print_exc()
 
 
 def spacingProof(
-    characterSet,
-    axesProduct,
-    indFont,
-    pairedStaticStyles,
-    otFea=None,
-    fontSize=None,
-    columns=None,
-    sectionName="Spacing proof",
-    tracking=None,
-):
+    characterSet: str,
+    axesProduct: list,
+    indFont: str,
+    pairedStaticStyles: tuple,
+    otFea: Optional[dict] = None,
+    fontSize: Optional[int | float] = None,
+    columns: Optional[int] = None,
+    sectionName: str = "Spacing proof",
+    tracking: Optional[int | float] = None,
+) -> None:
     """Generate spacing proof."""
     # Use provided font size or fall back to proof type default
     proof_font_size = (
@@ -745,79 +707,47 @@ def spacingProof(
     # Use provided columns or fall back to default spacing proof columns (2)
     proof_columns = columns if columns is not None else 2
 
-    # Use the provided sectionName parameter
-    if axesProduct:
-        axisDict = {}
-        for axisData in axesProduct:
-            axisDict = dict(axisData)
-            spacingStringInput = generateSpacingString(characterSet)
-            spacingString = stringMaker(
-                spacingStringInput,
-                proof_font_size,
-                indFont,
-                axesProduct,
-                pairedStaticStyles,
-                OTFeaInput=dict(liga=False, kern=False) if otFea is None else otFea,
-                VFAxisInput=axisDict,
-                mixedStyles=False,
-            )
-            # Get the actual features being used for the footer
-            used_features = dict(liga=False, kern=False) if otFea is None else otFea
-            drawContent(
-                spacingString,
-                sectionName + " - " + str(axisData),
-                proof_columns,
-                indFont,
-                "ltr",
-                used_features,
-                tracking,
-            )
+    # Precompute spacing input and used features
+    spacingStringInput = generateSpacingString(characterSet)
+    used_features = dict(liga=False, kern=False) if otFea is None else otFea
 
-    elif axesProduct == "":
-        spacingStringInput = generateSpacingString(characterSet)
-        spacingString = stringMaker(
-            spacingStringInput,
-            proof_font_size,
-            indFont,
-            axesProduct,
-            pairedStaticStyles,
-            OTFeaInput=dict(liga=False, kern=False) if otFea is None else otFea,
-            mixedStyles=False,
-        )
-        # Get the actual features being used for the footer
-        used_features = dict(liga=False, kern=False) if otFea is None else otFea
-        drawContent(
-            spacingString,
-            sectionName + " - " + db.font(indFont).split("-")[1],
-            proof_columns,
-            indFont,
-            "ltr",
-            used_features,
-            tracking,
-        )
+    _render_proof_content(
+        spacingStringInput,
+        proof_font_size,
+        indFont,
+        axesProduct,
+        pairedStaticStyles,
+        sectionName,
+        columns=proof_columns,
+        alignInput="left",
+        trackingInput=tracking if tracking is not None else 0,
+        otFeatures=used_features,
+        mixedStyles=False,
+        direction="ltr",
+    )
 
 
 def textProof(
-    characterSet,
-    axesProduct,
-    indFont,
-    pairedStaticStyles,
-    cols=2,
-    para=3,
-    casing=False,
-    textSize=None,
-    sectionName="Text Proof",
-    mixedStyles=False,
-    forceWordsiv=False,
-    injectText=None,
-    otFea=None,
-    accents=0,
-    cat=None,
-    fullCharacterSet=None,
-    lang=None,
-    tracking=0,
-    align="left",
-):
+    characterSet: str,
+    axesProduct: list,
+    indFont: str,
+    pairedStaticStyles: tuple,
+    cols: int = 2,
+    para: int = 3,
+    casing: bool = False,
+    textSize: Optional[int | float] = None,
+    sectionName: str = "Text Proof",
+    mixedStyles: bool = False,
+    forceWordsiv: bool = False,
+    injectText: Optional[str] = None,
+    otFea: Optional[dict] = None,
+    accents: int = 0,
+    cat: Optional[dict] = None,
+    fullCharacterSet: Optional[str] = None,
+    lang: Optional[str] = None,
+    tracking: int | float = 0,
+    align: str = "left",
+) -> None:
     """Generate text proof with various options."""
     # Set default textSize if None
     if textSize is None:
@@ -861,152 +791,35 @@ def textProof(
             lang=lang,
         )
     elif injectText:
-        for t in injectText:
-            textStringInput += t + "\n"
+        # Accept either an iterable of strings (list/tuple) or a single string.
+        # Previously, iterating over a single injected string produced one-character-per-line output.
+        if isinstance(injectText, (list, tuple)):
+            for t in injectText:
+                if not t:
+                    continue
+                textStringInput += t.rstrip() + "\n"
+        else:
+            # Single block of text
+            textStringInput += str(injectText).rstrip() + "\n"
 
-    # Generate proof for each axis variation
-    if axesProduct:
-        axisDict = {}
-        for axisData in axesProduct:
-            axisDict = dict(axisData)
-            # Use rtl direction for Arabic/Farsi text
-            text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
-            textString = stringMaker(
-                textStringInput,
-                textSize,
-                indFont,
-                axesProduct,
-                pairedStaticStyles,
-                alignInput=align,
-                trackingInput=tracking,
-                OTFeaInput=otFea,
-                VFAxisInput=axisDict,
-                mixedStyles=mixedStyles,
-            )
-            # Skip this font if no valid pairing found for mixed styles
-            if mixedStyles and textString is None:
-                continue
-            drawContent(
-                textString,
-                sectionName + " - " + str(axisData),
-                columnNumber=cols,
-                currentFont=indFont,
-                direction=text_direction,
-                otFeatures=otFea,
-                tracking=tracking,
-            )
-    elif axesProduct == "":
-        # Use rtl direction for Arabic/Farsi text
-        text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
-        textString = stringMaker(
-            textStringInput,
-            textSize,
-            indFont,
-            axesProduct,
-            pairedStaticStyles,
-            alignInput=align,
-            trackingInput=tracking,
-            OTFeaInput=otFea,
-            mixedStyles=mixedStyles,
-        )
-        # Skip this font if no valid pairing found for mixed styles
-        if mixedStyles and textString is None:
-            return
-        drawContent(
-            textString,
-            sectionName + " - " + db.font(indFont).split("-")[1],
-            columnNumber=cols,
-            currentFont=indFont,
-            direction=text_direction,
-            otFeatures=otFea,
-            tracking=tracking,
-        )
+    # Use rtl direction for Arabic/Farsi text
+    text_direction = "rtl" if lang in ["ar", "fa"] else "ltr"
 
-
-def generateArabicContextualProof(cat):
-    """Generate Arabic contextual form proofs for dual-joining and right-joining characters."""
-    contextualProof = ""
-
-    # Dual-joining characters proof
-    dualJoins = ""
-    for char in cat.get("arab", ""):
-        if char == "ء":  # Hamza special case
-            dualJoins += char + " "
-        elif char in cat.get("arfaDualJoin", ""):
-            # Show character in isolation and repeated forms
-            dualJoins += char + " " + char + char + char + " "
-
-    if dualJoins:
-        contextualProof += "Dual-joining forms:\n" + dualJoins + "\n\n"
-
-    # Right-joining characters proof
-    rightJoins = ""
-    for char in cat.get("arab", ""):
-        if char in cat.get("arfaRightJoin", ""):
-            # Show character with connecting letter
-            rightJoins += char + " " + "ب" + char + " "
-
-    if rightJoins:
-        contextualProof += "Right-joining forms:\n" + rightJoins + "\n\n"
-
-    return contextualProof
-
-
-def arabicContextualProof(cat, axesProduct, indFont, pairedStaticStyles, otFea=None):
-    """Generate Arabic character set proof pages."""
-    contextualString = generateArabicContextualProof(cat)
-
-    if not contextualString:
-        return
-
-    sectionName = "Ar Character Set"
-
-    try:
-        if axesProduct:
-            axisDict = {}
-            for axisData in axesProduct:
-                axisDict = dict(axisData)
-                formattedString = stringMaker(
-                    contextualString,
-                    get_proof_default_font_size("ar_character_set"),
-                    indFont,
-                    axesProduct,
-                    pairedStaticStyles,
-                    "center",
-                    0,  # No tracking for contextual forms
-                    otFea,
-                    axisDict,
-                    mixedStyles=False,
-                )
-                drawContent(
-                    formattedString,
-                    sectionName + " - " + str(axisData),
-                    1,
-                    indFont,
-                    direction="rtl",
-                )
-        elif axesProduct == "":
-            formattedString = stringMaker(
-                contextualString,
-                get_proof_default_font_size("ar_character_set"),
-                indFont,
-                axesProduct,
-                pairedStaticStyles,
-                "center",
-                0,
-                otFea,
-                mixedStyles=False,
-            )
-            drawContent(
-                formattedString,
-                sectionName + " - " + db.font(indFont).split("-")[1],
-                1,
-                indFont,
-                direction="rtl",
-            )
-    except Exception as e:
-        print(f"Error in arabicContextualProof: {e}")
-        traceback.print_exc()
+    _render_proof_content(
+        textStringInput,
+        textSize,
+        indFont,
+        axesProduct,
+        pairedStaticStyles,
+        sectionName,
+        columns=cols,
+        alignInput=align,
+        trackingInput=tracking,
+        otFeatures=otFea,
+        mixedStyles=mixedStyles,
+        direction=text_direction,
+        skip_none_result=mixedStyles,  # Skip None results only for mixed styles
+    )
 
 
 def generateArabicContextualFormsProof(cat):
@@ -1014,23 +827,17 @@ def generateArabicContextualFormsProof(cat):
     contextualProof = ""
 
     # Get Arabic characters
-    arabic_chars = cat.get("arab", "")
+    arabic_chars = cat.get("arabTyped", "")
     if not arabic_chars:
         return ""
 
-    # Dual-joining characters proof - show isolated and connected forms
     for char in arabic_chars:
         if char == "ء":  # Hamza special case
             contextualProof += char + " "
         elif char in cat.get("arfaDualJoin", ""):
             # Show character: isolated, then connected forms
             contextualProof += char + " " + char + char + char + " "
-
-    contextualProof += "\n\n"
-
-    # Right-joining characters proof - show with connecting letter
-    for char in arabic_chars:
-        if char in cat.get("arfaRightJoin", ""):
+        elif char in cat.get("arfaRightJoin", ""):
             # Show character with connecting letter
             contextualProof += char + " " + "ب" + char + " "
 
@@ -1061,52 +868,20 @@ def arabicContextualFormsProof(
         return
 
     try:
-        if axesProduct:
-            axisDict = {}
-            for axisData in axesProduct:
-                axisDict = dict(axisData)
-                formattedString = stringMaker(
-                    contextualString,
-                    proof_font_size,
-                    indFont,
-                    axesProduct,
-                    pairedStaticStyles,
-                    "center",
-                    0,  # No tracking for contextual forms
-                    otFea,
-                    axisDict,
-                    mixedStyles=False,
-                )
-                drawContent(
-                    formattedString,
-                    sectionName + " - " + str(axisData),
-                    1,
-                    indFont,
-                    direction="rtl",
-                    otFeatures=otFea,
-                    tracking=tracking,
-                )
-        elif axesProduct == "":
-            formattedString = stringMaker(
-                contextualString,
-                proof_font_size,
-                indFont,
-                axesProduct,
-                pairedStaticStyles,
-                "center",
-                0,
-                otFea,
-                mixedStyles=False,
-            )
-            drawContent(
-                formattedString,
-                sectionName + " - " + db.font(indFont).split("-")[1],
-                1,
-                indFont,
-                direction="rtl",
-                otFeatures=otFea,
-                tracking=tracking,
-            )
+        _render_proof_content(
+            contextualString,
+            proof_font_size,
+            indFont,
+            axesProduct,
+            pairedStaticStyles,
+            sectionName,
+            columns=1,
+            alignInput="center",
+            trackingInput=0,
+            otFeatures=otFea,
+            mixedStyles=False,
+            direction="rtl",
+        )
     except Exception as e:
         print(f"Error in arabicContextualFormsProof: {e}")
         traceback.print_exc()
