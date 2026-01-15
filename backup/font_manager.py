@@ -1,20 +1,23 @@
 # Font Manager - Core font management functionality
 
+# Standard library imports
 import os
-import drawBot as db
+
+# Local imports
 from font_utils import (
     get_ttfont,
-    normalize_font_path,
     is_valid_font_file,
     get_font_family_name,
     filteredCharset,
+    get_font_info,
+    format_axis_values,
+    parse_axis_values_string,
+    parse_axis_value,
 )
+from utils import normalize_path
 from character_analysis import check_arabic_support
 from variable_font_utils import (
     get_all_font_axes,
-    parse_axis_values_string,
-    format_axis_values,
-    parse_axis_value,
 )
 
 
@@ -33,18 +36,13 @@ class FontManager:
             if saved_fonts:
                 self.fonts = tuple(saved_fonts)
                 self.update_font_info()
-                # Load axis values from settings
-                for font_path in self.fonts:
-                    axis_values = self.settings.get_font_axis_values(font_path)
-                    if axis_values:
-                        self.axis_values_by_font[font_path] = axis_values
 
     def add_fonts(self, paths):
         """Add new fonts to the collection."""
         valid_paths = [
-            normalize_font_path(p)
+            normalize_path(p, font_specific=True)
             for p in paths
-            if is_valid_font_file(normalize_font_path(p))
+            if is_valid_font_file(normalize_path(p, font_specific=True))
         ]
 
         # Only add fonts not already in the list
@@ -93,33 +91,17 @@ class FontManager:
 
         for font_path in self.fonts:
             try:
-                font_info = {
-                    "features": db.listOpenTypeFeatures(font_path),
-                    "name": os.path.basename(font_path),
-                }
-
-                # Process variable font axes
-                variableDict = db.listFontVariations(font_path)
-                axes_dict = {}
-
-                if variableDict:
-                    for axis, data in variableDict.items():
-                        # Get unique values in order: min, default, max
-                        values = []
-                        for key in ("minValue", "defaultValue", "maxValue"):
-                            v = data.get(key)
-                            if v is not None and v not in values:
-                                # Convert to int if it's a whole number
-                                values.append(
-                                    int(v)
-                                    if isinstance(v, (int, float)) and v == int(v)
-                                    else v
-                                )
-                        axes_dict[axis] = values
-
-                font_info["axes"] = axes_dict
-                self.axis_values_by_font[font_path] = axes_dict
+                font_info = get_font_info(font_path)
                 self.font_info[font_path] = font_info
+
+                # Initialize with default axes from font
+                self.axis_values_by_font[font_path] = font_info.get("axes", {})
+
+                # Override with saved user axis values from settings if available
+                if self.settings:
+                    saved_axis_values = self.settings.get_font_axis_values(font_path)
+                    if saved_axis_values:
+                        self.axis_values_by_font[font_path] = saved_axis_values
 
             except Exception as e:
                 print(f"Error processing font {font_path}: {e}")
@@ -145,60 +127,36 @@ class FontManager:
             table_data.append(row)
         return table_data
 
-    def update_axis_values_from_table(self, table_data):
-        """Update axis values from table data."""
-        for row in table_data:
-            font_path = row.get("_path")
-            if not font_path:
-                continue
-
-            axes_str = row.get("axes", "")
-            axes_dict = {}
-
-            for part in axes_str.split(";"):
-                part = part.strip()
-                if not part or ":" not in part:
-                    continue
-
-                axis, values_str = part.split(":", 1)
-                values = parse_axis_values_string(values_str)
-                if values:  # Only add if we have valid values
-                    axes_dict[axis.strip()] = values
-
-            self.axis_values_by_font[font_path] = axes_dict
-
-            # Save to settings
-            if self.settings:
-                self.settings.set_font_axis_values(font_path, axes_dict)
-
-    def update_axis_values_from_individual_axes_table(self, table_data, all_axes):
-        """Update axis values from table data with individual axis columns."""
+    def update_axis_values_from_table(self, table_data, all_axes=None):
+        """Update axis values from table data (supports both formats)."""
         for row in table_data:
             font_path = row.get("_path")
             if not font_path:
                 continue
 
             axes_dict = {}
-            for axis in all_axes:
-                values_str = row.get(axis, "")
-                if values_str.strip():
+
+            if all_axes:  # Individual axis columns format
+                for axis in all_axes:
+                    values_str = row.get(axis, "")
+                    if values_str.strip():
+                        values = parse_axis_values_string(values_str)
+                        if values:
+                            axes_dict[axis] = values
+            else:  # Combined axes string format
+                axes_str = row.get("axes", "")
+                for part in axes_str.split(";"):
+                    part = part.strip()
+                    if not part or ":" not in part:
+                        continue
+                    axis, values_str = part.split(":", 1)
                     values = parse_axis_values_string(values_str)
-                    if values:  # Only add if we have valid values
-                        axes_dict[axis] = values
+                    if values:
+                        axes_dict[axis.strip()] = values
 
             self.axis_values_by_font[font_path] = axes_dict
-
-            # Save to settings
             if self.settings:
                 self.settings.set_font_axis_values(font_path, axes_dict)
-
-    def get_family_name(self):
-        """Get family name from the first font."""
-        return get_font_family_name(self.fonts[0]) if self.fonts else ""
-
-    def get_axis_values_for_font(self, font_path):
-        """Get axis values for a specific font."""
-        return self.axis_values_by_font.get(font_path, {})
 
     def has_arabic_support(self):
         """Check if any loaded font supports Arabic characters."""
@@ -216,12 +174,24 @@ class FontManager:
 
         return False
 
+    def get_axis_values_for_font(self, font_path):
+        """Get axis values for a specific font."""
+        return self.axis_values_by_font.get(font_path, {})
+
+    def get_family_name(self):
+        """Get family name from the first font."""
+        return get_font_family_name(self.fonts[0]) if self.fonts else ""
+
     def load_fonts(self, font_paths):
-        """Load fonts from a list of paths."""
+        """Load fonts from a list of paths (replaces existing fonts)."""
         if not font_paths:
             return False
 
-        valid_paths = [path for path in font_paths if is_valid_font_file(path)]
+        valid_paths = [
+            normalize_path(p, font_specific=True)
+            for p in font_paths
+            if is_valid_font_file(normalize_path(p, font_specific=True))
+        ]
 
         if not valid_paths:
             return False
@@ -251,12 +221,9 @@ class FontManager:
             # Add each axis as a separate column
             axes_dict = self.axis_values_by_font.get(font_path, {})
             for axis in all_axes:
-                if axis in axes_dict:
-                    # Format axis values as comma-separated string
-                    axis_values = axes_dict[axis]
-                    row[axis] = format_axis_values(axis_values)
-                else:
-                    row[axis] = ""  # Empty for fonts that don't have this axis
+                row[axis] = (
+                    format_axis_values(axes_dict[axis]) if axis in axes_dict else ""
+                )
 
             row["_path"] = font_path
             table_data.append(row)

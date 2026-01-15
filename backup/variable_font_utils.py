@@ -89,11 +89,6 @@ def pairStaticStyles(fonts):
     return dict(sorted(staticUpItPairs.items())), dict(sorted(staticRgBdPairs.items()))
 
 
-def get_font_variations(font_path):
-    """Get variable font variations for a font."""
-    return db.listFontVariations(font_path)
-
-
 def get_all_font_axes(fonts):
     """Get all unique axes across all loaded fonts in their original font order."""
     all_axes = []
@@ -114,21 +109,3 @@ def get_all_font_axes(fonts):
             continue
 
     return all_axes
-
-
-def parse_axis_value(value_str):
-    """Parse a string value to float, int, or keep as string."""
-    try:
-        return float(value_str) if "." in value_str else int(value_str)
-    except ValueError:
-        return value_str
-
-
-def format_axis_values(axis_values):
-    """Format axis values as comma-separated string."""
-    return ",".join(str(v) for v in axis_values)
-
-
-def parse_axis_values_string(values_str):
-    """Parse comma-separated axis values string into list."""
-    return [parse_axis_value(v.strip()) for v in values_str.split(",") if v.strip()]

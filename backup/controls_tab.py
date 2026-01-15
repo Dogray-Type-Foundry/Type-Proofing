@@ -4,7 +4,7 @@ import traceback
 import vanilla
 import AppKit
 from AppKit import NSBezelStyleRegularSquare, NSTextAlignmentCenter
-from proof_handlers import create_unique_proof_key
+from settings_manager import create_unique_proof_key
 
 
 class ControlsTab:
@@ -16,27 +16,72 @@ class ControlsTab:
         self.popover_states = {}  # Track which popovers are shown for each row
         self.create_ui()
 
-    def get_proof_options_list(self):
-        """Generate dynamic proof options list based on font capabilities and saved custom instances."""
-        # Import the helper functions from proof_config
+    # ============ Helper Methods ============
+
+    def _get_proof_mapping_data(self):
+        """Get proof options mapping data from registry."""
         from proof_config import (
             get_base_proof_display_names,
             get_arabic_proof_display_names,
             get_proof_settings_mapping,
         )
 
-        # Get base and Arabic proof options from registry
+        mapping = get_proof_settings_mapping()
         base_options = [
             (name, key)
-            for name, key in get_proof_settings_mapping().items()
+            for name, key in mapping.items()
             if name in get_base_proof_display_names()
         ]
-
         arabic_options = [
             (name, key)
-            for name, key in get_proof_settings_mapping().items()
+            for name, key in mapping.items()
             if name in get_arabic_proof_display_names()
         ]
+        return base_options, arabic_options
+
+    def _get_proof_key_for_option(self, proof_name):
+        """Get the correct proof key for a given proof option name."""
+        from proof_config import get_proof_settings_mapping
+
+        proof_settings_mapping = get_proof_settings_mapping()
+
+        # For base proof types, use the registry key directly
+        if proof_name in proof_settings_mapping:
+            return proof_settings_mapping[proof_name]
+        else:
+            # For numbered variants, use a sanitized version as the key
+            return create_unique_proof_key(proof_name)
+
+    def _has_settings(self, proof_name):
+        """Check if a proof type has settings (all proofs have at least font size)."""
+        from proof_config import get_proof_display_names
+
+        base_option = proof_name
+        # Extract base type for numbered variants
+        for base_name in get_proof_display_names(include_arabic=True):
+            if proof_name.startswith(base_name):
+                base_option = base_name
+                break
+        return base_option in get_proof_display_names(include_arabic=True)
+
+    def _manage_popover_state(self, proof_name, action):
+        """Centralized popover state management."""
+        if action == "show":
+            self.popover_states[proof_name] = True
+        elif action == "hide":
+            self.popover_states[proof_name] = False
+        elif action == "toggle":
+            self.popover_states[proof_name] = not self.popover_states.get(
+                proof_name, False
+            )
+        elif action == "get":
+            return self.popover_states.get(proof_name, False)
+        return self.popover_states.get(proof_name, False)
+
+    def get_proof_options_list(self):
+        """Generate dynamic proof options list based on font capabilities and saved custom instances."""
+        # Get base and Arabic proof options from registry
+        base_options, arabic_options = self._get_proof_mapping_data()
 
         # Check if any loaded font supports Arabic
         show_arabic_proofs = self.parent_window.font_manager.has_arabic_support()
@@ -172,41 +217,14 @@ class ControlsTab:
             # Preview area (right side)
             self.group.previewBox = vanilla.Box((350, 10, -10, -10))
 
-            # Define which proofs have settings (all proofs now have font size setting)
-            proofs_with_settings = {
-                "Filtered Character Set",
-                "Spacing Proof",
-                "Basic Paragraph Large",
-                "Diacritic Words Large",
-                "Basic Paragraph Small",
-                "Paired Styles Paragraph Small",
-                "Generative Text Small",
-                "Diacritic Words Small",
-                "Misc Paragraph Small",
-                "Ar Character Set",
-                "Ar Paragraph Large",
-                "Fa Paragraph Large",
-                "Ar Paragraph Small",
-                "Fa Paragraph Small",
-                "Ar Vocalization Paragraph Small",
-                "Ar-Lat Mixed Paragraph Small",
-                "Ar Numbers Small",
-            }
-
             # Generate dynamic proof options list
             proof_options_items = self.get_proof_options_list()
 
-            # Track popover states for proofs with settings
-            for item in proof_options_items:
-                proof_name = item["Option"]
-                base_option = item.get("_original_option", proof_name)
-                if base_option in proofs_with_settings:
-                    self.popover_states[proof_name] = False  # Track popover visibility
+            # Initialize popover states for all proofs (lazy initialization in helper method)
+            self.popover_states = {}
 
-            # Drag settings for internal reordering only
+            # Drag and drop settings for internal reordering only
             dragSettings = dict(makeDragDataCallback=self.makeProofDragDataCallback)
-
-            # Drop settings for internal reordering only (no external file drops)
             dropSettings = dict(
                 pasteboardTypes=["dev.drawbot.proof.proofOptionIndexes"],
                 dropCandidateCallback=self.dropProofCandidateCallback,
@@ -320,61 +338,36 @@ class ControlsTab:
     def proofOptionsEditCallback(self, sender):
         """Handle edits to proof options."""
         items = sender.get()
-
-        # Check if this is a checkbox edit
         edited_index = sender.getEditedIndex()
-
-        # Import helper functions from proof_config
-        from proof_config import get_proof_display_names
-
-        # Get proofs with settings from registry (all proofs have settings)
-        proofs_with_settings = set(get_proof_display_names(include_arabic=True))
 
         if edited_index is not None and edited_index < len(items):
             item = items[edited_index]
-            proof_name = item["Option"]  # Use the actual proof name
-            base_option = item.get("_original_option", proof_name)  # Get base type
+            proof_name = item["Option"]
+            base_option = item.get("_original_option", proof_name)
             enabled = item["Enabled"]
 
             # If this proof has settings and was just enabled, show the popover
             if (
-                base_option in proofs_with_settings
+                self._has_settings(base_option)
                 and enabled
-                and not self.popover_states.get(proof_name, False)
+                and not self._manage_popover_state(proof_name, "get")
             ):
-                # Hide any other open popovers first
                 self.hide_all_popovers_except(proof_name)
-
-                # Show the popover for this option
                 self.show_popover_for_option(proof_name, edited_index)
-                self.popover_states[proof_name] = True
+                self._manage_popover_state(proof_name, "show")
             elif (
-                base_option in proofs_with_settings
+                self._has_settings(base_option)
                 and not enabled
-                and self.popover_states.get(proof_name, False)
+                and self._manage_popover_state(proof_name, "get")
             ):
-                # If the proof was disabled, hide its popover
                 self.hide_popover_for_option(proof_name)
-                self.popover_states[proof_name] = False
+                self._manage_popover_state(proof_name, "hide")
 
         # Handle regular proof option edits (save settings)
         for item in items:
             proof_name = item["Option"]  # Use the actual proof name
-            base_option = item.get("_original_option", proof_name)  # Get base type
             enabled = item["Enabled"]
-
-            # Get the correct proof key from the registry
-            from proof_config import get_proof_settings_mapping
-
-            proof_settings_mapping = get_proof_settings_mapping()
-
-            # For base proof types, use the registry key directly
-            if proof_name in proof_settings_mapping:
-                proof_key = proof_settings_mapping[proof_name]
-            else:
-                # For numbered variants, use a sanitized version as the key
-                proof_key = create_unique_proof_key(proof_name)
-
+            proof_key = self._get_proof_key_for_option(proof_name)
             self.settings.set_proof_option(proof_key, enabled)
 
     def pageFormatCallback(self, sender):
@@ -465,18 +458,18 @@ class ControlsTab:
 
     def hide_all_popovers_except(self, except_option):
         """Hide all open popovers except the specified one."""
-        for option in self.popover_states:
-            if option != except_option and self.popover_states[option]:
+        for option in list(self.popover_states.keys()):
+            if option != except_option and self._manage_popover_state(option, "get"):
                 self.hide_popover_for_option(option)
-                self.popover_states[option] = False
+                self._manage_popover_state(option, "hide")
 
     def show_popover_for_option(self, option, row_index):
         """Show popover for the specified option."""
         # Import the helper function from proof_config
-        from proof_config import get_proof_popover_mapping
+        from proof_config import get_proof_settings_mapping
 
         # Get proof name to key mapping from registry
-        proof_name_to_key = get_proof_popover_mapping()
+        proof_name_to_key = get_proof_settings_mapping()
 
         # Check if this is a base proof type or a numbered variant
         base_proof_type = option
@@ -545,36 +538,24 @@ class ControlsTab:
             (10, 10, -10, 20), "Select Proof Type to Add:"
         )
 
-        # Import helper functions from proof_config
-        from proof_config import (
-            get_base_proof_display_names,
-            get_arabic_proof_display_names,
-        )
-
-        # Get available proof types from registry
-        proof_type_options = get_base_proof_display_names()
+        # Get available proof types using existing helper
+        base_options, arabic_options = self._get_proof_mapping_data()
+        proof_type_options = [name for name, key in base_options]
 
         # Add Arabic proof types if fonts support Arabic
         if self.parent_window.font_manager.has_arabic_support():
-            proof_type_options.extend(get_arabic_proof_display_names())
+            proof_type_options.extend([name for name, key in arabic_options])
 
         popover.proofTypePopup = vanilla.PopUpButton(
-            (10, 35, -10, 20),
-            proof_type_options,
+            (10, 35, -10, 20), proof_type_options
         )
 
-        # Add button
+        # Buttons
         popover.addButton = vanilla.Button(
-            (10, 65, 120, 20),
-            "Add",
-            callback=self.addSelectedProofCallback,
+            (10, 65, 120, 20), "Add", callback=self.addSelectedProofCallback
         )
-
-        # Cancel button
         popover.cancelButton = vanilla.Button(
-            (-130, 65, 120, 20),
-            "Cancel",
-            callback=self.cancelAddProofCallback,
+            (-130, 65, 120, 20), "Cancel", callback=self.cancelAddProofCallback
         )
 
     def addSelectedProofCallback(self, sender):
