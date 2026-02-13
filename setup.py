@@ -8,7 +8,7 @@ Usage:
 from setuptools import setup
 
 NAME = "TypeProofing"
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 APP = ["TypeProofing.py"]
 DATA_FILES = [
     "accented_dictionary.py",
