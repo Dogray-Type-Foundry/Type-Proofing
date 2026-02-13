@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import drawBot as db
-from wordsiv import WordSiv
+from wordsiv import Vocab, WordSiv
 import config as _cc
 from config import (
     marginHorizontal,
@@ -563,6 +563,7 @@ def generateTextProofString(
     cat=None,
     fullCharacterSet=None,
     lang=None,
+    hoeflerStyle=False,
 ):
     """Generate long text proofing strings either through wordsiv or premade strings."""
     if cat is None:
@@ -606,9 +607,14 @@ def generateTextProofString(
         or forceWordsiv is True
     ):
         # Use WordSiv for dynamic text generation
-        textProofString = _generate_wordsiv_text(
-            cat, para, fullCharacterSet, characterSet
-        )
+        if hoeflerStyle:
+            textProofString = _generate_hoefler_style_text(
+                cat, para, fullCharacterSet, characterSet
+            )
+        else:
+            textProofString = _generate_wordsiv_text(
+                cat, para, fullCharacterSet, characterSet
+            )
     elif cat["uppercaseOnly"]:
         textProofString = _generate_uppercase_text(
             cat, para, fullCharacterSet, characterSet
@@ -666,6 +672,162 @@ def _generate_wordsiv_text(cat, para, fullCharacterSet, characterSet):
         para_sep=" ",
     )
     return caplc_str + "\n\n" + wsvtext + "\n\n" + wsvtext.upper()
+
+
+# Letter shape categories for Hoefler-style proofs
+_ROUND_L_LC = "cdeoq"
+_ROUND_R_LC = "bop"
+_FLAT_L_LC = "bhiklmnpru"
+_FLAT_R_LC = "dhimnqu"
+_FLAT_L_UC = "BDEFHIKLMNPR"
+_FLAT_R_UC = "HIMN"
+_ROUND_L_UC = "CGOQ"
+_ROUND_R_UC = "DO"
+
+# Path to the custom English Wikipedia word list for Hoefler-style proofs
+_ENG_WIKI_PATH = os.path.join(_cc.SCRIPT_DIR, "eng_wiki.tsv")
+
+
+def _unique_random_word(wsv, recent, glyphs, max_attempts=10, **kwargs):
+    """Pick a random filler word that doesn't duplicate any of the *recent* words.
+
+    Tries up to *max_attempts* draws; if every attempt collides it returns the
+    last candidate anyway (better a repeat than a gap).
+    """
+    candidate = None
+    for _ in range(max_attempts):
+        candidate = wsv.word(glyphs=glyphs, top_k=40, **kwargs)
+        if candidate and candidate not in recent:
+            break
+    return candidate
+
+
+def _generate_hoefler_style_text(cat, para, fullCharacterSet, characterSet):
+    """Generate Hoefler-style proof text where each letter gets contextual words.
+
+    Produces mixed-case and uppercase paragraphs following the pattern from
+    https://www.wordsiv.com/examples/hoefler-style-proof/
+    Each letter is tested in flat-to-flat, round-to-round, and mixed contexts.
+    """
+    glyphs = fullCharacterSet if fullCharacterSet else characterSet
+    if not glyphs:
+        return ""
+
+    uc_glyphs = "".join(
+        sorted(c for c in cat.get("uniLuBase", cat.get("uniLu", "")) if c in glyphs)
+    )
+    if not uc_glyphs:
+        return ""
+
+    wsv = WordSiv(glyphs=glyphs, seed=wordsivSeed)
+    wsv.add_vocab(
+        "eng-wiki",
+        Vocab(lang="en", data_file=_ENG_WIKI_PATH, bicameral=True),
+    )
+
+    # --- Mixed-case paragraph (Hoefler lc style) ---
+    common_cap = {"min_wl": 5, "case": "cap", "glyphs": glyphs, "vocab": "eng-wiki"}
+    common_lc = {"min_wl": 5, "case": "lc", "glyphs": glyphs, "vocab": "eng-wiki"}
+
+    # Opening line: two capitalized words per uppercase letter
+    cap_words = []
+    for g in uc_glyphs:
+        try:
+            cap_words.append(
+                wsv.top_word(idx=0, regexp=rf"{g}[{_ROUND_L_LC}].*", **common_cap)
+            )
+        except Exception:
+            pass
+        try:
+            cap_words.append(
+                wsv.top_word(idx=0, regexp=rf"{g}[{_FLAT_L_LC}].*", **common_cap)
+            )
+        except Exception:
+            pass
+
+    lc_proof = " ".join(c for c in cap_words if c) + "."
+
+    # Per-letter sentences in mixed case
+    # Keep a sliding window of recent words to avoid nearby repetition
+    _RECENT_WINDOW = 4
+    recent_lc = []
+    for g_uc in uc_glyphs:
+        g_lc = g_uc.lower()
+        words = []
+        patterns = [
+            ("cap", rf"{g_uc}[{_FLAT_L_LC}].*"),
+            ("lc", rf"{g_lc}[{_FLAT_L_LC}].*"),
+            ("lc", rf"{g_lc}[{_ROUND_L_LC}].*"),
+            None,  # random word
+            None,  # random word
+            ("lc", rf".+[{_FLAT_R_LC}]{g_lc}[{_FLAT_L_LC}].+"),
+            ("lc", rf".+[{_ROUND_R_LC}]{g_lc}[{_ROUND_L_LC}].+"),
+            None,  # random word
+            None,  # random word
+            ("lc", rf".+[{_FLAT_R_LC}]{g_lc}"),
+            ("lc", rf".+[{_ROUND_R_LC}]{g_lc}"),
+            None,  # random word
+            ("lc", rf".+[{_FLAT_R_LC}]{g_lc}{g_lc}[{_FLAT_L_LC}].+"),
+        ]
+        for pat in patterns:
+            try:
+                if pat is None:
+                    w = _unique_random_word(wsv, recent_lc, glyphs, vocab="eng-wiki")
+                    words.append(w)
+                    if w:
+                        recent_lc.append(w)
+                        if len(recent_lc) > _RECENT_WINDOW:
+                            recent_lc.pop(0)
+                else:
+                    case_val, regexp = pat
+                    kw = common_cap if case_val == "cap" else common_lc
+                    words.append(wsv.top_word(regexp=regexp, **kw))
+            except Exception:
+                pass
+        sent = " ".join(w for w in words if w) + "."
+        lc_proof += " " + sent
+
+    # --- Uppercase paragraph (Hoefler uc style) ---
+    common_uc = {"min_wl": 5, "case": "uc", "glyphs": glyphs, "vocab": "eng-wiki"}
+    uc_sents = []
+    recent_uc = []
+    for g in uc_glyphs:
+        words = []
+        uc_patterns = [
+            rf"{g}[{_FLAT_L_UC}].*",
+            rf"{g}[{_ROUND_L_UC}].*",
+            None,
+            None,
+            rf".+[{_FLAT_R_UC}]{g}[{_FLAT_L_UC}].+",
+            rf".+[{_ROUND_R_UC}]{g}[{_ROUND_L_UC}].+",
+            None,
+            None,
+            rf".+[{_FLAT_R_UC}]{g}",
+            rf".+[{_ROUND_R_UC}]{g}",
+            None,
+            None,
+            rf".+[{_FLAT_R_UC}]{g}{g}[{_FLAT_L_UC}].+",
+        ]
+        for pat in uc_patterns:
+            try:
+                if pat is None:
+                    w = _unique_random_word(
+                        wsv, recent_uc, glyphs, case="uc", vocab="eng-wiki"
+                    )
+                    words.append(w)
+                    if w:
+                        recent_uc.append(w)
+                        if len(recent_uc) > _RECENT_WINDOW:
+                            recent_uc.pop(0)
+                else:
+                    words.append(wsv.top_word(regexp=pat, **common_uc))
+            except Exception:
+                pass
+        uc_sents.append(" ".join(w for w in words if w) + ".")
+
+    uc_proof = " ".join(uc_sents)
+
+    return lc_proof + "\n\n" + uc_proof
 
 
 def _generate_uppercase_text(cat, para, fullCharacterSet, characterSet):
@@ -944,6 +1106,7 @@ def textProof(
     lang: Optional[str] = None,
     tracking: int | float = 0,
     align: str = "left",
+    hoeflerStyle: bool = False,
 ) -> None:
     """Generate text proof with various options."""
     # Set default textSize if None
@@ -986,6 +1149,7 @@ def textProof(
             cat=cat,
             fullCharacterSet=fullCharacterSet,
             lang=lang,
+            hoeflerStyle=hoeflerStyle,
         )
     elif injectText:
         # Accept either an iterable of strings (list/tuple) or a single string.
@@ -1178,6 +1342,7 @@ class BaseProofHandler(ABC):
         inject_text=None,
         accents=0,
         language=None,
+        hoefler_style=False,
     ):
         """Template method for generating text-based proofs."""
         params = self.get_common_proof_params(
@@ -1204,6 +1369,7 @@ class BaseProofHandler(ABC):
             language,
             params["tracking_value"],
             params["align_value"],
+            hoeflerStyle=hoefler_style,
         )
 
 
@@ -1229,6 +1395,7 @@ class StandardTextProofHandler(BaseProofHandler):
             self.default_paragraphs = config.get("default_paragraphs", 5)
             self.mixed_styles = config.get("mixed_styles", False)
             self.force_wordsiv = config.get("force_wordsiv", False)
+            self.hoefler_style = config.get("hoefler_style", False)
             # Some configs refer to centralized text content by key
             inject_key = config.get("inject_text_key")
             if inject_key:
@@ -1256,6 +1423,7 @@ class StandardTextProofHandler(BaseProofHandler):
             self.default_paragraphs = 5
             self.mixed_styles = False
             self.force_wordsiv = False
+            self.hoefler_style = False
             self.inject_text = None
             self.accents = 0
             self.language = None
@@ -1279,6 +1447,7 @@ class StandardTextProofHandler(BaseProofHandler):
             self.inject_text,
             self.accents,
             self.language,
+            self.hoefler_style,
         )
 
 
