@@ -2,18 +2,22 @@
 # Consolidated from core_config.py and proof_config.py
 
 import os
+import sys
 
 # =============================================================================
 # Application Configuration
 # =============================================================================
 
 # Get the directory where the script is located
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, "frozen", False):
+    SCRIPT_DIR = os.environ["RESOURCEPATH"]
+else:
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Store settings file in user's home directory
 SETTINGS_PATH = os.path.expanduser("~/.type-proofing-prefs.json")
 WINDOW_TITLE = "Type Proofing"
-APP_VERSION = "1.6.1"
+APP_VERSION = "1.6.3"
 
 # Fallback font. Adobe Blank should be in the same folder as the script
 FALLBACK_FONT = os.path.abspath("AdobeBlank.otf")
