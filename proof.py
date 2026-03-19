@@ -35,6 +35,7 @@ from config import (
 )
 from fonts import (
     get_ttfont,
+    filteredCharset,
     UPPER_TEMPLATE as upperTemplate,
     LOWER_TEMPLATE as lowerTemplate,
 )
@@ -1266,6 +1267,8 @@ class ProofContext:
     paras_by_proof: dict
     cat: dict
     proof_name: str | None
+    all_fonts: list | None = None
+    font_manager: object | None = None
 
 
 class BaseProofHandler(ABC):
@@ -1556,6 +1559,231 @@ class ArCharacterSetHandler(BaseProofHandler):
         )
 
 
+class CustomTextProofHandler(BaseProofHandler):
+    """Handler for Custom Text proof type — renders user-provided text."""
+
+    def generate_proof(self, context):
+        custom_text_key = make_settings_key(self.unique_proof_key, "customText")
+        custom_text = self.proof_settings.get(custom_text_key, "")
+        if not custom_text:
+            print(f"No custom text provided for '{self.proof_name}', skipping")
+            return
+
+        params = self.get_common_proof_params(context, default_columns=1)
+
+        _render_proof_content(
+            custom_text,
+            params["font_size"],
+            context.ind_font,
+            context.axes_product,
+            context.paired_static_styles,
+            params["section_name"],
+            columns=params["columns"],
+            alignInput=params["align_value"],
+            trackingInput=params["tracking_value"],
+            otFeatures=params["otfeatures"],
+            mixedStyles=False,
+            direction="ltr",
+        )
+
+
+class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
+    """Handler for Multi-Style Comparison proof — shows one line per font/style,
+    grouped by text type (character categories and/or custom text)."""
+
+    # Track which proof instances have already been generated in the current
+    # PDF run so that the per-font loop in run_proof doesn't duplicate output.
+    _generated_instances: set = None
+
+    @classmethod
+    def reset_generated(cls):
+        """Reset the per-run deduplication set."""
+        cls._generated_instances = set()
+
+    def generate_proof(self, context):
+        # Deduplicate: only generate once across all fonts in the loop
+        if MultiStyleComparisonProofHandler._generated_instances is None:
+            MultiStyleComparisonProofHandler._generated_instances = set()
+        if self.proof_name in MultiStyleComparisonProofHandler._generated_instances:
+            return
+        MultiStyleComparisonProofHandler._generated_instances.add(self.proof_name)
+
+        all_fonts = context.all_fonts or [context.ind_font]
+        font_manager = context.font_manager
+
+        font_size = self.get_font_size()
+        tracking_value = self.get_tracking_value()
+        align_value = self.get_align_value()
+        otfeatures = context.otfeatures_by_proof.get(context.proof_name, {})
+
+        # Collect the text groups to render
+        text_groups = self._collect_text_groups(all_fonts)
+        if not text_groups:
+            print(f"No text groups selected for '{self.proof_name}', skipping")
+            return
+
+        # Collect (label, font_path, axis_variations) tuples for all styles
+        styles = self._collect_styles(all_fonts, font_manager)
+
+        # Render each text group
+        for group_label, group_text in text_groups:
+            section_name = f"{self.proof_name} - {group_label} - {font_size}pt"
+            formatted = self._build_multi_style_string(
+                group_text,
+                styles,
+                font_size,
+                tracking_value,
+                align_value,
+                otfeatures,
+            )
+            drawContent(
+                formatted,
+                section_name,
+                1,  # single column
+                styles[0][1] if styles else context.ind_font,
+                "ltr",
+                otfeatures,
+                tracking_value,
+            )
+
+    def _collect_text_groups(self, all_fonts):
+        """Collect text groups from category settings and custom text."""
+        groups = []
+
+        # Build a merged category dict from all loaded fonts
+        merged_cat = self._build_merged_categories(all_fonts)
+
+        # Get category-based sections if any are enabled
+        if merged_cat:
+            from fonts import get_charset_proof_categories
+
+            categories = get_charset_proof_categories(merged_cat)
+            category_mapping = [
+                ("uppercase_base", "Uppercase Base", categories["uppercase_base"]),
+                ("lowercase_base", "Lowercase Base", categories["lowercase_base"]),
+                (
+                    "numbers_symbols",
+                    "Numbers & Symbols",
+                    categories["numbers_symbols"],
+                ),
+                ("punctuation", "Punctuation", categories["punctuation"]),
+                ("accented", "Accented Characters", categories["accented"]),
+            ]
+            for category_key, label, character_set in category_mapping:
+                if self.get_character_category_setting(category_key) and character_set:
+                    groups.append((label, character_set))
+
+        # Add custom text lines if present (each line becomes its own group)
+        custom_text_key = make_settings_key(self.unique_proof_key, "customText")
+        custom_text = self.proof_settings.get(custom_text_key, "")
+        if custom_text:
+            lines = [line for line in custom_text.splitlines() if line.strip()]
+            for i, line in enumerate(lines, 1):
+                label = f"Custom Text {i}" if len(lines) > 1 else "Custom Text"
+                groups.append((label, line))
+
+        return groups
+
+    def _build_merged_categories(self, all_fonts):
+        """Build a merged categorize() dict from all loaded fonts."""
+        from fonts import categorize as _categorize
+
+        merged = None
+        for font_path in all_fonts:
+            charset = filteredCharset(font_path)
+            cat = _categorize(charset)
+            if merged is None:
+                merged = {
+                    k: set(v) if isinstance(v, str) else v for k, v in cat.items()
+                }
+            else:
+                for k, v in cat.items():
+                    if isinstance(v, str):
+                        merged[k] = merged.get(k, set()) | set(v)
+        if merged is None:
+            return None
+        # Convert sets back to sorted strings
+        result = {}
+        for k, v in merged.items():
+            if isinstance(v, set):
+                result[k] = "".join(sorted(v, key=ord))
+            else:
+                result[k] = v
+        return result
+
+    def _collect_styles(self, all_fonts, font_manager):
+        """Collect (display_label, font_path, axis_dict_or_None) for each enabled style."""
+        styles = []
+        index = 0
+        for font_path in all_fonts:
+            variable_dict = db.listFontVariations(font_path)
+            if variable_dict and font_manager:
+                axes_dict = font_manager.get_axis_values_for_font(font_path)
+                if axes_dict:
+                    from fonts import product_dict as _product_dict
+
+                    axes_product = list(_product_dict(**axes_dict))
+                else:
+                    from fonts import variableFont as _variableFont
+
+                    axes_product = _variableFont(font_path)[0]
+                if axes_product:
+                    for axis_data in axes_product:
+                        try:
+                            axis_dict = dict(axis_data)
+                        except Exception:
+                            axis_dict = None
+                        if self._is_style_enabled(index):
+                            label = f"{get_font_display_name(font_path)} {axis_data}"
+                            styles.append((label, font_path, axis_dict))
+                        index += 1
+                else:
+                    if self._is_style_enabled(index):
+                        styles.append(
+                            (get_font_display_name(font_path), font_path, None)
+                        )
+                    index += 1
+            else:
+                if self._is_style_enabled(index):
+                    styles.append((get_font_display_name(font_path), font_path, None))
+                index += 1
+        return styles
+
+    def _is_style_enabled(self, index):
+        """Check if a style at the given index is enabled in settings."""
+        setting_key = make_settings_key(self.unique_proof_key, "style", str(index))
+        return self.proof_settings.get(setting_key, True)
+
+    def _build_multi_style_string(
+        self,
+        text,
+        styles,
+        font_size,
+        tracking,
+        align,
+        otfeatures,
+    ):
+        """Build a single FormattedString with one line per style."""
+        formatted = db.FormattedString(
+            txt="",
+            font=styles[0][1] if styles else "",
+            fallbackFont=myFallbackFont,
+            fontSize=font_size,
+            align=align,
+            tracking=tracking,
+            openTypeFeatures=otfeatures,
+        )
+        for i, (label, font_path, axis_dict) in enumerate(styles):
+            kwargs = dict(font=font_path, openTypeFeatures=otfeatures)
+            if axis_dict:
+                kwargs["fontVariations"] = axis_dict
+            formatted.append(txt="", **kwargs)
+            formatted.append(txt=text)
+            if i < len(styles) - 1:
+                formatted.append(txt="\n")
+        return formatted
+
+
 # =============================================================================
 # Handler Registry and Factory
 # =============================================================================
@@ -1566,6 +1794,8 @@ PROOF_HANDLER_REGISTRY = {
     "Filtered Character Set": FilteredCharacterSetHandler,
     "Spacing Proof": SpacingProofHandler,
     "Ar Character Set": ArCharacterSetHandler,
+    "Custom Text": CustomTextProofHandler,
+    "Multi-Style Comparison": MultiStyleComparisonProofHandler,
     # All other text-based proofs use StandardTextProofHandler with configuration
 }
 

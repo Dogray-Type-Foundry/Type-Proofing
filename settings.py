@@ -683,6 +683,7 @@ class ProofSettingsManager:
         "filtered_character_set",
         "spacing_proof",
         "ar_character_set",
+        "multi_style_comparison",
     }
 
     # Consolidated setting type configuration
@@ -723,11 +724,21 @@ class ProofSettingsManager:
                 self.proof_settings[setting_key_full] = default_func(proof_key)
 
         # Category settings for applicable proofs
-        if proof_key in ["filtered_character_set", "spacing_proof"]:
+        from config import proof_has_categories
+
+        if proof_has_categories(proof_key):
             for category_key, default_value in self._CATEGORY_DEFAULTS.items():
                 setting_key_full = make_settings_key(settings_key, "cat", category_key)
                 if setting_key_full not in self.proof_settings:
                     self.proof_settings[setting_key_full] = default_value
+
+        # Custom text settings for proofs that support it
+        from config import proof_has_custom_text
+
+        if proof_has_custom_text(proof_key):
+            custom_text_key = make_settings_key(settings_key, "customText")
+            if custom_text_key not in self.proof_settings:
+                self.proof_settings[custom_text_key] = ""
 
         # OpenType features
         for tag in self._get_font_features():

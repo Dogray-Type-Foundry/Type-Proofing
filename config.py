@@ -89,7 +89,7 @@ TABLE_FONT_NAME_WIDTH = 200
 TABLE_AXIS_COLUMN_WIDTH = 180
 
 # Popover dimensions
-POPOVER_PROOF_SETTINGS_SIZE = (400, 620)
+POPOVER_PROOF_SETTINGS_SIZE = (400, 780)
 POPOVER_ADD_PROOF_SIZE = (300, 100)
 
 # Default tracking value for character set proofs
@@ -423,6 +423,26 @@ PROOF_REGISTRY = {
             "inject_text_key": "arabicFarsiUrduNumbers",
         },
     },
+    "custom_text": {
+        "display_name": "Custom Text",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 1,
+        "has_paragraphs": False,
+        "default_size": 16,
+        "has_custom_text": True,
+    },
+    "multi_style_comparison": {
+        "display_name": "Multi-Style Comparison",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 1,
+        "has_paragraphs": False,
+        "default_size": 78,
+        "has_custom_text": True,
+        "has_categories": True,
+        "multi_style": True,
+    },
 }
 
 # =============================================================================
@@ -461,6 +481,8 @@ def get_proof_display_names(include_arabic=True):
         "generative_text_small",
         "diacritic_words_small",
         "misc_paragraph_small",
+        "custom_text",
+        "multi_style_comparison",
         "ar_character_set",
         "ar_paragraph_large",
         "fa_paragraph_large",
@@ -601,3 +623,26 @@ def get_default_alignment_for_proof(proof_key):
     if proof_info and proof_info.get("is_arabic", False):
         return "right"
     return "left"
+
+
+def proof_has_custom_text(proof_key):
+    """Check if a proof type supports custom text input."""
+    proof_info = PROOF_REGISTRY.get(proof_key)
+    return proof_info.get("has_custom_text", False) if proof_info else False
+
+
+def proof_has_categories(proof_key):
+    """Check if a proof type uses character category selection."""
+    proof_info = PROOF_REGISTRY.get(proof_key)
+    if not proof_info:
+        return False
+    # Filtered Character Set and Spacing Proof have implicit categories
+    if proof_key in ["filtered_character_set", "spacing_proof"]:
+        return True
+    return proof_info.get("has_categories", False)
+
+
+def proof_is_multi_style(proof_key):
+    """Check if a proof type is a multi-style comparison proof."""
+    proof_info = PROOF_REGISTRY.get(proof_key)
+    return proof_info.get("multi_style", False) if proof_info else False

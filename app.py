@@ -30,6 +30,9 @@ from config import (
     get_proof_settings_mapping,
     get_proof_by_storage_key,
     get_proof_by_settings_key,
+    proof_has_custom_text,
+    proof_has_categories,
+    proof_is_multi_style,
 )
 from fonts import FontManager
 from fonts import product_dict, variableFont, pairStaticStyles
@@ -47,6 +50,7 @@ from proof import (
     ProofContext,
     get_proof_handler,
     clear_handler_cache,
+    MultiStyleComparisonProofHandler,
 )
 from pdf_manager import PDFManager
 from settings import (
@@ -445,7 +449,7 @@ class ProofWindow:
 
     def create_proof_settings_popover(self):
         """Create the proof settings popover."""
-        self.proof_settings_popover = vanilla.Popover((400, 620))
+        self.proof_settings_popover = vanilla.Popover((400, 1000))
         popover = self.proof_settings_popover
 
         # Proof type selector
@@ -492,32 +496,32 @@ class ProofWindow:
             callback=self.alignPopUpCallback,
         )
 
-        # Character Category controls (for Filtered Character Set and Spacing Proof)
+        # Character Category controls (for Filtered Character Set, Spacing Proof, Multi-Style Comparison)
         popover.categoryLabel = vanilla.TextBox(
-            (10, 190, -10, 20), "Character Categories:"
+            (10, 220, -10, 20), "Character Categories:"
         )
 
         # Character category checkboxes
         popover.categoryUppercase = vanilla.CheckBox(
-            (20, 210, -10, 20),
+            (20, 240, -10, 20),
             "Uppercase Base",
             callback=self.characterCategoryCallback,
         )
         popover.categoryLowercase = vanilla.CheckBox(
-            (20, 230, -10, 20),
+            (20, 260, -10, 20),
             "Lowercase Base",
             callback=self.characterCategoryCallback,
         )
         popover.categoryNumbersSymbols = vanilla.CheckBox(
-            (20, 250, -10, 20),
+            (20, 280, -10, 20),
             "Numbers & Symbols",
             callback=self.characterCategoryCallback,
         )
         popover.categoryPunctuation = vanilla.CheckBox(
-            (20, 270, -10, 20), "Punctuation", callback=self.characterCategoryCallback
+            (20, 300, -10, 20), "Punctuation", callback=self.characterCategoryCallback
         )
         popover.categoryAccented = vanilla.CheckBox(
-            (20, 290, -10, 20),
+            (20, 320, -10, 20),
             "Accented Characters",
             callback=self.characterCategoryCallback,
         )
@@ -530,12 +534,47 @@ class ProofWindow:
         popover.categoryPunctuation.show(False)
         popover.categoryAccented.show(False)
 
+        # Custom text input (for Custom Text and Multi-Style Comparison proofs)
+        popover.customTextLabel = vanilla.TextBox((10, 350, -10, 20), "Custom Text:")
+        popover.customTextEditor = vanilla.TextEditor(
+            (10, 370, -10, 90), "", callback=self.customTextEditCallback
+        )
+        popover.customTextLabel.show(False)
+        popover.customTextEditor.show(False)
+
+        # Styles selector (for Multi-Style Comparison)
+        popover.stylesLabel = vanilla.TextBox((10, 470, -10, 20), "Styles to Compare:")
+        popover.stylesList = vanilla.List2(
+            (10, 490, -10, 200),
+            [],
+            columnDescriptions=[
+                {
+                    "identifier": "Style",
+                    "title": "Style",
+                    "key": "Style",
+                    "width": 250,
+                    "editable": False,
+                },
+                {
+                    "identifier": "Enabled",
+                    "title": "Enabled",
+                    "key": "Enabled",
+                    "width": 80,
+                    "editable": True,
+                    "cellClass": vanilla.CheckBoxList2Cell,
+                },
+            ],
+            editCallback=self.stylesEditCallback,
+        )
+        popover.stylesLabel.show(False)
+        popover.stylesList.show(False)
+
         # OpenType features list
         popover.featuresLabel = vanilla.TextBox(
-            (10, 320, -10, 20), "OpenType Features:"
+            (10, 700, -10, 20), "OpenType Features:"
         )
         popover.featuresList = vanilla.List2(
-            (10, 340, -10, -10),
+            (10, 720, -10, -10),
             [],
             columnDescriptions=[
                 {
@@ -572,6 +611,8 @@ class ProofWindow:
             return
 
         proof_key, proof_label = self.proof_types_with_otf[idx]
+        self.current_proof_key = proof_key
+        self.current_base_proof_type = proof_label
         popover = self.proof_settings_popover
 
         # Get numeric settings from settings manager
@@ -613,11 +654,31 @@ class ProofWindow:
             popover.alignLabel.show(False)
             popover.alignPopUp.show(False)
 
-        # Update character category controls for Filtered Character Set and Spacing Proof
-        if proof_key in ["filtered_character_set", "spacing_proof"]:
+        # Update character category controls
+        if proof_has_categories(proof_key):
             self._setup_category_controls(popover, proof_key, show=True)
         else:
             self._setup_category_controls(popover, proof_key, show=False)
+
+        # Update custom text editor
+        if proof_has_custom_text(proof_key):
+            text_key = make_settings_key(proof_key, "customText")
+            existing_text = self.proof_settings.get(text_key, "")
+            popover.customTextEditor.set(existing_text)
+            popover.customTextLabel.show(True)
+            popover.customTextEditor.show(True)
+        else:
+            popover.customTextLabel.show(False)
+            popover.customTextEditor.show(False)
+
+        # Update styles selector for Multi-Style Comparison
+        if proof_is_multi_style(proof_key):
+            self._populate_styles_list(popover, proof_key)
+            popover.stylesLabel.show(True)
+            popover.stylesList.show(True)
+        else:
+            popover.stylesLabel.show(False)
+            popover.stylesList.show(False)
 
     def characterCategoryCallback(self, sender):
         """Handle character category checkbox changes."""
@@ -626,10 +687,11 @@ class ProofWindow:
         ):
             return
 
-        # Only handle this for Filtered Character Set and Spacing Proof
+        # Only handle this for proofs that have categories
         if self.current_base_proof_type not in [
             "Filtered Character Set",
             "Spacing Proof",
+            "Multi-Style Comparison",
         ]:
             return
 
@@ -648,6 +710,90 @@ class ProofWindow:
         if category_key:
             setting_key = make_settings_key(self.current_proof_key, "cat", category_key)
             self.proof_settings[setting_key] = sender.get()
+
+    def customTextEditCallback(self, sender):
+        """Handle custom text editor changes."""
+        if not hasattr(self, "current_proof_key"):
+            return
+        text_key = make_settings_key(self.current_proof_key, "customText")
+        self.proof_settings[text_key] = sender.get()
+
+    def _build_available_styles(self):
+        """Build list of available font styles from all loaded fonts."""
+        import drawBot as db
+        from fonts import product_dict as _product_dict
+        from fonts import variableFont as _variableFont
+        from proof import get_font_display_name
+
+        styles = []
+        for font_path in self.font_manager.fonts:
+            variable_dict = db.listFontVariations(font_path)
+            if variable_dict:
+                axes_dict = self.font_manager.get_axis_values_for_font(font_path)
+                if axes_dict:
+                    axes_product = list(_product_dict(**axes_dict))
+                else:
+                    axes_product = _variableFont(font_path)[0]
+                if axes_product:
+                    for axis_data in axes_product:
+                        try:
+                            axis_dict = dict(axis_data)
+                        except Exception:
+                            axis_dict = None
+                        label = f"{get_font_display_name(font_path)} {axis_data}"
+                        styles.append(
+                            {
+                                "label": label,
+                                "font_path": font_path,
+                                "axis_dict": axis_dict,
+                            }
+                        )
+                else:
+                    styles.append(
+                        {
+                            "label": get_font_display_name(font_path),
+                            "font_path": font_path,
+                            "axis_dict": None,
+                        }
+                    )
+            else:
+                styles.append(
+                    {
+                        "label": get_font_display_name(font_path),
+                        "font_path": font_path,
+                        "axis_dict": None,
+                    }
+                )
+        return styles
+
+    def _populate_styles_list(self, popover, proof_key):
+        """Populate the styles list for a multi-style comparison proof."""
+        available_styles = self._build_available_styles()
+        style_items = []
+        for i, style in enumerate(available_styles):
+            setting_key = make_settings_key(proof_key, "style", str(i))
+            enabled = self.proof_settings.get(setting_key, True)
+            style_items.append(
+                {
+                    "Style": style["label"],
+                    "Enabled": enabled,
+                    "_index": i,
+                }
+            )
+        popover.stylesList.set(style_items)
+
+    def stylesEditCallback(self, sender):
+        """Handle style checkbox changes in the styles list."""
+        if not hasattr(self, "current_proof_key"):
+            return
+        items = sender.get()
+        for item in items:
+            idx = item.get("_index")
+            if idx is not None:
+                setting_key = make_settings_key(
+                    self.current_proof_key, "style", str(idx)
+                )
+                self.proof_settings[setting_key] = bool(item.get("Enabled", True))
 
     def alignPopUpCallback(self, sender):
         """Handle alignment selection changes."""
@@ -789,6 +935,9 @@ class ProofWindow:
         if nowformat is None:
             nowformat = now.strftime("%Y-%m-%d_%H%M")
 
+        # Reset multi-style dedup so it generates once per PDF run
+        MultiStyleComparisonProofHandler.reset_generated()
+
         for indFont in self.font_manager.fonts:
             fullCharacterSet = filteredCharset(indFont)
             cat = categorize(fullCharacterSet)
@@ -828,6 +977,8 @@ class ProofWindow:
                 paras_by_proof=paras_by_proof,
                 cat=cat,
                 proof_name=None,  # Will be updated per proof
+                all_fonts=list(self.font_manager.fonts),
+                font_manager=self.font_manager,
             )
 
             # Generate each enabled proof using the optimized handler system
@@ -1009,11 +1160,31 @@ class ProofWindow:
                 popover.alignLabel.show(False)
                 popover.alignPopUp.show(False)
 
-            # Update character category controls for Filtered Character Set and Spacing Proof instances
-            if base_proof_key in ["filtered_character_set", "spacing_proof"]:
+            # Update character category controls
+            if proof_has_categories(base_proof_key):
                 self._setup_category_controls(popover, unique_proof_key, show=True)
             else:
                 self._setup_category_controls(popover, unique_proof_key, show=False)
+
+            # Update custom text editor
+            if proof_has_custom_text(base_proof_key):
+                text_key = make_settings_key(unique_proof_key, "customText")
+                existing_text = self.proof_settings.get(text_key, "")
+                popover.customTextEditor.set(existing_text)
+                popover.customTextLabel.show(True)
+                popover.customTextEditor.show(True)
+            else:
+                popover.customTextLabel.show(False)
+                popover.customTextEditor.show(False)
+
+            # Update styles selector for Multi-Style Comparison
+            if proof_is_multi_style(base_proof_key):
+                self._populate_styles_list(popover, unique_proof_key)
+                popover.stylesLabel.show(True)
+                popover.stylesList.show(True)
+            else:
+                popover.stylesLabel.show(False)
+                popover.stylesList.show(False)
 
         except Exception as e:
             print(f"Error updating proof settings popover: {e}")

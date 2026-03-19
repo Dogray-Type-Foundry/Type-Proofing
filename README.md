@@ -99,6 +99,8 @@ The left side shows available proof types. Proof in the list can be reordered, w
 - **Generative Text Small**: Generates pseudo-random text in small font size
 - **Diacritic Words Small**: Diacritics proof in small font size
 - **Misc Paragraph Small**: Preset text to test numbers, punctuation and symbols in paragraphs of text set in small font size
+- **Custom Text**: Lets you enter your own text in a text editor within the proof settings popover. Useful for proofing specific words, phrases, or client copy. All standard settings (font size, columns, tracking, alignment, OpenType features) apply.
+- **Multi-Style Comparison**: Displays one line per loaded font style for each selected text group, making it easy to compare how different weights, widths or other styles render the same characters. Text groups are defined by character category checkboxes (uppercase, lowercase, numbers/symbols, punctuation, accented) and/or custom text entered in the settings popover. All groups are shown on a single page, grouped by text type.
 
 #### Arabic/Persian Proof Types
 *These options appear automatically when Arabic-supporting fonts are loaded:*
@@ -121,6 +123,8 @@ Many proof types have configurable settings accessible when that proof's checkbo
 - **Columns**: Change the number of text columns on the page
 - **Tracking**: Allows you to add positive or negative tracking to your proof. Value is in points, not percentage
 - **Alignment**: Allows you to change the text alingment of a proof. Options are: left, center and right
+- **Character Categories**: For Filtered Character Set, Spacing Proof and Multi-Style Comparison, select which character groups to include (uppercase, lowercase, numbers/symbols, punctuation, accented)
+- **Custom Text**: For Custom Text and Multi-Style Comparison proofs, a text editor where you can type or paste any text you want to proof
 - **OpenType Features**: Enable/disable specific OpenType features. This list is populated automatically based on the Opentype features available in the first font on the Files list.
 - **Paragraphs**: Select the number of paragraphs to be generated in the Wordsiv proof
 
