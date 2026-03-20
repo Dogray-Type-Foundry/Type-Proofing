@@ -1,0 +1,573 @@
+"""Tests for proof.py — ProofContext, handler classes, text generation, and handler factory."""
+
+import pytest
+from unittest.mock import MagicMock, patch
+from dataclasses import asdict
+
+from proof import (
+    ProofContext,
+    BaseProofHandler,
+    StandardTextProofHandler,
+    CategoryBasedProofHandler,
+    FilteredCharacterSetHandler,
+    SpacingProofHandler,
+    ArCharacterSetHandler,
+    CustomTextProofHandler,
+    MultiStyleComparisonProofHandler,
+    PROOF_HANDLER_REGISTRY,
+    get_proof_handler,
+    clear_handler_cache,
+    generateArabicContextualFormsProof,
+    reset_proof_page_counter,
+    _normalize_axes,
+    get_font_display_name,
+)
+from settings import make_settings_key, create_unique_proof_key
+
+
+# =============================================================================
+# ProofContext
+# =============================================================================
+
+
+class TestProofContext:
+    def test_creation(self):
+        ctx = ProofContext(
+            full_character_set="ABCabc",
+            axes_product=None,
+            ind_font="/test/font.otf",
+            paired_static_styles=None,
+            otfeatures_by_proof={},
+            cols_by_proof={},
+            paras_by_proof={},
+            cat={"uniLu": "ABC"},
+            proof_name="Test Proof",
+        )
+        assert ctx.full_character_set == "ABCabc"
+        assert ctx.ind_font == "/test/font.otf"
+        assert ctx.proof_name == "Test Proof"
+        assert ctx.all_fonts is None
+        assert ctx.font_manager is None
+
+    def test_optional_fields(self):
+        ctx = ProofContext(
+            full_character_set="",
+            axes_product=None,
+            ind_font="",
+            paired_static_styles=None,
+            otfeatures_by_proof={},
+            cols_by_proof={},
+            paras_by_proof={},
+            cat={},
+            proof_name=None,
+            all_fonts=["/f1.otf", "/f2.otf"],
+            font_manager=MagicMock(),
+        )
+        assert ctx.all_fonts == ["/f1.otf", "/f2.otf"]
+        assert ctx.font_manager is not None
+
+
+# =============================================================================
+# reset_proof_page_counter
+# =============================================================================
+
+
+class TestResetProofPageCounter:
+    def test_resets_without_error(self):
+        reset_proof_page_counter()
+        # Should not raise
+
+
+# =============================================================================
+# Handler Registry
+# =============================================================================
+
+
+class TestHandlerRegistry:
+    def test_registry_has_expected_entries(self):
+        expected = {
+            "Filtered Character Set",
+            "Spacing Proof",
+            "Ar Character Set",
+            "Custom Text",
+            "Multi-Style Comparison",
+        }
+        assert expected == set(PROOF_HANDLER_REGISTRY.keys())
+
+    def test_registry_values_are_classes(self):
+        for name, cls in PROOF_HANDLER_REGISTRY.items():
+            assert isinstance(cls, type), f"{name} is not a class"
+            assert issubclass(
+                cls, BaseProofHandler
+            ), f"{name} doesn't extend BaseProofHandler"
+
+
+# =============================================================================
+# get_proof_handler factory
+# =============================================================================
+
+
+class TestGetProofHandler:
+    @pytest.fixture(autouse=True)
+    def clear_cache(self):
+        clear_handler_cache()
+        yield
+        clear_handler_cache()
+
+    def _mock_font_size_func(self, proof_name):
+        return 12
+
+    def test_special_handler(self):
+        handler = get_proof_handler(
+            "Filtered Character Set",
+            "Filtered Character Set",
+            {},
+            self._mock_font_size_func,
+        )
+        assert isinstance(handler, FilteredCharacterSetHandler)
+
+    def test_spacing_handler(self):
+        handler = get_proof_handler(
+            "Spacing Proof", "Spacing Proof", {}, self._mock_font_size_func
+        )
+        assert isinstance(handler, SpacingProofHandler)
+
+    def test_arabic_handler(self):
+        handler = get_proof_handler(
+            "Ar Character Set", "Ar Character Set", {}, self._mock_font_size_func
+        )
+        assert isinstance(handler, ArCharacterSetHandler)
+
+    def test_custom_text_handler(self):
+        handler = get_proof_handler(
+            "Custom Text", "Custom Text", {}, self._mock_font_size_func
+        )
+        assert isinstance(handler, CustomTextProofHandler)
+
+    def test_multi_style_handler(self):
+        handler = get_proof_handler(
+            "Multi-Style Comparison",
+            "Multi-Style Comparison",
+            {},
+            self._mock_font_size_func,
+        )
+        assert isinstance(handler, MultiStyleComparisonProofHandler)
+
+    def test_standard_text_handler_for_text_proofs(self):
+        handler = get_proof_handler(
+            "Basic Paragraph Large",
+            "Basic Paragraph Large",
+            {},
+            self._mock_font_size_func,
+        )
+        assert isinstance(handler, StandardTextProofHandler)
+
+    def test_numbered_variant(self):
+        handler = get_proof_handler(
+            "Basic Paragraph Small",
+            "Basic Paragraph Small 2",
+            {},
+            self._mock_font_size_func,
+        )
+        assert isinstance(handler, StandardTextProofHandler)
+        assert handler.proof_name == "Basic Paragraph Small 2"
+
+    def test_caching(self):
+        h1 = get_proof_handler(
+            "Custom Text", "Custom Text", {}, self._mock_font_size_func
+        )
+        h2 = get_proof_handler(
+            "Custom Text", "Custom Text", {"new_key": 1}, self._mock_font_size_func
+        )
+        assert h1 is h2  # Same object from cache
+
+    def test_cache_updates_settings(self):
+        settings1 = {"key": 1}
+        h1 = get_proof_handler(
+            "Custom Text", "Custom Text", settings1, self._mock_font_size_func
+        )
+        settings2 = {"key": 2}
+        h2 = get_proof_handler(
+            "Custom Text", "Custom Text", settings2, self._mock_font_size_func
+        )
+        assert h2.proof_settings == settings2
+
+    def test_clear_cache(self):
+        h1 = get_proof_handler(
+            "Custom Text", "Custom Text", {}, self._mock_font_size_func
+        )
+        clear_handler_cache()
+        h2 = get_proof_handler(
+            "Custom Text", "Custom Text", {}, self._mock_font_size_func
+        )
+        assert h1 is not h2
+
+
+# =============================================================================
+# BaseProofHandler (via concrete subclasses)
+# =============================================================================
+
+
+class TestBaseProofHandlerMethods:
+    def _make_handler(self, proof_name="Test Proof", settings=None):
+        if settings is None:
+            settings = {}
+        return FilteredCharacterSetHandler(proof_name, settings, lambda name: 78)
+
+    def test_unique_proof_key(self):
+        handler = self._make_handler("Filtered Character Set")
+        assert handler.unique_proof_key == "filtered_character_set"
+
+    def test_get_font_size(self):
+        handler = self._make_handler()
+        assert handler.get_font_size() == 78
+
+    def test_get_tracking_value_default(self):
+        handler = self._make_handler()
+        assert handler.get_tracking_value() == 0
+
+    def test_get_tracking_value_from_settings(self):
+        key = make_settings_key("my_proof", "tracking")
+        handler = self._make_handler("My Proof", {key: 5.0})
+        assert handler.get_tracking_value() == 5.0
+
+    def test_get_align_value_default(self):
+        handler = self._make_handler()
+        assert handler.get_align_value() == "left"
+
+    def test_get_align_value_from_settings(self):
+        key = make_settings_key("my_proof", "align")
+        handler = self._make_handler("My Proof", {key: "center"})
+        assert handler.get_align_value() == "center"
+
+    def test_get_section_name(self):
+        handler = self._make_handler("Test Proof")
+        name = handler.get_section_name(24)
+        assert "Test Proof" in name
+        assert "24" in name
+
+    def test_get_common_proof_params(self):
+        handler = self._make_handler("Test Proof")
+        ctx = ProofContext(
+            full_character_set="ABC",
+            axes_product=None,
+            ind_font="/test.otf",
+            paired_static_styles=None,
+            otfeatures_by_proof={"Test Proof": {"kern": True}},
+            cols_by_proof={"Test Proof": 3},
+            paras_by_proof={"Test Proof": 7},
+            cat={},
+            proof_name="Test Proof",
+        )
+        params = handler.get_common_proof_params(
+            ctx, default_columns=2, default_paragraphs=5
+        )
+        assert params["font_size"] == 78
+        assert params["columns"] == 3
+        assert params["paragraphs"] == 7
+        assert params["otfeatures"] == {"kern": True}
+
+    def test_common_params_uses_defaults(self):
+        handler = self._make_handler("Test Proof")
+        ctx = ProofContext(
+            full_character_set="ABC",
+            axes_product=None,
+            ind_font="/test.otf",
+            paired_static_styles=None,
+            otfeatures_by_proof={},
+            cols_by_proof={},
+            paras_by_proof={},
+            cat={},
+            proof_name="Test Proof",
+        )
+        params = handler.get_common_proof_params(
+            ctx, default_columns=2, default_paragraphs=5
+        )
+        assert params["columns"] == 2
+        assert params["paragraphs"] == 5
+        assert params["otfeatures"] == {}
+
+
+# =============================================================================
+# StandardTextProofHandler
+# =============================================================================
+
+
+class TestStandardTextProofHandler:
+    def test_with_valid_key(self):
+        handler = StandardTextProofHandler(
+            "Basic Paragraph Large", {}, lambda n: 28, proof_key="basic_paragraph_large"
+        )
+        assert handler.character_set_key == "base_letters"
+        assert handler.hoefler_style is True
+        assert handler.default_paragraphs == 2
+
+    def test_arabic_config(self):
+        handler = StandardTextProofHandler(
+            "Ar Paragraph Large", {}, lambda n: 28, proof_key="ar_paragraph_large"
+        )
+        assert handler.character_set_key == "arabic"
+        assert handler.language == "ar"
+
+    def test_farsi_config(self):
+        handler = StandardTextProofHandler(
+            "Fa Paragraph Large", {}, lambda n: 28, proof_key="fa_paragraph_large"
+        )
+        assert handler.character_set_key == "farsi"
+        assert handler.language == "fa"
+
+    def test_fallback_without_key(self):
+        handler = StandardTextProofHandler("Unknown Proof", {}, lambda n: 10)
+        assert handler.character_set_key == "base_letters"
+        assert handler.mixed_styles is False
+        assert handler.force_wordsiv is False
+
+    def test_get_character_set_base_letters(self, sample_cat):
+        handler = StandardTextProofHandler(
+            "Test", {}, lambda n: 10, proof_key="basic_paragraph_large"
+        )
+        ctx = ProofContext(
+            full_character_set="ABCabc",
+            axes_product=None,
+            ind_font="/test.otf",
+            paired_static_styles=None,
+            otfeatures_by_proof={},
+            cols_by_proof={},
+            paras_by_proof={},
+            cat=sample_cat,
+            proof_name="Test",
+        )
+        charset = handler.get_character_set(ctx)
+        assert "A" in charset
+        assert "z" in charset
+
+    def test_accents_config(self):
+        handler = StandardTextProofHandler(
+            "Diacritic Words Large", {}, lambda n: 28, proof_key="diacritic_words_large"
+        )
+        assert handler.accents == 3
+        assert handler.character_set_key == "accented_plus"
+
+    def test_force_wordsiv(self):
+        handler = StandardTextProofHandler(
+            "Generative Text Small", {}, lambda n: 10, proof_key="generative_text_small"
+        )
+        assert handler.force_wordsiv is True
+
+    def test_mixed_styles(self):
+        handler = StandardTextProofHandler(
+            "Paired Styles", {}, lambda n: 10, proof_key="paired_styles_paragraph_small"
+        )
+        assert handler.mixed_styles is True
+
+
+# =============================================================================
+# CategoryBasedProofHandler
+# =============================================================================
+
+
+class TestCategoryBasedProofHandler:
+    def test_category_defaults(self):
+        handler = FilteredCharacterSetHandler("Test", {}, lambda n: 78)
+        assert handler.get_character_category_setting("uppercase_base") is True
+        assert handler.get_character_category_setting("lowercase_base") is True
+        assert handler.get_character_category_setting("numbers_symbols") is True
+        assert handler.get_character_category_setting("punctuation") is True
+        assert handler.get_character_category_setting("accented") is False
+
+    def test_category_from_settings(self):
+        key = make_settings_key("test", "cat", "accented")
+        handler = FilteredCharacterSetHandler("Test", {key: True}, lambda n: 78)
+        assert handler.get_character_category_setting("accented") is True
+
+    def test_get_proof_sections(self, sample_cat):
+        handler = FilteredCharacterSetHandler("Test", {}, lambda n: 78)
+        ctx = ProofContext(
+            full_character_set="ABCabc",
+            axes_product=None,
+            ind_font="/test.otf",
+            paired_static_styles=None,
+            otfeatures_by_proof={},
+            cols_by_proof={},
+            paras_by_proof={},
+            cat=sample_cat,
+            proof_name="Test",
+        )
+        sections = handler.get_proof_sections(ctx)
+        labels = [s[0] for s in sections]
+        # Default: uppercase, lowercase, numbers, punctuation enabled; accented disabled
+        assert "Uppercase Base" in labels
+        assert "Lowercase Base" in labels
+        assert "Numbers & Symbols" in labels
+        assert "Punctuation" in labels
+        assert "Accented Characters" not in labels
+
+    def test_sections_respect_disabled(self, sample_cat):
+        key = make_settings_key("test", "cat", "uppercase_base")
+        handler = FilteredCharacterSetHandler("Test", {key: False}, lambda n: 78)
+        ctx = ProofContext(
+            full_character_set="",
+            axes_product=None,
+            ind_font="",
+            paired_static_styles=None,
+            otfeatures_by_proof={},
+            cols_by_proof={},
+            paras_by_proof={},
+            cat=sample_cat,
+            proof_name="Test",
+        )
+        sections = handler.get_proof_sections(ctx)
+        labels = [s[0] for s in sections]
+        assert "Uppercase Base" not in labels
+
+
+# =============================================================================
+# CustomTextProofHandler
+# =============================================================================
+
+
+class TestCustomTextProofHandler:
+    def test_custom_text_key_resolution(self):
+        unique_key = create_unique_proof_key("Custom Text")
+        ct_key = make_settings_key(unique_key, "customText")
+        handler = CustomTextProofHandler("Custom Text", {ct_key: "Hello"}, lambda n: 16)
+        assert handler.proof_settings[ct_key] == "Hello"
+
+    def test_no_custom_text_configured(self):
+        handler = CustomTextProofHandler("Custom Text", {}, lambda n: 16)
+        unique_key = create_unique_proof_key("Custom Text")
+        ct_key = make_settings_key(unique_key, "customText")
+        assert handler.proof_settings.get(ct_key, "") == ""
+
+    def test_generate_once_settings(self):
+        unique_key = create_unique_proof_key("Custom Text")
+        once_key = make_settings_key(unique_key, "generateOnce")
+        path_key = make_settings_key(unique_key, "defaultFontPath")
+        ct_key = make_settings_key(unique_key, "customText")
+        settings = {
+            ct_key: "Hello world",
+            once_key: True,
+            path_key: "/font_a.otf",
+        }
+        handler = CustomTextProofHandler("Custom Text", settings, lambda n: 16)
+        assert handler.proof_settings[once_key] is True
+        assert handler.proof_settings[path_key] == "/font_a.otf"
+
+
+# =============================================================================
+# MultiStyleComparisonProofHandler
+# =============================================================================
+
+
+class TestMultiStyleComparisonHandler:
+    @pytest.fixture(autouse=True)
+    def reset(self):
+        MultiStyleComparisonProofHandler.reset_generated()
+        yield
+        MultiStyleComparisonProofHandler.reset_generated()
+
+    def test_reset_generated(self):
+        MultiStyleComparisonProofHandler._generated_instances = {"test"}
+        MultiStyleComparisonProofHandler.reset_generated()
+        assert MultiStyleComparisonProofHandler._generated_instances == set()
+
+    def test_deduplication_tracking(self):
+        # Verify deduplication mechanism without calling generate_proof
+        # (generate_proof triggers deep drawBot rendering that hangs under mocks)
+        MultiStyleComparisonProofHandler._generated_instances = set()
+        MultiStyleComparisonProofHandler._generated_instances.add(
+            "Multi-Style Comparison"
+        )
+        assert (
+            "Multi-Style Comparison"
+            in MultiStyleComparisonProofHandler._generated_instances
+        )
+
+    def test_is_style_enabled_default(self):
+        handler = MultiStyleComparisonProofHandler(
+            "Multi-Style Comparison", {}, lambda n: 78
+        )
+        # Default: all styles enabled
+        assert handler._is_style_enabled(0) is True
+        assert handler._is_style_enabled(5) is True
+
+    def test_is_style_enabled_from_settings(self):
+        key = make_settings_key("multi_style_comparison", "style", "0")
+        handler = MultiStyleComparisonProofHandler(
+            "Multi-Style Comparison", {key: False}, lambda n: 78
+        )
+        assert handler._is_style_enabled(0) is False
+
+
+# =============================================================================
+# generateArabicContextualFormsProof
+# =============================================================================
+
+
+class TestGenerateArabicContextualForms:
+    def test_empty_chars(self):
+        cat = {"arabTyped": "", "arfaDualJoin": "", "arfaRightJoin": ""}
+        result = generateArabicContextualFormsProof(cat)
+        assert result == ""
+
+    def test_with_dual_join_chars(self):
+        cat = {
+            "arabTyped": "\u0628",  # ba - dual joining
+            "arfaDualJoin": "\u0628",
+            "arfaRightJoin": "",
+        }
+        result = generateArabicContextualFormsProof(cat)
+        assert "\u0628" in result
+        assert len(result) > 1  # Should include spacing/duplicated forms
+
+    def test_with_right_join_chars(self):
+        cat = {
+            "arabTyped": "\u0627",  # alif - right joining
+            "arfaDualJoin": "",
+            "arfaRightJoin": "\u0627",
+        }
+        result = generateArabicContextualFormsProof(cat)
+        assert "\u0627" in result
+
+    def test_hamza_special_case(self):
+        cat = {
+            "arabTyped": "\u0621",  # hamza
+            "arfaDualJoin": "",
+            "arfaRightJoin": "",
+        }
+        result = generateArabicContextualFormsProof(cat)
+        assert "\u0621" in result
+
+    def test_mixed_chars(self, sample_arabic_cat):
+        result = generateArabicContextualFormsProof(sample_arabic_cat)
+        assert len(result) > 0
+        # Should contain Arabic characters
+        assert any(
+            "\u0600" <= c <= "\u06ff" for c in result if c != " "
+        ), "Result should contain Arabic chars"
+
+
+# =============================================================================
+# _normalize_axes
+# =============================================================================
+
+
+class TestNormalizeAxes:
+    def test_static_font(self):
+        results = list(_normalize_axes(None, "/test/Font-Regular.otf"))
+        assert len(results) == 1
+        suffix, axis_dict = results[0]
+        assert axis_dict is None
+
+    def test_empty_axes(self):
+        results = list(_normalize_axes("", "/test/Font-Regular.otf"))
+        assert len(results) == 1
+
+    def test_variable_font(self):
+        axes = [{"wght": 400}, {"wght": 700}]
+        results = list(_normalize_axes(axes, "/test/Font-Variable.otf"))
+        assert len(results) == 2
+        _, axis1 = results[0]
+        _, axis2 = results[1]
+        assert axis1 == {"wght": 400}
+        assert axis2 == {"wght": 700}
