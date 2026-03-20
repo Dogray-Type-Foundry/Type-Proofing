@@ -739,6 +739,18 @@ class ProofSettingsManager:
             custom_text_key = make_settings_key(settings_key, "customText")
             if custom_text_key not in self.proof_settings:
                 self.proof_settings[custom_text_key] = ""
+            markup_key = make_settings_key(settings_key, "markupEnabled")
+            if markup_key not in self.proof_settings:
+                self.proof_settings[markup_key] = False
+            once_key = make_settings_key(settings_key, "generateOnce")
+            if once_key not in self.proof_settings:
+                self.proof_settings[once_key] = False
+            path_key = make_settings_key(settings_key, "defaultFontPath")
+            if path_key not in self.proof_settings:
+                self.proof_settings[path_key] = ""
+            axis_key = make_settings_key(settings_key, "defaultFontAxisDict")
+            if axis_key not in self.proof_settings:
+                self.proof_settings[axis_key] = None
 
         # OpenType features
         for tag in self._get_font_features():

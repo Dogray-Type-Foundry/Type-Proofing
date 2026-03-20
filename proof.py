@@ -1569,22 +1569,77 @@ class CustomTextProofHandler(BaseProofHandler):
             print(f"No custom text provided for '{self.proof_name}', skipping")
             return
 
+        # Generate Once: skip fonts that aren't the selected default
+        once_key = make_settings_key(self.unique_proof_key, "generateOnce")
+        generate_once = self.proof_settings.get(once_key, False)
+        override_axis_dict = None
+        if generate_once:
+            path_key = make_settings_key(self.unique_proof_key, "defaultFontPath")
+            axis_key = make_settings_key(self.unique_proof_key, "defaultFontAxisDict")
+            default_font_path = self.proof_settings.get(path_key, "")
+            default_axis_dict = self.proof_settings.get(axis_key, None)
+            # Fallback: if no path stored or path not in loaded fonts, use first font
+            all_fonts = context.all_fonts or [context.ind_font]
+            if not default_font_path or default_font_path not in all_fonts:
+                default_font_path = all_fonts[0]
+            if context.ind_font != default_font_path:
+                return
+            if default_axis_dict is not None:
+                override_axis_dict = default_axis_dict
+
+        markup_key = make_settings_key(self.unique_proof_key, "markupEnabled")
+        markup_enabled = self.proof_settings.get(markup_key, False)
+
         params = self.get_common_proof_params(context, default_columns=1)
 
-        _render_proof_content(
-            custom_text,
-            params["font_size"],
-            context.ind_font,
-            context.axes_product,
-            context.paired_static_styles,
-            params["section_name"],
-            columns=params["columns"],
-            alignInput=params["align_value"],
-            trackingInput=params["tracking_value"],
-            otFeatures=params["otfeatures"],
-            mixedStyles=False,
-            direction="ltr",
-        )
+        if markup_enabled:
+            from markup_parser import parse_custom_text
+
+            if generate_once and override_axis_dict is not None:
+                axes_iter = [(str(override_axis_dict), override_axis_dict)]
+            else:
+                axes_iter = _normalize_axes(context.axes_product, context.ind_font)
+
+            for suffix, axisDict in axes_iter:
+                formatted = parse_custom_text(
+                    raw_text=custom_text,
+                    base_font_size=params["font_size"],
+                    base_font=context.ind_font,
+                    all_fonts=context.all_fonts or [context.ind_font],
+                    font_manager=context.font_manager,
+                    base_tracking=params["tracking_value"],
+                    base_align=params["align_value"],
+                    base_otfeatures=params["otfeatures"],
+                    base_axis_dict=axisDict,
+                )
+                drawContent(
+                    formatted,
+                    f"{params['section_name']} - {suffix}",
+                    params["columns"],
+                    context.ind_font,
+                    "ltr",
+                    params["otfeatures"],
+                    params["tracking_value"],
+                )
+        else:
+            if generate_once and override_axis_dict is not None:
+                axes_product = [list(override_axis_dict.items())]
+            else:
+                axes_product = context.axes_product
+            _render_proof_content(
+                custom_text,
+                params["font_size"],
+                context.ind_font,
+                axes_product,
+                context.paired_static_styles,
+                params["section_name"],
+                columns=params["columns"],
+                alignInput=params["align_value"],
+                trackingInput=params["tracking_value"],
+                otFeatures=params["otfeatures"],
+                mixedStyles=False,
+                direction="ltr",
+            )
 
 
 class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):

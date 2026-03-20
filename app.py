@@ -537,15 +537,35 @@ class ProofWindow:
         # Custom text input (for Custom Text and Multi-Style Comparison proofs)
         popover.customTextLabel = vanilla.TextBox((10, 350, -10, 20), "Custom Text:")
         popover.customTextEditor = vanilla.TextEditor(
-            (10, 370, -10, 90), "", callback=self.customTextEditCallback
+            (10, 370, -10, 160), "", callback=self.customTextEditCallback
+        )
+        popover.markupToggle = vanilla.CheckBox(
+            (200, 350, -10, 20),
+            "Enable Markup",
+            callback=self.markupToggleCallback,
+        )
+        popover.generateOnceToggle = vanilla.CheckBox(
+            (10, 540, -10, 20),
+            "Generate Once",
+            callback=self.generateOnceToggleCallback,
+        )
+        popover.defaultFontLabel = vanilla.TextBox((10, 565, 100, 20), "Default Font:")
+        popover.defaultFontPopup = vanilla.PopUpButton(
+            (110, 565, -10, 20),
+            [],
+            callback=self.defaultFontPopupCallback,
         )
         popover.customTextLabel.show(False)
         popover.customTextEditor.show(False)
+        popover.markupToggle.show(False)
+        popover.generateOnceToggle.show(False)
+        popover.defaultFontLabel.show(False)
+        popover.defaultFontPopup.show(False)
 
         # Styles selector (for Multi-Style Comparison)
-        popover.stylesLabel = vanilla.TextBox((10, 470, -10, 20), "Styles to Compare:")
+        popover.stylesLabel = vanilla.TextBox((10, 600, -10, 20), "Styles to Compare:")
         popover.stylesList = vanilla.List2(
-            (10, 490, -10, 200),
+            (10, 620, -10, 200),
             [],
             columnDescriptions=[
                 {
@@ -571,10 +591,10 @@ class ProofWindow:
 
         # OpenType features list
         popover.featuresLabel = vanilla.TextBox(
-            (10, 700, -10, 20), "OpenType Features:"
+            (10, 830, -10, 20), "OpenType Features:"
         )
         popover.featuresList = vanilla.List2(
-            (10, 720, -10, -10),
+            (10, 850, -10, -10),
             [],
             columnDescriptions=[
                 {
@@ -667,11 +687,28 @@ class ProofWindow:
             popover.customTextEditor.set(existing_text)
             popover.customTextLabel.show(True)
             popover.customTextEditor.show(True)
+            if not proof_is_multi_style(proof_key):
+                markup_key = make_settings_key(proof_key, "markupEnabled")
+                popover.markupToggle.set(self.proof_settings.get(markup_key, False))
+                popover.markupToggle.show(True)
+                # Generate Once toggle and font selector
+                once_key = make_settings_key(proof_key, "generateOnce")
+                generate_once = self.proof_settings.get(once_key, False)
+                popover.generateOnceToggle.set(generate_once)
+                popover.generateOnceToggle.show(True)
+                self._update_default_font_popup(popover, proof_key, generate_once)
+            else:
+                popover.markupToggle.show(False)
+                popover.generateOnceToggle.show(False)
+                popover.defaultFontLabel.show(False)
+                popover.defaultFontPopup.show(False)
         else:
             popover.customTextLabel.show(False)
             popover.customTextEditor.show(False)
-
-        # Update styles selector for Multi-Style Comparison
+            popover.markupToggle.show(False)
+            popover.generateOnceToggle.show(False)
+            popover.defaultFontLabel.show(False)
+            popover.defaultFontPopup.show(False)
         if proof_is_multi_style(proof_key):
             self._populate_styles_list(popover, proof_key)
             popover.stylesLabel.show(True)
@@ -718,82 +755,349 @@ class ProofWindow:
         text_key = make_settings_key(self.current_proof_key, "customText")
         self.proof_settings[text_key] = sender.get()
 
+    def markupToggleCallback(self, sender):
+        """Handle markup toggle changes."""
+        if not hasattr(self, "current_proof_key"):
+            return
+        markup_key = make_settings_key(self.current_proof_key, "markupEnabled")
+        self.proof_settings[markup_key] = sender.get()
+
+    def generateOnceToggleCallback(self, sender):
+        """Handle Generate Once toggle changes."""
+        if not hasattr(self, "current_proof_key"):
+            return
+        once_key = make_settings_key(self.current_proof_key, "generateOnce")
+        self.proof_settings[once_key] = sender.get()
+        popover = self.proof_settings_popover
+        self._update_default_font_popup(popover, self.current_proof_key, sender.get())
+
+    def defaultFontPopupCallback(self, sender):
+        """Handle default font selection for Generate Once."""
+        if not hasattr(self, "current_proof_key"):
+            return
+        menu_idx = sender.get()
+        if not hasattr(self, "_default_font_styles"):
+            return
+        # Map through the menu index mapping (skipping disabled header items)
+        menu_map = getattr(self, "_default_font_menu_map", None)
+        if menu_map and 0 <= menu_idx < len(menu_map):
+            si = menu_map[menu_idx]
+            if si is None:
+                return  # header item, ignore
+            style = self._default_font_styles[si]
+            path_key = make_settings_key(self.current_proof_key, "defaultFontPath")
+            axis_key = make_settings_key(self.current_proof_key, "defaultFontAxisDict")
+            self.proof_settings[path_key] = style["font_path"]
+            self.proof_settings[axis_key] = style["axis_dict"]
+
+    def _update_default_font_popup(self, popover, proof_key, generate_once):
+        """Show/hide and populate the default font popup based on Generate Once.
+
+        For variable fonts, lists all named instances from the fvar table.
+        For static fonts, lists one entry per file.
+        Groups entries by family with non-selectable header items.
+        """
+        if generate_once and self.font_manager.fonts:
+            from proof import get_font_display_name
+            from fonts import get_ttfont
+
+            # Build flat styles list with family info
+            styles = []
+            for font_path in self.font_manager.fonts:
+                tt = get_ttfont(font_path)
+                if tt and "fvar" in tt:
+                    name_table = tt["name"]
+                    family_name = (
+                        name_table.getBestFamilyName()
+                        or get_font_display_name(font_path)
+                    )
+                    for inst in tt["fvar"].instances:
+                        coords = dict(inst.coordinates)
+                        inst_name = name_table.getName(
+                            inst.subfamilyNameID, 3, 1, 0x0409
+                        )
+                        style_name = (
+                            str(inst_name)
+                            if inst_name
+                            else ", ".join(f"{k}:{v}" for k, v in coords.items())
+                        )
+                        styles.append(
+                            {
+                                "label": f"{family_name} — {style_name}",
+                                "style_name": style_name,
+                                "font_path": font_path,
+                                "axis_dict": coords,
+                                "family_name": family_name,
+                            }
+                        )
+                else:
+                    if tt:
+                        family_name = tt[
+                            "name"
+                        ].getBestFamilyName() or get_font_display_name(font_path)
+                        style_name = tt[
+                            "name"
+                        ].getBestSubFamilyName() or get_font_display_name(font_path)
+                    else:
+                        family_name = get_font_display_name(font_path)
+                        style_name = get_font_display_name(font_path)
+                    styles.append(
+                        {
+                            "label": f"{family_name} — {style_name}",
+                            "style_name": style_name,
+                            "font_path": font_path,
+                            "axis_dict": None,
+                            "family_name": family_name,
+                        }
+                    )
+
+            self._default_font_styles = styles
+
+            # Group by family preserving order
+            from collections import OrderedDict
+
+            families = OrderedDict()
+            for i, style in enumerate(styles):
+                fam = style["family_name"]
+                if fam not in families:
+                    families[fam] = []
+                families[fam].append(i)
+
+            # Build NSMenu with family headers + indented members
+            ns_popup = popover.defaultFontPopup.getNSPopUpButton()
+            ns_popup.removeAllItems()
+            menu = ns_popup.menu()
+            style_idx_for_menu_idx = []  # maps menu item index → styles index
+
+            for fam, member_indices in families.items():
+                if len(families) > 1:
+                    # Add family header as disabled item
+                    header = (
+                        AppKit.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                            fam, None, ""
+                        )
+                    )
+                    header.setEnabled_(False)
+                    attrs = {
+                        AppKit.NSFontAttributeName: AppKit.NSFont.boldSystemFontOfSize_(
+                            11
+                        )
+                    }
+                    header.setAttributedTitle_(
+                        AppKit.NSAttributedString.alloc().initWithString_attributes_(
+                            fam, attrs
+                        )
+                    )
+                    menu.addItem_(header)
+                    style_idx_for_menu_idx.append(None)  # not selectable
+
+                for si in member_indices:
+                    title = (
+                        f"  {styles[si]['style_name']}"
+                        if len(families) > 1
+                        else styles[si]["label"]
+                    )
+                    item = (
+                        AppKit.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                            title, None, ""
+                        )
+                    )
+                    item.setEnabled_(True)
+                    menu.addItem_(item)
+                    style_idx_for_menu_idx.append(si)
+
+            self._default_font_menu_map = style_idx_for_menu_idx
+
+            # Restore saved selection
+            path_key = make_settings_key(proof_key, "defaultFontPath")
+            axis_key = make_settings_key(proof_key, "defaultFontAxisDict")
+            saved_path = self.proof_settings.get(path_key, "")
+            saved_axis = self.proof_settings.get(axis_key, None)
+            matched_menu_idx = None
+            for menu_idx, si in enumerate(style_idx_for_menu_idx):
+                if si is not None:
+                    s = styles[si]
+                    if s["font_path"] == saved_path and s["axis_dict"] == saved_axis:
+                        matched_menu_idx = menu_idx
+                        break
+            # Fallback to first selectable item
+            if matched_menu_idx is None:
+                for menu_idx, si in enumerate(style_idx_for_menu_idx):
+                    if si is not None:
+                        matched_menu_idx = menu_idx
+                        break
+            if matched_menu_idx is not None:
+                ns_popup.selectItemAtIndex_(matched_menu_idx)
+                chosen = styles[style_idx_for_menu_idx[matched_menu_idx]]
+                self.proof_settings[path_key] = chosen["font_path"]
+                self.proof_settings[axis_key] = chosen["axis_dict"]
+
+            popover.defaultFontLabel.show(True)
+            popover.defaultFontPopup.show(True)
+        else:
+            popover.defaultFontLabel.show(False)
+            popover.defaultFontPopup.show(False)
+
     def _build_available_styles(self):
-        """Build list of available font styles from all loaded fonts."""
-        import drawBot as db
-        from fonts import product_dict as _product_dict
-        from fonts import variableFont as _variableFont
+        """Build list of available font styles from all loaded fonts.
+
+        Each entry includes 'label', 'font_path', 'axis_dict', 'family_name',
+        and 'style_name' for grouping purposes.
+        For variable fonts, lists all named instances from the fvar table.
+        """
+        from fonts import get_ttfont
         from proof import get_font_display_name
 
         styles = []
         for font_path in self.font_manager.fonts:
-            variable_dict = db.listFontVariations(font_path)
-            if variable_dict:
-                axes_dict = self.font_manager.get_axis_values_for_font(font_path)
-                if axes_dict:
-                    axes_product = list(_product_dict(**axes_dict))
-                else:
-                    axes_product = _variableFont(font_path)[0]
-                if axes_product:
-                    for axis_data in axes_product:
-                        try:
-                            axis_dict = dict(axis_data)
-                        except Exception:
-                            axis_dict = None
-                        label = f"{get_font_display_name(font_path)} {axis_data}"
-                        styles.append(
-                            {
-                                "label": label,
-                                "font_path": font_path,
-                                "axis_dict": axis_dict,
-                            }
-                        )
-                else:
+            tt = get_ttfont(font_path)
+            if tt and "fvar" in tt:
+                name_table = tt["name"]
+                family_name = name_table.getBestFamilyName() or get_font_display_name(
+                    font_path
+                )
+                for inst in tt["fvar"].instances:
+                    coords = dict(inst.coordinates)
+                    inst_name = name_table.getName(inst.subfamilyNameID, 3, 1, 0x0409)
+                    style_name = (
+                        str(inst_name)
+                        if inst_name
+                        else ", ".join(f"{k}:{v}" for k, v in coords.items())
+                    )
                     styles.append(
                         {
-                            "label": get_font_display_name(font_path),
+                            "label": f"{family_name} — {style_name}",
                             "font_path": font_path,
-                            "axis_dict": None,
+                            "axis_dict": coords,
+                            "family_name": family_name,
+                            "style_name": style_name,
                         }
                     )
             else:
+                # Static font — use fontTools family name if available
+                if tt:
+                    family_name = tt[
+                        "name"
+                    ].getBestFamilyName() or get_font_display_name(font_path)
+                    style_name = tt[
+                        "name"
+                    ].getBestSubFamilyName() or get_font_display_name(font_path)
+                else:
+                    family_name = get_font_display_name(font_path)
+                    style_name = get_font_display_name(font_path)
                 styles.append(
                     {
-                        "label": get_font_display_name(font_path),
+                        "label": f"{family_name} — {style_name}",
                         "font_path": font_path,
                         "axis_dict": None,
+                        "family_name": family_name,
+                        "style_name": style_name,
                     }
                 )
         return styles
 
     def _populate_styles_list(self, popover, proof_key):
-        """Populate the styles list for a multi-style comparison proof."""
+        """Populate the styles list for a multi-style comparison proof.
+
+        Groups styles by family name with a toggle-all header row per family.
+        """
         available_styles = self._build_available_styles()
-        style_items = []
+
+        # Group by family_name preserving order
+        from collections import OrderedDict
+
+        families = OrderedDict()
         for i, style in enumerate(available_styles):
-            setting_key = make_settings_key(proof_key, "style", str(i))
-            enabled = self.proof_settings.get(setting_key, True)
+            fam = style["family_name"]
+            if fam not in families:
+                families[fam] = []
+            families[fam].append((i, style))
+
+        style_items = []
+        for fam, members in families.items():
+            # Check current enabled state of all members
+            all_enabled = True
+            for i, style in members:
+                setting_key = make_settings_key(proof_key, "style", str(i))
+                if not self.proof_settings.get(setting_key, True):
+                    all_enabled = False
+                    break
+
+            # Family header row
+            member_indices = [i for i, _ in members]
             style_items.append(
                 {
-                    "Style": style["label"],
-                    "Enabled": enabled,
-                    "_index": i,
+                    "Style": f"▸ {fam}",
+                    "Enabled": all_enabled,
+                    "_index": None,
+                    "_family_indices": member_indices,
                 }
             )
+
+            # Member rows (indented)
+            for i, style in members:
+                setting_key = make_settings_key(proof_key, "style", str(i))
+                enabled = self.proof_settings.get(setting_key, True)
+                style_items.append(
+                    {
+                        "Style": f"    {style['style_name']}",
+                        "Enabled": enabled,
+                        "_index": i,
+                    }
+                )
+
         popover.stylesList.set(style_items)
 
     def stylesEditCallback(self, sender):
-        """Handle style checkbox changes in the styles list."""
+        """Handle style checkbox changes in the styles list.
+
+        Family header rows toggle all their children.
+        """
         if not hasattr(self, "current_proof_key"):
             return
-        items = sender.get()
-        for item in items:
-            idx = item.get("_index")
-            if idx is not None:
-                setting_key = make_settings_key(
-                    self.current_proof_key, "style", str(idx)
-                )
-                self.proof_settings[setting_key] = bool(item.get("Enabled", True))
+        items = list(sender.get())
+        changed = False
+        for row_idx, item in enumerate(items):
+            family_indices = item.get("_family_indices")
+            if family_indices is not None:
+                # Family header — propagate to children
+                header_enabled = bool(item.get("Enabled", True))
+                for child_row in range(row_idx + 1, len(items)):
+                    child = items[child_row]
+                    if child.get("_family_indices") is not None:
+                        break  # next family header
+                    child_idx = child.get("_index")
+                    if child_idx is not None:
+                        items[child_row] = dict(child, Enabled=header_enabled)
+                        setting_key = make_settings_key(
+                            self.current_proof_key, "style", str(child_idx)
+                        )
+                        self.proof_settings[setting_key] = header_enabled
+                        changed = True
+            else:
+                idx = item.get("_index")
+                if idx is not None:
+                    setting_key = make_settings_key(
+                        self.current_proof_key, "style", str(idx)
+                    )
+                    self.proof_settings[setting_key] = bool(item.get("Enabled", True))
+
+        # Update family header checkboxes to reflect children state
+        for row_idx, item in enumerate(items):
+            family_indices = item.get("_family_indices")
+            if family_indices is not None:
+                all_on = True
+                for child_row in range(row_idx + 1, len(items)):
+                    child = items[child_row]
+                    if child.get("_family_indices") is not None:
+                        break
+                    if not child.get("Enabled", True):
+                        all_on = False
+                        break
+                items[row_idx] = dict(item, Enabled=all_on)
+
+        if changed:
+            sender.set(items)
 
     def alignPopUpCallback(self, sender):
         """Handle alignment selection changes."""
@@ -1173,9 +1477,30 @@ class ProofWindow:
                 popover.customTextEditor.set(existing_text)
                 popover.customTextLabel.show(True)
                 popover.customTextEditor.show(True)
+                if not proof_is_multi_style(base_proof_key):
+                    markup_key = make_settings_key(unique_proof_key, "markupEnabled")
+                    popover.markupToggle.set(self.proof_settings.get(markup_key, False))
+                    popover.markupToggle.show(True)
+                    # Generate Once toggle and font selector
+                    once_key = make_settings_key(unique_proof_key, "generateOnce")
+                    generate_once = self.proof_settings.get(once_key, False)
+                    popover.generateOnceToggle.set(generate_once)
+                    popover.generateOnceToggle.show(True)
+                    self._update_default_font_popup(
+                        popover, unique_proof_key, generate_once
+                    )
+                else:
+                    popover.markupToggle.show(False)
+                    popover.generateOnceToggle.show(False)
+                    popover.defaultFontLabel.show(False)
+                    popover.defaultFontPopup.show(False)
             else:
                 popover.customTextLabel.show(False)
                 popover.customTextEditor.show(False)
+                popover.markupToggle.show(False)
+                popover.generateOnceToggle.show(False)
+                popover.defaultFontLabel.show(False)
+                popover.defaultFontPopup.show(False)
 
             # Update styles selector for Multi-Style Comparison
             if proof_is_multi_style(base_proof_key):
