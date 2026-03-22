@@ -17,7 +17,7 @@ else:
 # Store settings file in user's home directory
 SETTINGS_PATH = os.path.expanduser("~/.type-proofing-prefs.json")
 WINDOW_TITLE = "Type Proofing"
-APP_VERSION = "1.6.3"
+APP_VERSION = "1.7.0"
 
 # Fallback font. Adobe Blank should be in the same folder as the script
 FALLBACK_FONT = os.path.abspath("AdobeBlank.otf")
