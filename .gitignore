@@ -1,5 +1,6 @@
 /build
 /dist
+/icon
 /__pycache__
 _releases
 build_app_local.sh
