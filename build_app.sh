@@ -17,6 +17,10 @@ fi
 
 echo "App built successfully!"
 
+# Copy Assets.car for macOS 26+ icon support
+echo "Copying Assets.car for macOS 26 icon support..."
+cp Assets.car "dist/TypeProofing.app/Contents/Resources/Assets.car"
+
 # Apply entitlements to disable sandboxing and allow iCloud Drive access
 echo "Applying entitlements..."
 

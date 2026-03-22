@@ -50,6 +50,8 @@ OPTIONS = {
         "CFBundleExecutable": NAME,
         "CFBundleIdentifier": "com.dograytype.typeproofing",
         "CFBundleDisplayName": NAME,
+        "CFBundleIconFile": "TypeProofing",
+        "CFBundleIconName": "TypeProofing",
         "NSAppleEventsUsageDescription": (
             "This app needs access to Apple Events for file operations."
         ),
