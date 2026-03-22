@@ -308,6 +308,12 @@ generateArabicContextualFormsProof(cat) -> str
 
 ## app.py — ProofWindow Controller
 
+### Application Lifecycle & Menu Bar
+
+The app is launched by `TypeProofing.py` which calls `AppHelper.runEventLoop()`. This creates a bare `NSApplication` with **no menu bar**. On macOS, keyboard shortcuts (Cmd+V, Cmd+C, etc.) are dispatched by matching key equivalents on menu items in the main menu bar — without an Edit menu these shortcuts are silently dropped, even though right-click context menus still work (context menus bypass the main menu dispatch).
+
+`_setup_main_menu()` is called at the end of `__init__` to create a minimal main menu with an Edit submenu containing Undo, Redo, Cut, Copy, Paste, and Select All. This is what makes Cmd+V/C/X/A work in all text fields, including those inside Vanilla Popovers. **DrawBot is not involved in the UI at all** — it is only used for PDF rendering inside `proof.py`.
+
 ### ProofWindow Class
 
 Main application controller. Created by `TypeProofing.py`.
@@ -413,3 +419,47 @@ All per-proof settings use `make_settings_key(proof_key, setting_type, category?
 - Category: `{proof_key}_cat_{category_name}`
 - Custom text: `{proof_key}_customText`
 - OT feature: `otf_{proof_key}_{feature_tag}`
+
+---
+
+## Testing
+
+### Policy
+
+Every new feature, fix, or behavioural change **must** include corresponding tests in the `tests/` directory. Tests should be added in the same PR/commit as the code change.
+
+### Test Environment
+
+Tests run with **pytest**. macOS-only frameworks (drawBot, Vanilla, AppKit, Foundation, Quartz) are **mocked** in `tests/conftest.py` so tests can run without a GUI or native libraries:
+
+- `drawBot`, `drawBotGrid`, `vanilla`, `vanilla.dialogs` → `MagicMock`
+- `AppKit`, `Foundation`, `objc`, `PyObjCTools` → `MagicMock`
+- `wordsiv` → `MagicMock` (avoids slow vocabulary loading)
+
+**Important:** `app.py` transitively imports Quartz (via `pdf_manager.py`), so it cannot be imported directly in tests. Test `app.py` functionality by:
+1. Reading and asserting on the source file (source-sync tests)
+2. Replicating the logic with fake AppKit objects (integration tests)
+3. Testing extracted helpers that don't depend on the import chain
+
+### Running Tests
+
+```bash
+python3 -m pytest tests/ -v        # full suite
+python3 -m pytest tests/ -q        # quiet summary
+python3 -m pytest tests/test_X.py  # single module
+```
+
+### Test Files
+
+| File | Covers |
+|---|---|
+| `test_config.py` | Constants, `PROOF_REGISTRY`, helper functions |
+| `test_fonts.py` | `FontManager`, character analysis, variable font utilities |
+| `test_settings_class.py` | `Settings` class JSON persistence |
+| `test_settings_manager.py` | `ProofSettingsManager` |
+| `test_settings_utils.py` | `validate_setting_value`, key construction |
+| `test_proof.py` | Proof handlers, `ProofContext`, drawing functions |
+| `test_sample_texts.py` | Sample text content |
+| `test_accented_dict.py` | Accented word lists |
+| `test_markup_parser.py` | Markup parsing |
+| `test_app.py` | `ProofWindow` — menu setup, keyboard shortcuts |

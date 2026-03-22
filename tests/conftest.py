@@ -27,6 +27,7 @@ _drawbot_mock.height.return_value = 595
 sys.modules.setdefault("drawBot", _drawbot_mock)
 sys.modules.setdefault("drawBotGrid", MagicMock())
 sys.modules.setdefault("vanilla", MagicMock())
+sys.modules.setdefault("vanilla.dialogs", MagicMock())
 sys.modules.setdefault("AppKit", MagicMock())
 sys.modules.setdefault("Foundation", MagicMock())
 sys.modules.setdefault("objc", MagicMock())

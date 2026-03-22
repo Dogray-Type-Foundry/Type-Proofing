@@ -229,11 +229,52 @@ class ProofWindow:
         self.tabSwitcher.set(0)
         self.switchTab(self.tabSwitcher)
 
+        # AppHelper.runEventLoop() creates a bare NSApplication with no menu bar.
+        # macOS routes Cmd+key shortcuts through menu items with key equivalents,
+        # so without an Edit menu, Cmd+V/C/X/A never reach the text fields.
+        self._setup_main_menu()
+
     def switchTab(self, sender):
         """Switch between tabs."""
         idx = sender.get()
         self.filesTab.group.show(idx == 0)
         self.controlsTab.group.show(idx == 1)
+
+    def _setup_main_menu(self):
+        """Set up a minimal main menu so Cmd+key shortcuts work in text fields.
+
+        AppHelper.runEventLoop() provides no menu bar. macOS dispatches
+        keyboard shortcuts by matching key equivalents on menu items, so
+        without an Edit menu Cmd+V/C/X/A are silently dropped.
+        """
+        app = AppKit.NSApp()
+        main_menu = AppKit.NSMenu.alloc().init()
+
+        # Edit menu with standard text-editing actions
+        edit_menu = AppKit.NSMenu.alloc().initWithTitle_("Edit")
+        for title, action, key in [
+            ("Undo", "undo:", "z"),
+            ("Redo", "redo:", "Z"),
+            (None, None, None),
+            ("Cut", "cut:", "x"),
+            ("Copy", "copy:", "c"),
+            ("Paste", "paste:", "v"),
+            ("Select All", "selectAll:", "a"),
+        ]:
+            if title is None:
+                edit_menu.addItem_(AppKit.NSMenuItem.separatorItem())
+            else:
+                item = AppKit.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                    title, action, key
+                )
+                edit_menu.addItem_(item)
+
+        edit_item = AppKit.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            "Edit", None, ""
+        )
+        edit_item.setSubmenu_(edit_menu)
+        main_menu.addItem_(edit_item)
+        app.setMainMenu_(main_menu)
 
     def _setup_category_controls(self, popover, proof_key, show=True):
         """Setup character category controls for popover."""
