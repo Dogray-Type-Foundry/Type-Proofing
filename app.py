@@ -694,6 +694,76 @@ class ProofWindow:
             popover.proofTypePopup.set(0)
             self.proofTypeSelectionCallback(popover.proofTypePopup)
 
+    def _layout_popover(self, base_proof_key, is_instance=False):
+        """Reposition popover controls and resize based on visible sections."""
+        popover = self.proof_settings_popover
+        y = 10
+
+        # Proof type selector (only in type selection mode)
+        if not is_instance:
+            popover.proofTypeLabel.setPosSize((10, y, -10, 20))
+            y += 25
+            popover.proofTypePopup.setPosSize((10, y, -10, 20))
+            y += 30
+
+        # Numeric settings (always visible)
+        popover.numericLabel.setPosSize((10, y, -10, 20))
+        y += 20
+        popover.numericList.setPosSize((10, y, -10, 140))
+        y += 150
+
+        # Alignment
+        if proof_supports_formatting(base_proof_key):
+            popover.alignLabel.setPosSize((10, y, 100, 20))
+            popover.alignPopUp.setPosSize((120, y, 100, 20))
+            y += 30
+
+        # Character categories
+        if proof_has_categories(base_proof_key):
+            popover.categoryLabel.setPosSize((10, y, -10, 20))
+            y += 20
+            popover.categoryUppercase.setPosSize((20, y, -10, 20))
+            y += 20
+            popover.categoryLowercase.setPosSize((20, y, -10, 20))
+            y += 20
+            popover.categoryNumbersSymbols.setPosSize((20, y, -10, 20))
+            y += 20
+            popover.categoryPunctuation.setPosSize((20, y, -10, 20))
+            y += 20
+            popover.categoryAccented.setPosSize((20, y, -10, 20))
+            y += 30
+
+        # Custom text
+        if proof_has_custom_text(base_proof_key):
+            popover.customTextLabel.setPosSize((10, y, -10, 20))
+            if not proof_is_multi_style(base_proof_key):
+                popover.markupToggle.setPosSize((200, y, -10, 20))
+            y += 20
+            popover.customTextEditor.setPosSize((10, y, -10, 160))
+            y += 160
+            if not proof_is_multi_style(base_proof_key):
+                popover.generateOnceToggle.setPosSize((10, y, -10, 20))
+                y += 25
+                popover.defaultFontLabel.setPosSize((10, y, 100, 20))
+                popover.defaultFontPopup.setPosSize((110, y, -10, 20))
+                y += 20
+            y += 10
+
+        # Styles (multi-style only)
+        if proof_is_multi_style(base_proof_key):
+            popover.stylesLabel.setPosSize((10, y, -10, 20))
+            y += 20
+            popover.stylesList.setPosSize((10, y, -10, 200))
+            y += 210
+
+        # OpenType features (always visible)
+        popover.featuresLabel.setPosSize((10, y, -10, 20))
+        y += 20
+        popover.featuresList.setPosSize((10, y, -10, 150))
+        y += 160
+
+        popover.resize(400, y)
+
     def proofTypeSelectionCallback(self, sender):
         """Handle proof type selection in popover."""
         if not hasattr(self, "proof_settings_popover"):
@@ -789,6 +859,9 @@ class ProofWindow:
         else:
             popover.stylesLabel.show(False)
             popover.stylesList.show(False)
+
+        # Reposition controls and resize popover to fit content
+        self._layout_popover(proof_key)
 
     def characterCategoryCallback(self, sender):
         """Handle character category checkbox changes."""
@@ -1599,6 +1672,9 @@ class ProofWindow:
             else:
                 popover.stylesLabel.show(False)
                 popover.stylesList.show(False)
+
+            # Reposition controls and resize popover to fit content
+            self._layout_popover(base_proof_key, is_instance=True)
 
         except Exception as e:
             print(f"Error updating proof settings popover: {e}")
