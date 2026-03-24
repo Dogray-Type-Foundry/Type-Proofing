@@ -14,10 +14,10 @@ from dataclasses import dataclass
 import drawBot as db
 from wordsiv import Vocab, WordSiv
 import config as _cc
+import config
 from config import (
     marginHorizontal,
     marginVertical,
-    pageDimensions,
     myFallbackFont,
     useFontContainsCharacters,
     wordsivSeed,
@@ -498,7 +498,7 @@ def drawContent(
         global _PROOF_PAGE_INDEX
 
         while textToDraw:
-            db.newPage(pageDimensions)
+            db.newPage(*config.pageDimensions)
             _PROOF_PAGE_INDEX += 1
             drawFooter(
                 pageTitle,

@@ -43,24 +43,34 @@ class FsSelection:
 
 # Available page format options
 PAGE_FORMAT_OPTIONS = [
-    "A3Landscape",
     "A4Landscape",
-    "A4SmallLandscape",
-    "A5Landscape",
-    "LegalLandscape",
+    "A4Portrait",
     "LetterLandscape",
-    "LetterSmallLandscape",
+    "LetterPortrait",
+    "A3Landscape",
+    "A3Portrait",
+    "A5Landscape",
+    "A5Portrait",
+    "LegalLandscape",
+    "LegalPortrait",
+    "iPhoneLandscape",
+    "iPhonePortrait",
 ]
 
 # Page format dimensions mapping (in points)
 PAGE_DIMENSIONS = {
-    "A3Landscape": (1190, 842),  # A3 landscape: 420mm x 297mm
     "A4Landscape": (842, 595),  # A4 landscape: 297mm x 210mm
-    "A4SmallLandscape": (756, 531),  # A4 small landscape: 267mm x 187mm
-    "A5Landscape": (595, 420),  # A5 landscape: 210mm x 148mm
-    "LegalLandscape": (1008, 612),  # Legal landscape: 14" x 8.5"
+    "A4Portrait": (595, 842),  # A4 portrait: 210mm x 297mm
     "LetterLandscape": (792, 612),  # Letter landscape: 11" x 8.5"
-    "LetterSmallLandscape": (720, 540),  # Letter small landscape: 10" x 7.5"
+    "LetterPortrait": (612, 792),  # Letter portrait: 8.5" x 11"
+    "A3Landscape": (1190, 842),  # A3 landscape: 420mm x 297mm
+    "A3Portrait": (842, 1190),  # A3 portrait: 297mm x 420mm
+    "A5Landscape": (595, 420),  # A5 landscape: 210mm x 148mm
+    "A5Portrait": (420, 595),  # A5 portrait: 148mm x 210mm
+    "LegalLandscape": (1008, 612),  # Legal landscape: 14" x 8.5"
+    "LegalPortrait": (612, 1008),  # Legal portrait: 8.5" x 14"
+    "iPhoneLandscape": (844, 390),  # ~19.5:9 ratio
+    "iPhonePortrait": (390, 844),  # ~9:19.5 ratio
 }
 
 # Default page dimensions and margins
