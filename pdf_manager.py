@@ -38,8 +38,67 @@ class PDFManager:
         pdfView.setDisplayMode_(1)
         pdfView.setDisplayBox_(0)
 
+        # Create PDFThumbnailView (page minimap sidebar)
+        thumbnailView = PDFKit.PDFThumbnailView.alloc().initWithFrame_(
+            ((0, 0), (180, 100))
+        )
+        thumbnailView.setPDFView_(pdfView)
+        thumbnailView.setThumbnailSize_((170, 120))
+        thumbnailView.setAutoresizingMask_(1 << 4)  # flexible height
+
+        # Clipping wrapper — hides the PDFThumbnailView's internal padding
+        # by making the view wider than the wrapper and shifting it left
+        sidebarClip = AppKit.NSView.alloc().initWithFrame_(((0, 0), (155, 100)))
+        sidebarClip.setWantsLayer_(True)
+        sidebarClip.layer().setMasksToBounds_(True)
+        sidebarClip.setAutoresizingMask_(1 << 4)  # flexible height
+        sidebarClip.addSubview_(thumbnailView)
+
+        # Container that holds sidebar + pdfView side by side
+        container = AppKit.NSView.alloc().initWithFrame_(((0, 0), (100, 100)))
+        container.setAutoresizingMask_(1 << 1 | 1 << 4)
+        container.addSubview_(sidebarClip)
+        container.addSubview_(pdfView)
+
+        # Start with thumbnails hidden
+        sidebarClip.setHidden_(True)
+
         components["pdfView"] = pdfView
+        components["thumbnailView"] = thumbnailView
+        components["sidebarClip"] = sidebarClip
+        components["container"] = container
+        self.preview_components = components
+        self._layout_preview_container()
         return components
+
+    def _layout_preview_container(self):
+        """Layout the thumbnail and pdfView within their container."""
+        container = self.preview_components["container"]
+        sidebarClip = self.preview_components["sidebarClip"]
+        thumbnailView = self.preview_components["thumbnailView"]
+        pdfView = self.preview_components["pdfView"]
+        bounds = container.bounds()
+        w = bounds.size.width
+        h = bounds.size.height
+
+        if sidebarClip.isHidden():
+            pdfView.setFrame_(((0, 0), (w, h)))
+        else:
+            sidebar_w = 155
+            sidebarClip.setFrame_(((0, 0), (sidebar_w, h)))
+            # Shift PDFThumbnailView left to clip its internal left padding;
+            # extend right side enough to keep the scrollbar visible
+            thumbnailView.setFrame_(((-14, 0), (sidebar_w + 10, h)))
+            pdfView.setFrame_(((sidebar_w, 0), (w - sidebar_w, h)))
+
+    def set_thumbnails_visible(self, visible):
+        """Show or hide the page thumbnail sidebar."""
+        self.preview_components["sidebarClip"].setHidden_(not visible)
+        self._layout_preview_container()
+
+    def get_preview_view(self):
+        """Get the PDF preview container for integration into UI."""
+        return self.preview_components["container"]
 
     def get_pdf_output_directory(self, font_manager):
         """Determine the appropriate PDF output directory."""
@@ -129,15 +188,12 @@ class PDFManager:
                     AppKit.NSURL.fileURLWithPath_(pdf_path)
                 )
                 self.preview_components["pdfView"].setDocument_(pdfDoc)
+                self._layout_preview_container()
                 return True
             except Exception as e:
                 print(f"Error displaying PDF: {e}")
                 return False
         return False
-
-    def get_preview_view(self):
-        """Get the PDF preview view for integration into UI."""
-        return self.preview_components["pdfView"]
 
     def clear_preview(self):
         """Clear the current PDF preview."""

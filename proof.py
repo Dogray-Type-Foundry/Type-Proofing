@@ -1767,36 +1767,34 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
         return result
 
     def _collect_styles(self, all_fonts, font_manager):
-        """Collect (display_label, font_path, axis_dict_or_None) for each enabled style."""
+        """Collect (display_label, font_path, axis_dict_or_None) for each enabled style.
+
+        Uses the same named-instance enumeration as the UI
+        (``_build_available_styles`` in app.py) so that style indices match
+        the checkboxes the user sees.
+        """
+        from fonts import get_ttfont
+
         styles = []
         index = 0
         for font_path in all_fonts:
-            variable_dict = db.listFontVariations(font_path)
-            if variable_dict and font_manager:
-                axes_dict = font_manager.get_axis_values_for_font(font_path)
-                if axes_dict:
-                    from fonts import product_dict as _product_dict
-
-                    axes_product = list(_product_dict(**axes_dict))
-                else:
-                    from fonts import variableFont as _variableFont
-
-                    axes_product = _variableFont(font_path)[0]
-                if axes_product:
-                    for axis_data in axes_product:
-                        try:
-                            axis_dict = dict(axis_data)
-                        except Exception:
-                            axis_dict = None
-                        if self._is_style_enabled(index):
-                            label = f"{get_font_display_name(font_path)} {axis_data}"
-                            styles.append((label, font_path, axis_dict))
-                        index += 1
-                else:
+            tt = get_ttfont(font_path)
+            if tt and "fvar" in tt:
+                name_table = tt["name"]
+                family_name = name_table.getBestFamilyName() or get_font_display_name(
+                    font_path
+                )
+                for inst in tt["fvar"].instances:
+                    coords = dict(inst.coordinates)
+                    inst_name = name_table.getName(inst.subfamilyNameID, 3, 1, 0x0409)
+                    style_name = (
+                        str(inst_name)
+                        if inst_name
+                        else ", ".join(f"{k}:{v}" for k, v in coords.items())
+                    )
                     if self._is_style_enabled(index):
-                        styles.append(
-                            (get_font_display_name(font_path), font_path, None)
-                        )
+                        label = f"{family_name} — {style_name}"
+                        styles.append((label, font_path, coords))
                     index += 1
             else:
                 if self._is_style_enabled(index):
@@ -1832,8 +1830,7 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
             kwargs = dict(font=font_path, openTypeFeatures=otfeatures)
             if axis_dict:
                 kwargs["fontVariations"] = axis_dict
-            formatted.append(txt="", **kwargs)
-            formatted.append(txt=text)
+            formatted.append(txt=text, **kwargs)
             if i < len(styles) - 1:
                 formatted.append(txt="\n")
         return formatted

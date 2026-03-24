@@ -3,6 +3,7 @@
 import sys
 import io
 import os
+import threading
 import traceback
 import datetime
 import vanilla
@@ -122,6 +123,7 @@ class ProofWindow:
         self, items, key_field="_key", value_field="Value"
     ):
         """Validate and update settings from list items."""
+        changed = False
         for item in items:
             if key_field in item:
                 key = item[key_field]
@@ -133,6 +135,9 @@ class ProofWindow:
                     print(f"Invalid value for {item.get('Setting', key)}: {error_msg}")
                     continue
                 self.proof_settings[key] = converted_value
+                changed = True
+        if changed:
+            self._schedule_persist()
 
     def __init__(self):
         # Close any existing windows with the same title
@@ -304,6 +309,32 @@ class ProofWindow:
         """Build feature settings list for a given proof and feature tags."""
         return self.proof_settings_manager.get_opentype_features_for_proof(proof_key)
 
+    def _persist_proof_settings(self):
+        """Flush current in-memory proof_settings to disk immediately."""
+        try:
+            self.settings.set_proof_settings(self.proof_settings)
+        except Exception as e:
+            print(f"Error persisting proof settings: {e}")
+
+    def _schedule_persist(self):
+        """Schedule a debounced save of proof settings.
+
+        Resets the timer on every call so rapid changes coalesce into a
+        single disk write after 6 seconds of inactivity.
+        """
+        if hasattr(self, "_persist_timer") and self._persist_timer is not None:
+            self._persist_timer.cancel()
+        self._persist_timer = threading.Timer(6.0, self._persist_proof_settings)
+        self._persist_timer.daemon = True
+        self._persist_timer.start()
+
+    def _flush_pending_save(self):
+        """Cancel any pending debounced save and write immediately."""
+        if hasattr(self, "_persist_timer") and self._persist_timer is not None:
+            self._persist_timer.cancel()
+            self._persist_timer = None
+        self._persist_proof_settings()
+
     def save_all_settings(self):
         """Save all current settings to the settings file."""
 
@@ -374,6 +405,7 @@ class ProofWindow:
         def _cleanup_operation():
             # Silent cleanup operations that should not fail the exit process
             cleanup_tasks = [
+                lambda: self._flush_pending_save(),
                 lambda: self.settings.save() if hasattr(self, "settings") else None,
                 lambda: (
                     setattr(sys, "stdout", self._original_stdout)
@@ -788,6 +820,7 @@ class ProofWindow:
         if category_key:
             setting_key = make_settings_key(self.current_proof_key, "cat", category_key)
             self.proof_settings[setting_key] = sender.get()
+            self._schedule_persist()
 
     def customTextEditCallback(self, sender):
         """Handle custom text editor changes."""
@@ -795,6 +828,7 @@ class ProofWindow:
             return
         text_key = make_settings_key(self.current_proof_key, "customText")
         self.proof_settings[text_key] = sender.get()
+        self._schedule_persist()
 
     def markupToggleCallback(self, sender):
         """Handle markup toggle changes."""
@@ -802,6 +836,7 @@ class ProofWindow:
             return
         markup_key = make_settings_key(self.current_proof_key, "markupEnabled")
         self.proof_settings[markup_key] = sender.get()
+        self._schedule_persist()
 
     def generateOnceToggleCallback(self, sender):
         """Handle Generate Once toggle changes."""
@@ -809,6 +844,7 @@ class ProofWindow:
             return
         once_key = make_settings_key(self.current_proof_key, "generateOnce")
         self.proof_settings[once_key] = sender.get()
+        self._schedule_persist()
         popover = self.proof_settings_popover
         self._update_default_font_popup(popover, self.current_proof_key, sender.get())
 
@@ -830,6 +866,7 @@ class ProofWindow:
             axis_key = make_settings_key(self.current_proof_key, "defaultFontAxisDict")
             self.proof_settings[path_key] = style["font_path"]
             self.proof_settings[axis_key] = style["axis_dict"]
+            self._schedule_persist()
 
     def _update_default_font_popup(self, popover, proof_key, generate_once):
         """Show/hide and populate the default font popup based on Generate Once.
@@ -1088,25 +1125,36 @@ class ProofWindow:
                 )
 
         popover.stylesList.set(style_items)
+        self._prev_styles_items = [dict(item) for item in style_items]
 
     def stylesEditCallback(self, sender):
         """Handle style checkbox changes in the styles list.
 
         Family header rows toggle all their children.
+        Individual instance rows save their own setting and update the parent header.
         """
         if not hasattr(self, "current_proof_key"):
             return
         items = list(sender.get())
-        changed = False
-        for row_idx, item in enumerate(items):
-            family_indices = item.get("_family_indices")
-            if family_indices is not None:
-                # Family header — propagate to children
-                header_enabled = bool(item.get("Enabled", True))
-                for child_row in range(row_idx + 1, len(items)):
+        prev_items = getattr(self, "_prev_styles_items", None)
+
+        # Find which row was changed by comparing with previous state
+        changed_row = None
+        if prev_items and len(prev_items) == len(items):
+            for i, (prev, curr) in enumerate(zip(prev_items, items)):
+                if bool(prev.get("Enabled", True)) != bool(curr.get("Enabled", True)):
+                    changed_row = i
+                    break
+
+        if changed_row is not None:
+            changed_item = items[changed_row]
+            if changed_item.get("_family_indices") is not None:
+                # Family header was toggled — propagate to children
+                header_enabled = bool(changed_item.get("Enabled", True))
+                for child_row in range(changed_row + 1, len(items)):
                     child = items[child_row]
                     if child.get("_family_indices") is not None:
-                        break  # next family header
+                        break
                     child_idx = child.get("_index")
                     if child_idx is not None:
                         items[child_row] = dict(child, Enabled=header_enabled)
@@ -1114,31 +1162,37 @@ class ProofWindow:
                             self.current_proof_key, "style", str(child_idx)
                         )
                         self.proof_settings[setting_key] = header_enabled
-                        changed = True
             else:
-                idx = item.get("_index")
+                # Individual instance was toggled — save its setting
+                idx = changed_item.get("_index")
                 if idx is not None:
                     setting_key = make_settings_key(
                         self.current_proof_key, "style", str(idx)
                     )
-                    self.proof_settings[setting_key] = bool(item.get("Enabled", True))
+                    self.proof_settings[setting_key] = bool(
+                        changed_item.get("Enabled", True)
+                    )
 
-        # Update family header checkboxes to reflect children state
-        for row_idx, item in enumerate(items):
-            family_indices = item.get("_family_indices")
-            if family_indices is not None:
-                all_on = True
-                for child_row in range(row_idx + 1, len(items)):
-                    child = items[child_row]
-                    if child.get("_family_indices") is not None:
+                # Update parent family header to reflect children state
+                parent_row = None
+                for r in range(changed_row - 1, -1, -1):
+                    if items[r].get("_family_indices") is not None:
+                        parent_row = r
                         break
-                    if not child.get("Enabled", True):
-                        all_on = False
-                        break
-                items[row_idx] = dict(item, Enabled=all_on)
+                if parent_row is not None:
+                    all_on = True
+                    for child_row in range(parent_row + 1, len(items)):
+                        child = items[child_row]
+                        if child.get("_family_indices") is not None:
+                            break
+                        if not child.get("Enabled", True):
+                            all_on = False
+                            break
+                    items[parent_row] = dict(items[parent_row], Enabled=all_on)
 
-        if changed:
-            sender.set(items)
+        self._prev_styles_items = [dict(item) for item in items]
+        sender.set(items)
+        self._schedule_persist()
 
     def alignPopUpCallback(self, sender):
         """Handle alignment selection changes."""
@@ -1150,6 +1204,7 @@ class ProofWindow:
             align_value = self.ALIGNMENT_OPTIONS[selected_idx]
             align_key = make_settings_key(self.current_proof_key, "align")
             self.proof_settings[align_key] = align_value
+            self._schedule_persist()
 
     def stepperChangeCallback(self, setting_key, value):
         """Handle stepper value changes."""
@@ -1160,6 +1215,7 @@ class ProofWindow:
             print(f"Invalid value for setting: {error_msg}")
             return
         self.proof_settings[setting_key] = converted_value
+        self._schedule_persist()
 
     def configureSteppersForNumericList(self, numeric_list, items):
         """Configure stepper cells in the numeric list with appropriate min/max/increment values."""
@@ -1240,6 +1296,7 @@ class ProofWindow:
                     continue
 
                 self.proof_settings[key] = bool(enabled)
+        self._schedule_persist()
 
     def run_proof(
         self,
@@ -1283,79 +1340,70 @@ class ProofWindow:
         # Reset multi-style dedup so it generates once per PDF run
         MultiStyleComparisonProofHandler.reset_generated()
 
-        for indFont in self.font_manager.fonts:
-            fullCharacterSet = filteredCharset(indFont)
-            cat = categorize(fullCharacterSet)
-            variableDict = db.listFontVariations(indFont)
+        # Get the current proof options from the UI in their display order
+        controls = self.controlsTab
+        if not (
+            hasattr(controls, "group") and hasattr(controls.group, "proofOptionsList")
+        ):
+            print("Error: Could not access proof options list")
+            return None
 
-            # Prefer per-font axes from Files tab if present
-            axes_dict = self.font_manager.get_axis_values_for_font(indFont)
-            if axes_dict:
-                axesProduct = list(product_dict(**axes_dict))
-            elif userAxesValues:
-                axesProduct = list(product_dict(**userAxesValues))
-            elif not bool(variableDict):
-                axesProduct = ""
-            else:
-                axesProduct = variableFont(indFont)[0]
+        proof_options_items = controls.group.proofOptionsList.get()
 
-            # Dynamic proof generation based on UI list order
-            # Get the current proof options from the UI in their display order
-            controls = self.controlsTab
-            if not (
-                hasattr(controls, "group")
-                and hasattr(controls.group, "proofOptionsList")
-            ):
-                print("Error: Could not access proof options list")
-                return None
+        # Loop proofs first, then fonts — so pages are grouped by proof type
+        for item in proof_options_items:
+            if not item["Enabled"]:
+                continue
 
-            proof_options_items = controls.group.proofOptionsList.get()
+            proof_name = item["Option"]
+            base_proof_type = item.get("_original_option", proof_name)
 
-            # Pre-create context once for efficiency
-            proof_context = ProofContext(
-                full_character_set=fullCharacterSet,
-                axes_product=axesProduct,
-                ind_font=indFont,
-                paired_static_styles=pairedStaticStyles,
-                otfeatures_by_proof=otfeatures_by_proof,
-                cols_by_proof=cols_by_proof,
-                paras_by_proof=paras_by_proof,
-                cat=cat,
-                proof_name=None,  # Will be updated per proof
-                all_fonts=list(self.font_manager.fonts),
-                font_manager=self.font_manager,
+            handler = get_proof_handler(
+                base_proof_type,
+                proof_name,
+                self.proof_settings,
+                self.proof_settings_manager.get_proof_font_size,
             )
+            if not handler:
+                print(f"Warning: No handler found for proof type '{base_proof_type}'")
+                continue
 
-            # Generate each enabled proof using the optimized handler system
-            for item in proof_options_items:
-                if not item["Enabled"]:
-                    continue
+            for indFont in self.font_manager.fonts:
+                fullCharacterSet = filteredCharset(indFont)
+                cat = categorize(fullCharacterSet)
+                variableDict = db.listFontVariations(indFont)
 
-                proof_name = item["Option"]
-                base_proof_type = item.get("_original_option", proof_name)
+                # Prefer per-font axes from Files tab if present
+                axes_dict = self.font_manager.get_axis_values_for_font(indFont)
+                if axes_dict:
+                    axesProduct = list(product_dict(**axes_dict))
+                elif userAxesValues:
+                    axesProduct = list(product_dict(**userAxesValues))
+                elif not bool(variableDict):
+                    axesProduct = ""
+                else:
+                    axesProduct = variableFont(indFont)[0]
 
-                # Update context for this specific proof
-                proof_context.proof_name = proof_name
-
-                # Get handler and generate proof
-                handler = get_proof_handler(
-                    base_proof_type,
-                    proof_name,
-                    self.proof_settings,
-                    self.proof_settings_manager.get_proof_font_size,
+                proof_context = ProofContext(
+                    full_character_set=fullCharacterSet,
+                    axes_product=axesProduct,
+                    ind_font=indFont,
+                    paired_static_styles=pairedStaticStyles,
+                    otfeatures_by_proof=otfeatures_by_proof,
+                    cols_by_proof=cols_by_proof,
+                    paras_by_proof=paras_by_proof,
+                    cat=cat,
+                    proof_name=proof_name,
+                    all_fonts=list(self.font_manager.fonts),
+                    font_manager=self.font_manager,
                 )
 
-                if handler:
-                    try:
-                        handler.generate_proof(proof_context)
-                    except Exception as e:
-                        print(f"Error generating proof '{proof_name}': {e}")
-                        traceback.print_exc()
-                        continue  # Continue with next proof
-                else:
-                    print(
-                        f"Warning: No handler found for proof type '{base_proof_type}'"
-                    )
+                try:
+                    handler.generate_proof(proof_context)
+                except Exception as e:
+                    print(f"Error generating proof '{proof_name}': {e}")
+                    traceback.print_exc()
+                    continue
 
         # Finalize PDF generation and save
         pdf_path = self.pdf_manager.end_pdf_generation(self.font_manager, now)

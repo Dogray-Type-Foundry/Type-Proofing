@@ -6,6 +6,7 @@ import json
 import datetime
 import traceback
 import re
+import tempfile
 from urllib.parse import urlparse, unquote
 from functools import lru_cache
 
@@ -130,15 +131,30 @@ def safe_json_load(file_path, default=None):
 
 
 def safe_json_save(data, file_path):
-    """Safely save data to JSON file"""
+    """Safely save data to JSON file using atomic write (temp + fsync + rename)."""
     try:
         # Ensure directory exists
-        directory = os.path.dirname(file_path)
-        if directory:
-            ensure_directory_exists(directory)
+        directory = os.path.dirname(file_path) or "."
+        ensure_directory_exists(directory)
 
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        # Write to a temp file in the same directory, then rename.
+        # Same-directory ensures same filesystem so os.replace is atomic.
+        fd, tmp_path = tempfile.mkstemp(
+            dir=directory, suffix=".tmp", prefix=".settings_"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, file_path)
+        except BaseException:
+            # Clean up temp file on any failure
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
         return True
     except Exception as e:
         log_error(f"Failed to save JSON to {file_path}: {e}")

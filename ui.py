@@ -741,6 +741,9 @@ class FilesTab:
         new_font_paths = [row["_path"] for row in table_data if "_path" in row]
         if new_font_paths:
             self.font_manager.fonts = tuple(new_font_paths)
+            # Persist the new font order
+            if self.font_manager.settings:
+                self.font_manager.settings.set_fonts(new_font_paths)
             # Update axis values
             if hasattr(self, "current_axes"):
                 self.font_manager.update_axis_values_from_table(
@@ -1475,9 +1478,16 @@ class ControlsTab:
 
             self.group.showBaselinesCheckbox = vanilla.CheckBox(
                 (controls_x + 165, y, 100, 20),
-                "Show Grid",
+                "Grid",
                 value=self.settings.get_proof_option("show_baselines"),
                 callback=self.showBaselinesCallback,
+            )
+
+            self.group.thumbnailsCheckbox = vanilla.CheckBox(
+                (controls_x + 225, y, 100, 20),
+                "Thumbnails",
+                value=False,
+                callback=self.thumbnailsCallback,
             )
 
             self.group.addSettingsButton = vanilla.Button(
@@ -1611,6 +1621,13 @@ class ControlsTab:
         """Handle the Show Baselines/Grid standalone checkbox."""
         enabled = sender.get()
         self.settings.set_proof_option("show_baselines", enabled)
+
+    def thumbnailsCallback(self, sender):
+        """Toggle the PDF page thumbnails sidebar."""
+        if hasattr(self, "parent_window") and hasattr(
+            self.parent_window, "pdf_manager"
+        ):
+            self.parent_window.pdf_manager.set_thumbnails_visible(sender.get())
 
     def makeProofDragDataCallback(self, index):
         """Create drag data for internal proof options reordering."""
