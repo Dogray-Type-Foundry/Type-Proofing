@@ -1,16 +1,38 @@
+# Build artifacts
 /build
 /dist
+__pycache__/
+*.pyc
+*.egg-info/
+.eggs
+
+# IDE / editor
+.DS_Store
+**/.DS_Store
+.nova
+.vscode/
+xcuserdata/
+*.xcuserstate
+
+# Xcode
+**/DerivedData/
+**/build-release/
+**/python-packages/
+
+# Project-specific
 /icon
-/__pycache__
 _releases
 build_app_local.sh
-*.pyc
-.DS_Store
 .python-version
-.nova
-.eggs
+.pytest_cache/
+**/.pytest_cache/
+
+# Fonts / output (local only)
 *.ttf
 *.otf
+!**/AdobeBlank.otf
 *.pdf
 *.json
+
+# Other
 .github

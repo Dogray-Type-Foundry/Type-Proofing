@@ -247,15 +247,20 @@ class TestBaseProofHandlerMethods:
         assert "24" in name
 
     def test_get_common_proof_params(self):
-        handler = self._make_handler("Test Proof")
+        settings = {
+            make_settings_key("test_proof", "cols"): 3,
+            make_settings_key("test_proof", "para"): 7,
+            "otf_test_proof_kern": True,
+        }
+        handler = self._make_handler("Test Proof", settings)
         ctx = ProofContext(
             full_character_set="ABC",
             axes_product=None,
             ind_font="/test.otf",
             paired_static_styles=None,
-            otfeatures_by_proof={"Test Proof": {"kern": True}},
-            cols_by_proof={"Test Proof": 3},
-            paras_by_proof={"Test Proof": 7},
+            otfeatures_by_proof={},
+            cols_by_proof={},
+            paras_by_proof={},
             cat={},
             proof_name="Test Proof",
         )

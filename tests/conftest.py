@@ -44,10 +44,11 @@ _wordsiv_mock.WordSiv.return_value = MagicMock(
 _wordsiv_mock.Vocab = MagicMock
 sys.modules.setdefault("wordsiv", _wordsiv_mock)
 
-# Ensure the project root is on the path so imports like ``import config`` work.
+# Ensure the python/ directory is on the path so imports like ``import config`` work.
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+PYTHON_DIR = os.path.join(PROJECT_ROOT, "python")
+if PYTHON_DIR not in sys.path:
+    sys.path.insert(0, PYTHON_DIR)
 
 
 # ---------------------------------------------------------------------------

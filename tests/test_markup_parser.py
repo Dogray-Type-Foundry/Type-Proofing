@@ -157,6 +157,28 @@ class TestTokenize:
         assert len(headings) == 1
         assert headings[0].text == "Title"
 
+    def test_page_break(self):
+        tokens = _tokenize("Before\n#pagebreak()\nAfter")
+        page_breaks = [t for t in tokens if t.kind == "page_break"]
+        assert len(page_breaks) == 1
+
+    def test_column_break(self):
+        tokens = _tokenize("Left col\n#colbreak()\nRight col")
+        col_breaks = [t for t in tokens if t.kind == "column_break"]
+        assert len(col_breaks) == 1
+
+    def test_page_break_with_spaces(self):
+        tokens = _tokenize("Before\n  #pagebreak()  \nAfter")
+        page_breaks = [t for t in tokens if t.kind == "page_break"]
+        assert len(page_breaks) == 1
+
+    def test_multiple_breaks(self):
+        tokens = _tokenize("A\n#pagebreak()\nB\n#colbreak()\nC\n#pagebreak()\nD")
+        page_breaks = [t for t in tokens if t.kind == "page_break"]
+        col_breaks = [t for t in tokens if t.kind == "column_break"]
+        assert len(page_breaks) == 2
+        assert len(col_breaks) == 1
+
 
 # =============================================================================
 # _parse_attrs

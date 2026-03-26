@@ -1,0 +1,80 @@
+name: TypeProofing
+options:
+  bundleIdPrefix: com.dograytype
+  deploymentTarget:
+    macOS: "13.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+
+packages:
+  PythonKit:
+    url: https://github.com/pvieito/PythonKit.git
+    branch: master
+  CompactSlider:
+    url: https://github.com/buh/CompactSlider.git
+    from: "2.1.0"
+
+schemes:
+  TypeProofing:
+    build:
+      targets:
+        TypeProofing: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
+targets:
+  TypeProofing:
+    type: application
+    platform: macOS
+    sources:
+      - path: TypeProofing/Sources
+      - path: TypeProofing/Resources
+        buildPhase: resources
+        excludes:
+          - "*.icon"
+      - path: TypeProofing/Resources/TypeProofing.icon
+        buildPhase: resources
+        type: folder
+    entitlements:
+      path: TypeProofing/TypeProofing.entitlements
+    info:
+      path: TypeProofing/Info.plist
+      properties:
+        CFBundleIconFile: TypeProofing
+        CFBundleIconName: TypeProofing
+        CFBundleDisplayName: "Type Proofing"
+        LSApplicationCategoryType: "public.app-category.graphics-design"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dograytype.typeproofing
+        MARKETING_VERSION: "2.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        CODE_SIGN_ENTITLEMENTS: TypeProofing/TypeProofing.entitlements
+        # Framework search paths for the embedded Python.framework
+        FRAMEWORK_SEARCH_PATHS:
+          - "$(inherited)"
+          - "/Library/Frameworks"
+        # Runpath so the app finds the embedded framework at runtime
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+        # Allow importing Python.framework headers if needed
+        HEADER_SEARCH_PATHS:
+          - "$(inherited)"
+          - "/Library/Frameworks/Python.framework/Versions/3.13/include/python3.13"
+    dependencies:
+      - package: PythonKit
+      - package: CompactSlider
+      - framework: /Library/Frameworks/Python.framework
+        embed: true
+        # codeSign: true is implied by embed
+    preBuildScripts: []
+    postBuildScripts:
+      - name: "Copy Python Sources"
+        script: |
+          bash "${SRCROOT}/Scripts/copy_python_sources.sh"
+        basedOnDependencyAnalysis: false
