@@ -224,7 +224,7 @@ class TestProofSettingsManagerPersistence:
 
         # Simulate proof options items for save_all_settings
         proof_options_items = [
-            {"Option": "Filtered Character Set", "Enabled": True},
+            {"Option": "Character Overview", "Enabled": True},
         ]
         psm.save_all_settings(proof_options_items)
 

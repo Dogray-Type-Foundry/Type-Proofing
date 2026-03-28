@@ -60,9 +60,12 @@ class TestConstants:
             w, h = PAGE_DIMENSIONS[fmt]
             assert w > 0 and h > 0
 
-    def test_all_page_formats_are_landscape(self):
+    def test_page_format_dimensions_match_orientation(self):
         for fmt, (w, h) in PAGE_DIMENSIONS.items():
-            assert w > h, f"{fmt} is not landscape: {w}x{h}"
+            if "Landscape" in fmt:
+                assert w > h, f"{fmt} should be landscape: {w}x{h}"
+            elif "Portrait" in fmt:
+                assert h > w, f"{fmt} should be portrait: {w}x{h}"
 
     def test_default_on_features_are_strings(self):
         for feat in DEFAULT_ON_FEATURES:
@@ -138,7 +141,7 @@ class TestProofRegistry:
                 ), f"{key} text config missing default_paragraphs"
 
     def test_expected_proof_count(self):
-        assert len(PROOF_REGISTRY) == 19
+        assert len(PROOF_REGISTRY) == 21
 
 
 # =============================================================================
@@ -205,13 +208,13 @@ class TestGetProofDisplayNames:
 
 class TestResolveBaseProofKey:
     def test_exact_match(self):
-        display_name, key = resolve_base_proof_key("Filtered Character Set")
-        assert display_name == "Filtered Character Set"
+        display_name, key = resolve_base_proof_key("Character Overview")
+        assert display_name == "Character Overview"
         assert key == "filtered_character_set"
 
     def test_numbered_variant(self):
-        display_name, key = resolve_base_proof_key("Basic Paragraph Large 2")
-        assert display_name == "Basic Paragraph Large"
+        display_name, key = resolve_base_proof_key("Structured Text (Heading) 2")
+        assert display_name == "Structured Text (Heading)"
         assert key == "basic_paragraph_large"
 
     def test_unknown_returns_none(self):
@@ -305,7 +308,7 @@ class TestProofLookups:
     def test_by_storage_key(self):
         result = get_proof_by_storage_key("spacing_proof")
         assert result is not None
-        assert result["display_name"] == "Spacing Proof"
+        assert result["display_name"] == "Spacing Test"
 
     def test_by_settings_key_not_found(self):
         assert get_proof_by_settings_key("nonexistent_key") is None

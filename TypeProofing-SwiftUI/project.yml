@@ -19,8 +19,15 @@ schemes:
     build:
       targets:
         TypeProofing: all
+        TypeProofingTests: [test]
+        TypeProofingUITests: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - TypeProofingTests
+        - TypeProofingUITests
     archive:
       config: Release
 
@@ -78,3 +85,36 @@ targets:
         script: |
           bash "${SRCROOT}/Scripts/copy_python_sources.sh"
         basedOnDependencyAnalysis: false
+
+  TypeProofingTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: TypeProofingTests
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        GENERATE_INFOPLIST_FILE: YES
+        FRAMEWORK_SEARCH_PATHS:
+          - "$(inherited)"
+          - "/Library/Frameworks"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+          - "@loader_path/../Frameworks"
+    dependencies:
+      - target: TypeProofing
+
+  TypeProofingUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: TypeProofingUITests
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: TypeProofing

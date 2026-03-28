@@ -120,11 +120,11 @@ class TestPSMInitialization:
 
 class TestGetProofFontSize:
     def test_known_proof_display_name(self, psm):
-        size = psm.get_proof_font_size("Filtered Character Set")
+        size = psm.get_proof_font_size("Character Overview")
         assert size == 78
 
     def test_custom_proof_falls_back(self, psm):
-        size = psm.get_proof_font_size("Basic Paragraph Large 2")
+        size = psm.get_proof_font_size("Structured Text (Heading) 2")
         # Should return the default for basic_paragraph_large since no override set
         assert size == get_proof_default_font_size("basic_paragraph_large")
 
@@ -198,9 +198,9 @@ class TestAlignment:
 class TestInitializeForNewProof:
     def test_creates_settings_for_instance(self, psm):
         psm.initialize_settings_for_proof(
-            "Basic Paragraph Large 3", "Basic Paragraph Large"
+            "Structured Text (Heading) 3", "Structured Text (Heading)"
         )
-        unique_key = create_unique_proof_key("Basic Paragraph Large 3")
+        unique_key = create_unique_proof_key("Structured Text (Heading) 3")
         fs_key = make_settings_key(unique_key, "fontSize")
         assert fs_key in psm.proof_settings
         assert psm.proof_settings[fs_key] == get_proof_default_font_size(
@@ -312,27 +312,27 @@ class TestOpenTypeFeatures:
 class TestBuildProofData:
     def test_disabled_proofs_excluded(self, psm):
         items = [
-            {"Option": "Basic Paragraph Small", "Enabled": False},
+            {"Option": "Structured Text (Text)", "Enabled": False},
         ]
         otf, cols, paras = psm.build_proof_data_for_generation(items)
-        assert "Basic Paragraph Small" not in otf
+        assert "Structured Text (Text)" not in otf
 
     def test_enabled_proof_included(self, psm):
         items = [
-            {"Option": "Basic Paragraph Small", "Enabled": True},
+            {"Option": "Structured Text (Text)", "Enabled": True},
         ]
         otf, cols, paras = psm.build_proof_data_for_generation(items)
-        assert "Basic Paragraph Small" in otf
-        assert "Basic Paragraph Small" in cols
+        assert "Structured Text (Text)" in otf
+        assert "Structured Text (Text)" in cols
 
     def test_has_paragraphs_only_when_declared(self, psm):
         items = [
-            {"Option": "Generative Text Small", "Enabled": True},
-            {"Option": "Basic Paragraph Small", "Enabled": True},
+            {"Option": "Auto-Generated Text", "Enabled": True},
+            {"Option": "Structured Text (Text)", "Enabled": True},
         ]
         otf, cols, paras = psm.build_proof_data_for_generation(items)
-        assert "Generative Text Small" in paras
-        assert "Basic Paragraph Small" not in paras
+        assert "Auto-Generated Text" in paras
+        assert "Structured Text (Text)" not in paras
 
 
 # =============================================================================
@@ -344,9 +344,9 @@ class TestSaveAllSettings:
     def test_saves_proof_options(self, psm):
         items = [
             {
-                "Option": "Basic Paragraph Small",
+                "Option": "Structured Text (Text)",
                 "Enabled": True,
-                "_original_option": "Basic Paragraph Small",
+                "_original_option": "Structured Text (Text)",
             },
             {
                 "Option": "Show Baselines/Grid",

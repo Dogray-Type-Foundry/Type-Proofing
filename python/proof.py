@@ -803,6 +803,10 @@ def generateTextProofString(
 
     # Handle Arabic/Farsi languages with specific logic
     if lang in ["ar", "fa"]:
+        if hoeflerStyle:
+            return _generate_hoefler_style_arabic_text(
+                characterSet, para, lang, cat, fullCharacterSet
+            )
         return _generate_arabic_farsi_text(
             characterSet, para, bigProof, lang, cat, fullCharacterSet
         )
@@ -1202,6 +1206,93 @@ def _generate_arabic_farsi_text(
     return textProofString
 
 
+def _generate_hoefler_style_arabic_text(characterSet, para, lang, cat, fullCharacterSet):
+    """Generate a single flowing Arabic paragraph via cartesian product of shape groups.
+
+    Builds regex character classes from ARABIC_SHAPE_GROUPS (all members of each
+    group, not just one representative), then generates words for every combination
+    of positionally-compatible group pairs:
+      - init × medi  (initial-form exit meeting medial-form entry)
+      - medi × medi  (adjacent medial forms)
+      - medi × fina  (medial-form exit meeting final-form entry)
+      - iso  × init  (isolated non-connector before initial form)
+      - fina × iso   (final form before isolated non-connector)
+    All words are joined into one continuous paragraph.
+    """
+    from config import ARABIC_GLYPH_TO_UNICODE, ARABIC_SHAPE_GROUPS
+
+    char_set = set(characterSet)
+    vocab = "ar" if lang == "ar" else "fa"
+
+    try:
+        wsv = WordSiv(glyphs=fullCharacterSet, vocab=vocab, seed=wordsivSeed)
+    except Exception:
+        return " ".join(characterSet)
+
+    # Build regex character class strings grouped by positional suffix
+    init_classes = []
+    medi_classes = []
+    fina_classes = []
+    iso_classes = []
+
+    for base, suffix, glyph_names in ARABIC_SHAPE_GROUPS:
+        chars = ""
+        for glyph in glyph_names:
+            uc = ARABIC_GLYPH_TO_UNICODE.get(glyph)
+            if uc and uc in char_set:
+                chars += uc
+        if not chars:
+            continue
+
+        if suffix == "init":
+            init_classes.append(chars)
+        elif suffix == "medi":
+            medi_classes.append(chars)
+        elif suffix == "fina":
+            fina_classes.append(chars)
+        elif suffix == "":
+            iso_classes.append(chars)
+
+    all_words = []
+    seen = set()
+
+    def try_word(regexp, min_wl=3):
+        try:
+            w = str(wsv.top_word(regexp=regexp, min_wl=min_wl))
+            if w and w not in seen:
+                all_words.append(w)
+                seen.add(w)
+        except Exception:
+            pass
+
+    # init × medi: char from init group starts word, followed by char from medi group
+    for ic in init_classes:
+        for mc in medi_classes:
+            try_word(rf"[{ic}][{mc}].*")
+
+    # medi × medi: adjacent medial-form chars in the middle of a word
+    for m1 in medi_classes:
+        for m2 in medi_classes:
+            try_word(rf".+[{m1}][{m2}].+", min_wl=4)
+
+    # medi × fina: medial-form char followed by final-form char at word end
+    for mc in medi_classes:
+        for fc in fina_classes:
+            try_word(rf".*[{mc}][{fc}]")
+
+    # iso × init: isolated non-connector at word start, followed by initial form
+    for oc in iso_classes:
+        for ic in init_classes:
+            try_word(rf"[{oc}][{ic}].*")
+
+    # fina × iso: final form followed by isolated non-connector at word end
+    for fc in fina_classes:
+        for oc in iso_classes:
+            try_word(rf".*[{fc}][{oc}]")
+
+    return " ".join(all_words) if all_words else " ".join(characterSet)
+
+
 def generateSpacingString(characterSet):
     """Create the spacing proof string efficiently using list accumulation."""
     lines = []
@@ -1238,7 +1329,7 @@ def charsetProof(
     pairedStaticStyles: tuple,
     otFea: Optional[dict] = None,
     fontSize: Optional[int | float] = None,
-    sectionName: str = "Filtered Character Set",
+    sectionName: str = "Character Overview",
     tracking: Optional[int | float] = None,
 ) -> None:
     """Generate Filtered Character Set."""
@@ -1446,7 +1537,7 @@ def arabicContextualFormsProof(
     pairedStaticStyles,
     otFea=None,
     fontSize=None,
-    sectionName="Ar Character Set",
+    sectionName="Ar Character Overview",
     tracking=None,
 ):
     """Generate ARA Character Set proof pages using configurable font size."""
@@ -1511,7 +1602,14 @@ class BaseProofHandler(ABC):
         self.proof_name = proof_name
         self.proof_settings = proof_settings
         self.get_proof_font_size = get_proof_font_size_func
-        self.unique_proof_key = create_unique_proof_key(proof_name)
+        # Use registry key for base proofs; display-name-derived key for numbered variants
+        from config import resolve_base_proof_key
+
+        base_display, settings_key = resolve_base_proof_key(proof_name)
+        if settings_key and proof_name == base_display:
+            self.unique_proof_key = settings_key
+        else:
+            self.unique_proof_key = create_unique_proof_key(proof_name)
 
         # Cache commonly accessed settings for performance
         self._cached_font_size = None
@@ -2176,11 +2274,11 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
 
 # Registry mapping proof types to their handler classes
 PROOF_HANDLER_REGISTRY = {
-    "Filtered Character Set": FilteredCharacterSetHandler,
-    "Spacing Proof": SpacingProofHandler,
-    "Ar Character Set": ArCharacterSetHandler,
+    "Character Overview": FilteredCharacterSetHandler,
+    "Spacing Test": SpacingProofHandler,
+    "Ar Character Overview": ArCharacterSetHandler,
     "Custom Text": CustomTextProofHandler,
-    "Multi-Style Comparison": MultiStyleComparisonProofHandler,
+    "Style Comparison": MultiStyleComparisonProofHandler,
     # All other text-based proofs use StandardTextProofHandler with configuration
 }
 
@@ -2193,7 +2291,7 @@ def get_proof_handler(proof_type, proof_name, proof_settings, get_proof_font_siz
     """Factory function to create the appropriate proof handler with caching.
 
     Args:
-        proof_type: The base proof type (e.g., "Basic Paragraph Large")
+        proof_type: The base proof type (e.g., "Structured Text (Heading)")
         proof_name: The specific proof instance name (may include numbers)
         proof_settings: Dictionary of proof settings
         get_proof_font_size_func: Function to get font size for a proof

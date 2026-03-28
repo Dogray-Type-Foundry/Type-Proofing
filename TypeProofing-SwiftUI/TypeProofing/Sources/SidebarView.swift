@@ -72,6 +72,7 @@ struct SidebarView: View {
             .labelsHidden()
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
+            .accessibilityIdentifier("sidebar-tabs")
 
             // MARK: - Tab Content
 
@@ -141,6 +142,7 @@ struct SidebarView: View {
                 HoverButton("Add Proof", systemImage: "plus") {
                     state.showAddProofSheet = true
                 }
+                .accessibilityIdentifier("add-proof-button")
                 .popover(isPresented: $state.showAddProofSheet, arrowEdge: .top) {
                     AddProofPopover()
                 }
@@ -174,6 +176,7 @@ struct SidebarView: View {
                 HoverButton("Add Fonts", systemImage: "plus") {
                     state.showFontPicker = true
                 }
+                .accessibilityIdentifier("add-fonts-button")
                 Spacer()
             }
             .padding(8)

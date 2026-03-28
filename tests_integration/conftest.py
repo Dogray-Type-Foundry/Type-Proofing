@@ -52,14 +52,16 @@ _APP_MODULES = [
     "settings",
     "sample_texts",
     "script_texts",
+    "engine",
+    "text_generators",
 ]
 for _mod_name in _APP_MODULES:
     if _mod_name in sys.modules:
         importlib.reload(sys.modules[_mod_name])
 
 # Paths to real font files shipped with the project.
-SETGROTESK_VF = os.path.join(PROJECT_ROOT, "SetGroteskVF.ttf")
-ADOBE_BLANK = os.path.join(PROJECT_ROOT, "AdobeBlank.otf")
+SETGROTESK_VF = os.path.join(PROJECT_ROOT, "SetsGroteskVF.ttf")
+ADOBE_BLANK = os.path.join(PROJECT_ROOT, "python", "AdobeBlank.otf")
 
 
 @pytest.fixture

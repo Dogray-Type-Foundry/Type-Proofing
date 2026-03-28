@@ -17,6 +17,7 @@
 		43E7BC229EB9768F13C0F01F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90438448008FA276EEC20F55 /* AppState.swift */; };
 		457FF62F4F3CCE0E91736B14 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48C400F557AD777FB0D600E6 /* ContentView.swift */; };
 		5488A51BBC4C8CEFEDBF0B7F /* FontAxesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F272E6A94B474DD21D5D59 /* FontAxesView.swift */; };
+		5C2C5BB759A10148FDA051E1 /* ProofKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA3DEF34F455645E68CFC17 /* ProofKeyTests.swift */; };
 		715D052D7C5F69805DE3672A /* TypeProofing.icon in Resources */ = {isa = PBXBuildFile; fileRef = C4D7DBC1455476D39F561233 /* TypeProofing.icon */; };
 		7A6BE132E1E3936AFBD08415 /* PDFViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8FB027921231229D0CEAE7D /* PDFViewerView.swift */; };
 		7F08D0154437415AF5171C3A /* PythonKit in Frameworks */ = {isa = PBXBuildFile; productRef = 89C1115B23D2BBF59887F9B8 /* PythonKit */; };
@@ -25,11 +26,33 @@
 		95D0EB1AEABF12F46DCC7153 /* FontsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 273F6D02473AD733F5E06051 /* FontsSection.swift */; };
 		9B04D2520B52A9656AB91FBD /* FontSortCriterion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 952879886E2B5AED1734715E /* FontSortCriterion.swift */; };
 		9BB8BBCEB55AD6F88CB78B08 /* Python.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = FAE140EC7E4A8EC46F447012 /* Python.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		9E787FB53F11627158613C87 /* SettingsPanelUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B45C6D0EF3F226D95AF506 /* SettingsPanelUITests.swift */; };
 		AC25D54500E6445CC063E8A1 /* ProofEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD87BE6E04F0FA9E7911E43 /* ProofEngine.swift */; };
 		C41270685BDB2A73E78F40EE /* SidebarListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060B814C28C6D21DD4FD0240 /* SidebarListRow.swift */; };
+		CA97A1D89D6983F077D330E4 /* SidebarProofsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23EF8E2D87DC6BA2B05BCFC /* SidebarProofsUITests.swift */; };
+		DD85863B71C3B3C5F5F450C0 /* PageFormatUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A8C01627880490D4A7E2E2 /* PageFormatUITests.swift */; };
 		DE95859063575AD934D696A1 /* CompactSlider in Frameworks */ = {isa = PBXBuildFile; productRef = 8006429CDD05A4A2BF2649AA /* CompactSlider */; };
+		DEA298B94D1B2EDD940F98EB /* AppIntegrationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0FC932935540E76A1FC78A /* AppIntegrationUITests.swift */; };
 		E32DCA9C5FC9891E84C58AE5 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB6A16264E9C08EEB3511CAF /* SidebarView.swift */; };
+		FD52641F8E8B8E9BBFE05C06 /* SidebarFontsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9769F1DB175821D894C4A9FC /* SidebarFontsUITests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		14E360DF2C2A09F6F77F2FD3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C2CE3C2E921F89A0B4DC4B21 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BAE3CC0C28A554694069DE13;
+			remoteInfo = TypeProofing;
+		};
+		525974258E35A7B9F1A3C840 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C2CE3C2E921F89A0B4DC4B21 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BAE3CC0C28A554694069DE13;
+			remoteInfo = TypeProofing;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		D7916C70DDC89AE8B476F74F /* Embed Frameworks */ = {
@@ -47,8 +70,10 @@
 
 /* Begin PBXFileReference section */
 		01C9B31020CDF64BC53338BE /* TypeProofingApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypeProofingApp.swift; sourceTree = "<group>"; };
+		04A8C01627880490D4A7E2E2 /* PageFormatUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageFormatUITests.swift; sourceTree = "<group>"; };
 		060B814C28C6D21DD4FD0240 /* SidebarListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarListRow.swift; sourceTree = "<group>"; };
 		20244E9C11E156EFEECBE024 /* FontStyleSelectionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontStyleSelectionViews.swift; sourceTree = "<group>"; };
+		26064D6ECE40BB87275C3984 /* TypeProofingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TypeProofingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		273F6D02473AD733F5E06051 /* FontsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontsSection.swift; sourceTree = "<group>"; };
 		3D33E010FA40B61EFD0077A8 /* TypeProofing.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = TypeProofing.icns; sourceTree = "<group>"; };
 		48C400F557AD777FB0D600E6 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -58,12 +83,18 @@
 		90438448008FA276EEC20F55 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		9149A97ACE7210EC141D56B7 /* HoverComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverComponents.swift; sourceTree = "<group>"; };
 		952879886E2B5AED1734715E /* FontSortCriterion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontSortCriterion.swift; sourceTree = "<group>"; };
+		9769F1DB175821D894C4A9FC /* SidebarFontsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFontsUITests.swift; sourceTree = "<group>"; };
 		97840A987134E3D7752BC503 /* Assets.car */ = {isa = PBXFileReference; path = Assets.car; sourceTree = "<group>"; };
+		9CA3DEF34F455645E68CFC17 /* ProofKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofKeyTests.swift; sourceTree = "<group>"; };
+		A23EF8E2D87DC6BA2B05BCFC /* SidebarProofsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarProofsUITests.swift; sourceTree = "<group>"; };
 		B0F272E6A94B474DD21D5D59 /* FontAxesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontAxesView.swift; sourceTree = "<group>"; };
+		BD0FC932935540E76A1FC78A /* AppIntegrationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntegrationUITests.swift; sourceTree = "<group>"; };
 		C4D7DBC1455476D39F561233 /* TypeProofing.icon */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TypeProofing.icon; path = TypeProofing/Resources/TypeProofing.icon; sourceTree = SOURCE_ROOT; };
 		CB6A16264E9C08EEB3511CAF /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		D4FC692BC2E944259717D652 /* FontSortBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontSortBar.swift; sourceTree = "<group>"; };
+		D7B45C6D0EF3F226D95AF506 /* SettingsPanelUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanelUITests.swift; sourceTree = "<group>"; };
 		DE953E15DAE1B6D459834F9F /* PythonSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonSetup.swift; sourceTree = "<group>"; };
+		E647C0F98E8D79FEC457A44B /* TypeProofingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TypeProofingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E8FB027921231229D0CEAE7D /* PDFViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFViewerView.swift; sourceTree = "<group>"; };
 		FAE140EC7E4A8EC46F447012 /* Python.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Python.framework; path = ../../../../../../Library/Frameworks/Python.framework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -86,6 +117,8 @@
 			isa = PBXGroup;
 			children = (
 				7D7FCB2FD81DBACB3AF8E10E /* TypeProofing.app */,
+				E647C0F98E8D79FEC457A44B /* TypeProofingTests.xctest */,
+				26064D6ECE40BB87275C3984 /* TypeProofingUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -124,9 +157,19 @@
 			isa = PBXGroup;
 			children = (
 				5FCA9C300C3A943E71806A20 /* TypeProofing */,
+				3FE5E18ED4F813D291CA6271 /* TypeProofingTests */,
+				9195610AA1E92DFB458CBE6B /* TypeProofingUITests */,
 				1468DF854A20BAF0C763FEC1 /* Frameworks */,
 				0372BE76CE863F5FABB7593E /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		3FE5E18ED4F813D291CA6271 /* TypeProofingTests */ = {
+			isa = PBXGroup;
+			children = (
+				9CA3DEF34F455645E68CFC17 /* ProofKeyTests.swift */,
+			);
+			path = TypeProofingTests;
 			sourceTree = "<group>";
 		};
 		5FCA9C300C3A943E71806A20 /* TypeProofing */ = {
@@ -136,6 +179,18 @@
 				1863C657ABD6958C3DFA5935 /* Sources */,
 			);
 			path = TypeProofing;
+			sourceTree = "<group>";
+		};
+		9195610AA1E92DFB458CBE6B /* TypeProofingUITests */ = {
+			isa = PBXGroup;
+			children = (
+				BD0FC932935540E76A1FC78A /* AppIntegrationUITests.swift */,
+				04A8C01627880490D4A7E2E2 /* PageFormatUITests.swift */,
+				D7B45C6D0EF3F226D95AF506 /* SettingsPanelUITests.swift */,
+				9769F1DB175821D894C4A9FC /* SidebarFontsUITests.swift */,
+				A23EF8E2D87DC6BA2B05BCFC /* SidebarProofsUITests.swift */,
+			);
+			path = TypeProofingUITests;
 			sourceTree = "<group>";
 		};
 		BA27BFD7AFB52219707E5DF1 /* Resources */ = {
@@ -174,6 +229,42 @@
 			productReference = 7D7FCB2FD81DBACB3AF8E10E /* TypeProofing.app */;
 			productType = "com.apple.product-type.application";
 		};
+		EBE13540A18790AF98B6F076 /* TypeProofingUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A3E3B73436BC809DF73AD29 /* Build configuration list for PBXNativeTarget "TypeProofingUITests" */;
+			buildPhases = (
+				E81012DC63C0938254ED163E /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BE3BC384D5C27FFBC77EC823 /* PBXTargetDependency */,
+			);
+			name = TypeProofingUITests;
+			packageProductDependencies = (
+			);
+			productName = TypeProofingUITests;
+			productReference = 26064D6ECE40BB87275C3984 /* TypeProofingUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		FF48B1958EBCBFA95A295041 /* TypeProofingTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 448340DEF843C14D64EE3C78 /* Build configuration list for PBXNativeTarget "TypeProofingTests" */;
+			buildPhases = (
+				BF21D3994341AB473444C98D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0C31ED7BBE480901345FB8EB /* PBXTargetDependency */,
+			);
+			name = TypeProofingTests;
+			packageProductDependencies = (
+			);
+			productName = TypeProofingTests;
+			productReference = E647C0F98E8D79FEC457A44B /* TypeProofingTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -183,6 +274,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					EBE13540A18790AF98B6F076 = {
+						TestTargetID = BAE3CC0C28A554694069DE13;
+					};
 				};
 			};
 			buildConfigurationList = D1E50765D5A62C2F789978C4 /* Build configuration list for PBXProject "TypeProofing" */;
@@ -204,6 +298,8 @@
 			projectRoot = "";
 			targets = (
 				BAE3CC0C28A554694069DE13 /* TypeProofing */,
+				FF48B1958EBCBFA95A295041 /* TypeProofingTests */,
+				EBE13540A18790AF98B6F076 /* TypeProofingUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -266,9 +362,65 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BF21D3994341AB473444C98D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5C2C5BB759A10148FDA051E1 /* ProofKeyTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E81012DC63C0938254ED163E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DEA298B94D1B2EDD940F98EB /* AppIntegrationUITests.swift in Sources */,
+				DD85863B71C3B3C5F5F450C0 /* PageFormatUITests.swift in Sources */,
+				9E787FB53F11627158613C87 /* SettingsPanelUITests.swift in Sources */,
+				FD52641F8E8B8E9BBFE05C06 /* SidebarFontsUITests.swift in Sources */,
+				CA97A1D89D6983F077D330E4 /* SidebarProofsUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		0C31ED7BBE480901345FB8EB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BAE3CC0C28A554694069DE13 /* TypeProofing */;
+			targetProxy = 525974258E35A7B9F1A3C840 /* PBXContainerItemProxy */;
+		};
+		BE3BC384D5C27FFBC77EC823 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BAE3CC0C28A554694069DE13 /* TypeProofing */;
+			targetProxy = 14E360DF2C2A09F6F77F2FD3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		4C0EE29000F9F53499E0CEAC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					/Library/Frameworks,
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dograytype.TypeProofingTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TypeProofing.app/Contents/MacOS/TypeProofing";
+			};
+			name = Release;
+		};
 		667A7292847C88DD778A4A50 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -390,6 +542,67 @@
 			};
 			name = Debug;
 		};
+		EB538DF370647D1E5FEE8873 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dograytype.TypeProofingUITests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+				TEST_TARGET_NAME = TypeProofing;
+			};
+			name = Debug;
+		};
+		ECA1B29113712BD5E2689115 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dograytype.TypeProofingUITests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+				TEST_TARGET_NAME = TypeProofing;
+			};
+			name = Release;
+		};
+		F47C57E657EAF3058FD07375 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					/Library/Frameworks,
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dograytype.TypeProofingTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TypeProofing.app/Contents/MacOS/TypeProofing";
+			};
+			name = Debug;
+		};
 		F80F81B084C630F724E4E98C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -449,11 +662,29 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0A3E3B73436BC809DF73AD29 /* Build configuration list for PBXNativeTarget "TypeProofingUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EB538DF370647D1E5FEE8873 /* Debug */,
+				ECA1B29113712BD5E2689115 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		3779E817181D68D1FBD6CDAF /* Build configuration list for PBXNativeTarget "TypeProofing" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				ADD95A4EAC36DE165A93A116 /* Debug */,
 				667A7292847C88DD778A4A50 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		448340DEF843C14D64EE3C78 /* Build configuration list for PBXNativeTarget "TypeProofingTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F47C57E657EAF3058FD07375 /* Debug */,
+				4C0EE29000F9F53499E0CEAC /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

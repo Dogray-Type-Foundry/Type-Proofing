@@ -854,7 +854,12 @@ class ProofSettingsManager:
             if proof_info is None:
                 return
 
-            unique_key = create_unique_proof_key(unique_proof_name)
+            # Use registry key for base proofs; display-name-derived key for numbered variants
+            base_display_name, _ = resolve_base_proof_key(unique_proof_name)
+            if unique_proof_name == base_display_name:
+                unique_key = base_proof_key
+            else:
+                unique_key = create_unique_proof_key(unique_proof_name)
             self._init_proof_instance_settings(unique_key, base_proof_key, proof_info)
 
         except Exception as e:
@@ -887,8 +892,14 @@ class ProofSettingsManager:
                 if base_option == "Show Baselines/Grid":
                     self.settings.set_proof_option("showBaselines", enabled)
                 else:
-                    # For unique proof names, use a sanitized version as the key
-                    unique_key = create_unique_proof_key(proof_name)
+                    # Use registry key for base proofs; display-name-derived key for variants
+                    from config import resolve_base_proof_key
+
+                    base_display, settings_key = resolve_base_proof_key(proof_name)
+                    if settings_key and proof_name == base_display:
+                        unique_key = settings_key
+                    else:
+                        unique_key = create_unique_proof_key(proof_name)
                     self.settings.set_proof_option(unique_key, enabled)
 
             # Save proof-specific settings
@@ -943,14 +954,19 @@ class ProofSettingsManager:
                 continue
 
             proof_name = item["Option"]
-            unique_key = create_unique_proof_key(proof_name)
 
             # Determine base proof type via resolver
             from config import resolve_base_proof_key
 
-            _, settings_key = resolve_base_proof_key(proof_name)
+            base_display_name, settings_key = resolve_base_proof_key(proof_name)
             if not settings_key:
                 settings_key = "basic_paragraph_small"
+
+            # Use registry key for base proofs; display-name-derived key for numbered variants
+            if proof_name == base_display_name:
+                unique_key = settings_key
+            else:
+                unique_key = create_unique_proof_key(proof_name)
 
             # Build settings for this proof
             proof_data = self._build_settings_for_proof(

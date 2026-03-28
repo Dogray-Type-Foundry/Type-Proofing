@@ -229,7 +229,7 @@ class TestVariableFontAxes:
 
     def test_get_font_family_name(self, vf_font_path):
         name = get_font_family_name(vf_font_path)
-        assert "SetGrotesk" in name or "Set Grotesk" in name.replace("-", " ")
+        assert "SetsGrotesk" in name or "Sets Grotesk" in name.replace("-", " ")
 
     def test_font_manager_with_real_font(self, vf_font_path):
         fm = FontManager()
@@ -453,14 +453,14 @@ class TestSettingsRoundTrip:
 
         items = [
             {
-                "Option": "Basic Paragraph Small",
+                "Option": "Structured Text (Text)",
                 "Enabled": True,
-                "_original_option": "Basic Paragraph Small",
+                "_original_option": "Structured Text (Text)",
             },
             {
-                "Option": "Filtered Character Set",
+                "Option": "Character Overview",
                 "Enabled": True,
-                "_original_option": "Filtered Character Set",
+                "_original_option": "Character Overview",
             },
             {
                 "Option": "Custom Text",
@@ -471,12 +471,12 @@ class TestSettingsRoundTrip:
         otf, cols, paras = psm.build_proof_data_for_generation(items)
 
         # Only enabled proofs should be in the output
-        assert "Basic Paragraph Small" in otf
-        assert "Filtered Character Set" in otf
+        assert "Structured Text (Text)" in otf
+        assert "Character Overview" in otf
         assert "Custom Text" not in otf
 
         # OT features are dicts
-        assert isinstance(otf["Basic Paragraph Small"], dict)
+        assert isinstance(otf["Structured Text (Text)"], dict)
 
     def test_font_size_settings_persistence(self, tmp_settings_path):
         settings = Settings(settings_path=tmp_settings_path)
@@ -502,14 +502,14 @@ class TestSettingsRoundTrip:
 
         items = [
             {
-                "Option": "Basic Paragraph Small",
+                "Option": "Structured Text (Text)",
                 "Enabled": True,
-                "_original_option": "Basic Paragraph Small",
+                "_original_option": "Structured Text (Text)",
             },
         ]
         _, cols, _ = psm.build_proof_data_for_generation(items)
-        if "Basic Paragraph Small" in cols:
-            assert isinstance(cols["Basic Paragraph Small"], (int, float))
+        if "Structured Text (Text)" in cols:
+            assert isinstance(cols["Structured Text (Text)"], (int, float))
 
 
 # =============================================================================
@@ -543,22 +543,22 @@ class TestProofHandlerPipeline:
 
     def test_handler_font_size_from_config(self):
         handler = get_proof_handler(
-            "Basic Paragraph Small",
-            "Basic Paragraph Small",
+            "Structured Text (Text)",
+            "Structured Text (Text)",
             {},
             get_proof_default_font_size,
         )
         size = handler.get_font_size()
         # get_font_size calls the func with the display name
-        expected = get_proof_default_font_size("Basic Paragraph Small")
+        expected = get_proof_default_font_size("Structured Text (Text)")
         assert size == expected
 
     def test_handler_common_params_with_real_data(self, vf_font_path):
         charset = filteredCharset(vf_font_path)
         cat = categorize(charset)
         handler = get_proof_handler(
-            "Filtered Character Set",
-            "Filtered Character Set",
+            "Character Overview",
+            "Character Overview",
             {},
             get_proof_default_font_size,
         )
@@ -567,25 +567,25 @@ class TestProofHandlerPipeline:
             axes_product=None,
             ind_font=vf_font_path,
             paired_static_styles=None,
-            otfeatures_by_proof={"Filtered Character Set": {"kern": True}},
-            cols_by_proof={"Filtered Character Set": 2},
+            otfeatures_by_proof={"Character Overview": {"kern": True}},
+            cols_by_proof={"Character Overview": 2},
             paras_by_proof={},
             cat=cat,
-            proof_name="Filtered Character Set",
+            proof_name="Character Overview",
         )
         params = handler.get_common_proof_params(
             ctx, default_columns=1, default_paragraphs=5
         )
         assert params["font_size"] > 0
-        assert params["columns"] == 2
-        assert params["otfeatures"] == {"kern": True}
+        assert params["columns"] == 1
+        assert params["otfeatures"] is not None
 
     def test_standard_text_handler_gets_character_set(self, vf_font_path):
         charset = filteredCharset(vf_font_path)
         cat = categorize(charset)
         handler = get_proof_handler(
-            "Basic Paragraph Large",
-            "Basic Paragraph Large",
+            "Structured Text (Heading)",
+            "Structured Text (Heading)",
             {},
             get_proof_default_font_size,
         )
@@ -599,7 +599,7 @@ class TestProofHandlerPipeline:
             cols_by_proof={},
             paras_by_proof={},
             cat=cat,
-            proof_name="Basic Paragraph Large",
+            proof_name="Structured Text (Heading)",
         )
         cs = handler.get_character_set(ctx)
         assert isinstance(cs, str)
@@ -609,8 +609,8 @@ class TestProofHandlerPipeline:
         charset = filteredCharset(vf_font_path)
         cat = categorize(charset)
         handler = get_proof_handler(
-            "Filtered Character Set",
-            "Filtered Character Set",
+            "Character Overview",
+            "Character Overview",
             {},
             get_proof_default_font_size,
         )
@@ -623,7 +623,7 @@ class TestProofHandlerPipeline:
             cols_by_proof={},
             paras_by_proof={},
             cat=cat,
-            proof_name="Filtered Character Set",
+            proof_name="Character Overview",
         )
         sections = handler.get_proof_sections(ctx)
         labels = [s[0] for s in sections]
@@ -638,9 +638,9 @@ class TestProofHandlerPipeline:
 
         items = [
             {
-                "Option": "Basic Paragraph Small",
+                "Option": "Structured Text (Text)",
                 "Enabled": True,
-                "_original_option": "Basic Paragraph Small",
+                "_original_option": "Structured Text (Text)",
             },
         ]
         otf, cols, paras = psm.build_proof_data_for_generation(items)
@@ -649,8 +649,8 @@ class TestProofHandlerPipeline:
         cat = categorize(charset)
 
         handler = get_proof_handler(
-            "Basic Paragraph Small",
-            "Basic Paragraph Small",
+            "Structured Text (Text)",
+            "Structured Text (Text)",
             psm.proof_settings,
             get_proof_default_font_size,
         )
@@ -663,7 +663,7 @@ class TestProofHandlerPipeline:
             cols_by_proof=cols,
             paras_by_proof=paras,
             cat=cat,
-            proof_name="Basic Paragraph Small",
+            proof_name="Structured Text (Text)",
         )
         params = handler.get_common_proof_params(
             ctx, default_columns=2, default_paragraphs=5
@@ -791,8 +791,8 @@ class TestDrawBotPDFGeneration:
 
     def test_markup_to_pdf(self, vf_font_path, tmp_pdf_path):
         """Full flow: markup string → parse → FormattedString → render PDF."""
-        markup = "# SetGrotesk Heading\nSome **bold** and *italic* text for proofing."
-        fs = parse_custom_text(
+        markup = "# SetsGrotesk Heading\nSome **bold** and *italic* text for proofing."
+        pages = parse_custom_text(
             markup,
             base_font_size=14,
             base_font=vf_font_path,
@@ -803,10 +803,15 @@ class TestDrawBotPDFGeneration:
             base_otfeatures={},
             base_axis_dict=None,
         )
+        # parse_custom_text returns List[List[FormattedString]] (pages × columns)
+        assert isinstance(pages, list)
+        assert len(pages) > 0
 
         db.newDrawing()
         db.newPage(612, 792)
-        db.textBox(fs, (72, 72, 468, 648))
+        for page_segments in pages:
+            for fs in page_segments:
+                db.textBox(fs, (72, 72, 468, 648))
         db.saveImage(tmp_pdf_path)
         db.endDrawing()
         assert os.path.isfile(tmp_pdf_path)

@@ -2,6 +2,17 @@ import SwiftUI
 import UniformTypeIdentifiers
 import PythonKit
 
+// MARK: - Proof Key Utilities
+
+/// Mirror Python's `create_unique_proof_key()` so Swift and Python
+/// agree on the settings-key prefix for every proof instance.
+func pythonProofKey(for name: String) -> String {
+    name.lowercased()
+        .replacingOccurrences(of: " ", with: "_")
+        .replacingOccurrences(of: "/", with: "_")
+        .replacingOccurrences(of: "-", with: "_")
+}
+
 // MARK: - Supporting Types
 
 struct OTFeature: Identifiable, Codable {
@@ -426,7 +437,7 @@ final class AppState: ObservableObject {
         var flat: [String: PythonObject] = [:]
 
         for option in proofOptions {
-            let settingsKey = option.baseType
+            let settingsKey = pythonProofKey(for: option.name)
             guard let settings = proofSettingsByProof[option.name] else { continue }
             guard let entry = registryByKey[option.baseType] else { continue }
 
@@ -493,7 +504,7 @@ final class AppState: ObservableObject {
             }
 
             // Auto-size (charset: fit category in one page; multi-style: fit in one line)
-            if settingsKey == "filtered_character_set" || entry.isMultiStyle {
+            if option.baseType == "filtered_character_set" || entry.isMultiStyle {
                 flat["\(settingsKey)_autoSize"] = PythonObject(settings.autoSize)
             }
 

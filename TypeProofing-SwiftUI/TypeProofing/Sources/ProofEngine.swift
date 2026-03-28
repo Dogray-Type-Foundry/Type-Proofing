@@ -45,6 +45,7 @@ struct ProofRegistryEntry {
     let hasCustomText: Bool
     let hasCategories: Bool
     let isMultiStyle: Bool
+    let displayOrder: Int
 
     /// Proofs that don't support tracking/alignment (character-set style proofs)
     private static let noFormattingKeys: Set<String> = [
@@ -325,9 +326,10 @@ final class ProofEngine: ObservableObject {
                 defaultFontSize: Int(info.get("default_size", 12)) ?? 12,
                 hasCustomText: Bool(info.get("has_custom_text", false)) ?? false,
                 hasCategories: Bool(info.get("has_categories", false)) ?? false,
-                isMultiStyle: Bool(info.get("multi_style", false)) ?? false
+                isMultiStyle: Bool(info.get("multi_style", false)) ?? false,
+                displayOrder: Int(info.get("display_order", 999)) ?? 999
             )
-        }
+        }.sorted { $0.displayOrder < $1.displayOrder }
     }
 
     func getPageFormats() -> [String] {

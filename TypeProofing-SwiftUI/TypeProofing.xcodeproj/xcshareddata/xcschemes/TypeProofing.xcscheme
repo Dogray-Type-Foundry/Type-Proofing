@@ -21,6 +21,34 @@
                ReferencedContainer = "container:TypeProofing.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "FF48B1958EBCBFA95A295041"
+               BuildableName = "TypeProofingTests.xctest"
+               BlueprintName = "TypeProofingTests"
+               ReferencedContainer = "container:TypeProofing.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "EBE13540A18790AF98B6F076"
+               BuildableName = "TypeProofingUITests.xctest"
+               BlueprintName = "TypeProofingUITests"
+               ReferencedContainer = "container:TypeProofing.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -39,7 +67,31 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "FF48B1958EBCBFA95A295041"
+               BuildableName = "TypeProofingTests.xctest"
+               BlueprintName = "TypeProofingTests"
+               ReferencedContainer = "container:TypeProofing.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "EBE13540A18790AF98B6F076"
+               BuildableName = "TypeProofingUITests.xctest"
+               BlueprintName = "TypeProofingUITests"
+               ReferencedContainer = "container:TypeProofing.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

@@ -8,6 +8,15 @@
 #   CODESIGN_ID — Developer ID Application identity (optional; ad-hoc if unset)
 #   NOTARIZE    — set to "1" to notarize after building
 #
+# Notarization credentials (pick ONE method):
+#   Method A — keychain profile (recommended, one-time setup):
+#     NOTARY_PROFILE — keychain profile name (default: "TypeProofing")
+#     Setup:  xcrun notarytool store-credentials "TypeProofing" \
+#               --apple-id <email> --team-id <team> --password <app-specific-pw>
+#
+#   Method B — environment variables (legacy / CI):
+#     APPLE_ID, TEAM_ID, NOTARIZE_PASSWORD
+#
 # Prerequisites:
 #   1. Run Scripts/bundle_python_packages.sh once to populate python-packages/
 #   2. Xcode 16+ with Swift 5.9+ toolchain
@@ -133,6 +142,10 @@ for mod in idlelib ensurepip tkinter turtledemo turtle.py pydoc_data pydoc.py; d
     rm -rf "${PY_LIB}/${mod}" 2>/dev/null || true
 done
 
+# Remove config-* directories (C extension build configs containing python.o
+# which has an invalid/weak signature that blocks notarization)
+rm -rf "${PY_LIB}"/config-* 2>/dev/null || true
+
 # Remove all __pycache__ directories (regenerated on first import)
 find "${PY_LIB}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
@@ -231,14 +244,43 @@ fi
 echo "✓ DMG created: ${DMG_PATH}"
 
 # ── 8. Notarize (optional) ────────────────────────────────────────────
+NOTARY_PROFILE="${NOTARY_PROFILE:-TypeProofing}"
+
 if [ "${NOTARIZE:-0}" = "1" ] && [ "${CODESIGN_ID}" != "-" ]; then
     echo "Submitting for notarization…"
-    xcrun notarytool submit "${DMG_PATH}" \
-        --apple-id "${APPLE_ID}" \
-        --team-id "${TEAM_ID}" \
-        --password "${NOTARIZE_PASSWORD}" \
-        --wait
 
+    NOTARY_RC=0
+    # Prefer keychain profile; fall back to env-var credentials
+    if xcrun notarytool history --keychain-profile "${NOTARY_PROFILE}" >/dev/null 2>&1; then
+        echo "  Using keychain profile: ${NOTARY_PROFILE}"
+        xcrun notarytool submit "${DMG_PATH}" \
+            --keychain-profile "${NOTARY_PROFILE}" \
+            --wait || NOTARY_RC=$?
+    elif [ -n "${APPLE_ID:-}" ] && [ -n "${TEAM_ID:-}" ] && [ -n "${NOTARIZE_PASSWORD:-}" ]; then
+        echo "  Using environment variable credentials"
+        xcrun notarytool submit "${DMG_PATH}" \
+            --apple-id "${APPLE_ID}" \
+            --team-id "${TEAM_ID}" \
+            --password "${NOTARIZE_PASSWORD}" \
+            --wait || NOTARY_RC=$?
+    else
+        echo "Error: No notarization credentials found."
+        echo "  Either store a keychain profile:"
+        echo "    xcrun notarytool store-credentials \"${NOTARY_PROFILE}\" \\"
+        echo "      --apple-id <email> --team-id <team> --password <app-specific-pw>"
+        echo "  Or set APPLE_ID, TEAM_ID, and NOTARIZE_PASSWORD environment variables."
+        exit 1
+    fi
+
+    if [ "${NOTARY_RC}" -ne 0 ]; then
+        echo ""
+        echo "✗ Notarization failed (exit code ${NOTARY_RC})."
+        echo "  Fetch the detailed log with:"
+        echo "    xcrun notarytool log <submission-id> --keychain-profile \"${NOTARY_PROFILE}\""
+        exit 1
+    fi
+
+    echo "Stapling notarization ticket…"
     xcrun stapler staple "${DMG_PATH}"
     echo "✓ Notarization complete"
 fi

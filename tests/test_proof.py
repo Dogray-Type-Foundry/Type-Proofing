@@ -86,11 +86,11 @@ class TestResetProofPageCounter:
 class TestHandlerRegistry:
     def test_registry_has_expected_entries(self):
         expected = {
-            "Filtered Character Set",
-            "Spacing Proof",
-            "Ar Character Set",
+            "Character Overview",
+            "Spacing Test",
+            "Ar Character Overview",
             "Custom Text",
-            "Multi-Style Comparison",
+            "Style Comparison",
         }
         assert expected == set(PROOF_HANDLER_REGISTRY.keys())
 
@@ -119,8 +119,8 @@ class TestGetProofHandler:
 
     def test_special_handler(self):
         handler = get_proof_handler(
-            "Filtered Character Set",
-            "Filtered Character Set",
+            "Character Overview",
+            "Character Overview",
             {},
             self._mock_font_size_func,
         )
@@ -128,13 +128,13 @@ class TestGetProofHandler:
 
     def test_spacing_handler(self):
         handler = get_proof_handler(
-            "Spacing Proof", "Spacing Proof", {}, self._mock_font_size_func
+            "Spacing Test", "Spacing Test", {}, self._mock_font_size_func
         )
         assert isinstance(handler, SpacingProofHandler)
 
     def test_arabic_handler(self):
         handler = get_proof_handler(
-            "Ar Character Set", "Ar Character Set", {}, self._mock_font_size_func
+            "Ar Character Overview", "Ar Character Overview", {}, self._mock_font_size_func
         )
         assert isinstance(handler, ArCharacterSetHandler)
 
@@ -146,8 +146,8 @@ class TestGetProofHandler:
 
     def test_multi_style_handler(self):
         handler = get_proof_handler(
-            "Multi-Style Comparison",
-            "Multi-Style Comparison",
+            "Style Comparison",
+            "Style Comparison",
             {},
             self._mock_font_size_func,
         )
@@ -155,8 +155,8 @@ class TestGetProofHandler:
 
     def test_standard_text_handler_for_text_proofs(self):
         handler = get_proof_handler(
-            "Basic Paragraph Large",
-            "Basic Paragraph Large",
+            "Structured Text (Heading)",
+            "Structured Text (Heading)",
             {},
             self._mock_font_size_func,
         )
@@ -164,13 +164,13 @@ class TestGetProofHandler:
 
     def test_numbered_variant(self):
         handler = get_proof_handler(
-            "Basic Paragraph Small",
-            "Basic Paragraph Small 2",
+            "Structured Text (Text)",
+            "Structured Text (Text) 2",
             {},
             self._mock_font_size_func,
         )
         assert isinstance(handler, StandardTextProofHandler)
-        assert handler.proof_name == "Basic Paragraph Small 2"
+        assert handler.proof_name == "Structured Text (Text) 2"
 
     def test_caching(self):
         h1 = get_proof_handler(
@@ -215,7 +215,7 @@ class TestBaseProofHandlerMethods:
         return FilteredCharacterSetHandler(proof_name, settings, lambda name: 78)
 
     def test_unique_proof_key(self):
-        handler = self._make_handler("Filtered Character Set")
+        handler = self._make_handler("Character Overview")
         assert handler.unique_proof_key == "filtered_character_set"
 
     def test_get_font_size(self):
@@ -301,7 +301,7 @@ class TestBaseProofHandlerMethods:
 class TestStandardTextProofHandler:
     def test_with_valid_key(self):
         handler = StandardTextProofHandler(
-            "Basic Paragraph Large", {}, lambda n: 28, proof_key="basic_paragraph_large"
+            "Structured Text (Heading)", {}, lambda n: 28, proof_key="basic_paragraph_large"
         )
         assert handler.character_set_key == "base_letters"
         assert handler.hoefler_style is True
@@ -309,14 +309,14 @@ class TestStandardTextProofHandler:
 
     def test_arabic_config(self):
         handler = StandardTextProofHandler(
-            "Ar Paragraph Large", {}, lambda n: 28, proof_key="ar_paragraph_large"
+            "Ar Structured Text (Heading)", {}, lambda n: 28, proof_key="ar_paragraph_large"
         )
         assert handler.character_set_key == "arabic"
         assert handler.language == "ar"
 
     def test_farsi_config(self):
         handler = StandardTextProofHandler(
-            "Fa Paragraph Large", {}, lambda n: 28, proof_key="fa_paragraph_large"
+            "Fa Structured Text (Heading)", {}, lambda n: 28, proof_key="fa_paragraph_large"
         )
         assert handler.character_set_key == "farsi"
         assert handler.language == "fa"
@@ -348,20 +348,20 @@ class TestStandardTextProofHandler:
 
     def test_accents_config(self):
         handler = StandardTextProofHandler(
-            "Diacritic Words Large", {}, lambda n: 28, proof_key="diacritic_words_large"
+            "Accented Words (Heading)", {}, lambda n: 28, proof_key="diacritic_words_large"
         )
         assert handler.accents == 3
         assert handler.character_set_key == "accented_plus"
 
     def test_force_wordsiv(self):
         handler = StandardTextProofHandler(
-            "Generative Text Small", {}, lambda n: 10, proof_key="generative_text_small"
+            "Auto-Generated Text", {}, lambda n: 10, proof_key="generative_text_small"
         )
         assert handler.force_wordsiv is True
 
     def test_mixed_styles(self):
         handler = StandardTextProofHandler(
-            "Paired Styles", {}, lambda n: 10, proof_key="paired_styles_paragraph_small"
+            "Style Pairing", {}, lambda n: 10, proof_key="paired_styles_paragraph_small"
         )
         assert handler.mixed_styles is True
 
@@ -481,16 +481,16 @@ class TestMultiStyleComparisonHandler:
         # (generate_proof triggers deep drawBot rendering that hangs under mocks)
         MultiStyleComparisonProofHandler._generated_instances = set()
         MultiStyleComparisonProofHandler._generated_instances.add(
-            "Multi-Style Comparison"
+            "Style Comparison"
         )
         assert (
-            "Multi-Style Comparison"
+            "Style Comparison"
             in MultiStyleComparisonProofHandler._generated_instances
         )
 
     def test_is_style_enabled_default(self):
         handler = MultiStyleComparisonProofHandler(
-            "Multi-Style Comparison", {}, lambda n: 78
+            "Style Comparison", {}, lambda n: 78
         )
         # Default: all styles enabled
         assert handler._is_style_enabled(0) is True
@@ -499,7 +499,7 @@ class TestMultiStyleComparisonHandler:
     def test_is_style_enabled_from_settings(self):
         key = make_settings_key("multi_style_comparison", "style", "0")
         handler = MultiStyleComparisonProofHandler(
-            "Multi-Style Comparison", {key: False}, lambda n: 78
+            "Style Comparison", {key: False}, lambda n: 78
         )
         assert handler._is_style_enabled(0) is False
 

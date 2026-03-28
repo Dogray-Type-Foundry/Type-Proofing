@@ -538,8 +538,19 @@ def get_available_ot_features(font_path):
 
 
 def get_proof_registry():
-    """Return the full proof registry dict for the Swift UI to consume."""
-    return dict(PROOF_REGISTRY)
+    """Return the full proof registry dict for the Swift UI to consume.
+
+    Includes a ``display_order`` index so the caller can sort entries in the
+    canonical order defined by ``get_proof_display_names``.
+    """
+    ordered_names = get_proof_display_names(include_arabic=True)
+    order_map = {name: i for i, name in enumerate(ordered_names)}
+    result = {}
+    for key, info in PROOF_REGISTRY.items():
+        entry = dict(info)
+        entry["display_order"] = order_map.get(info["display_name"], 999)
+        result[key] = entry
+    return result
 
 
 def get_page_formats():

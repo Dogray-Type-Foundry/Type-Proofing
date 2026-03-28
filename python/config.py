@@ -163,6 +163,131 @@ FA_TEMPLATE = "اآبپتثجچحخدذرزژسشصضطظعغفقکگلمنهو�
 ARFA_DUAL_JOIN = "بپتثجچحخسصضطظعغفڤقكکگلمنهہھيئی"
 ARFA_RIGHT_JOIN = "اأإآٱدذرزژوﻻ"
 
+# Glyph-name → Unicode mapping for Arabic shape groups (Glyphs app naming)
+ARABIC_GLYPH_TO_UNICODE = {
+    "hamza-ar":               "\u0621",  # ء
+    "alef-ar":                "\u0627",  # ا
+    "alefHamzaabove":         "\u0623",  # أ
+    "alefHamzabelow-ar":      "\u0625",  # إ
+    "alefMadda-ar":           "\u0622",  # آ
+    "alefWasla-ar":           "\u0671",  # ٱ
+    "behDotless-ar":          "\u066E",  # ٮ
+    "beh-ar":                 "\u0628",  # ب
+    "peh-ar":                 "\u067E",  # پ
+    "teh-ar":                 "\u062A",  # ت
+    "theh-ar":                "\u062B",  # ث
+    "tteh-ar":                "\u0679",  # ٹ
+    "alefMaksura-ar":         "\u0649",  # ى
+    "noon-ar":                "\u0646",  # ن
+    "noonghunna-ar":          "\u06BA",  # ں
+    "yeh-ar":                 "\u064A",  # ي
+    "yehHamzaabove-ar":       "\u0626",  # ئ
+    "yehFarsi-ar":            "\u06CC",  # ی
+    "jeem-ar":                "\u062C",  # ج
+    "tcheh-ar":               "\u0686",  # چ
+    "hah-ar":                 "\u062D",  # ح
+    "khah-ar":                "\u062E",  # خ
+    "dal-ar":                 "\u062F",  # د
+    "thal-ar":                "\u0630",  # ذ
+    "ddal-ar":                "\u0688",  # ڈ
+    "reh-ar":                 "\u0631",  # ر
+    "zain-ar":                "\u0632",  # ز
+    "rreh-ar":                "\u0691",  # ڑ
+    "jeh-ar":                 "\u0698",  # ژ
+    "seen-ar":                "\u0633",  # س
+    "sheen-ar":               "\u0634",  # ش
+    "sad-ar":                 "\u0635",  # ص
+    "dad-ar":                 "\u0636",  # ض
+    "tah-ar":                 "\u0637",  # ط
+    "zah-ar":                 "\u0638",  # ظ
+    "ain-ar":                 "\u0639",  # ع
+    "ghain-ar":               "\u063A",  # غ
+    "fehDotless-ar":          "\u06A1",  # ڡ
+    "feh-ar":                 "\u0641",  # ف
+    "veh-ar":                 "\u06A4",  # ڤ
+    "qaf-ar":                 "\u0642",  # ق
+    "qafDotless-ar":          "\u066F",  # ٯ
+    "kaf-ar":                 "\u0643",  # ك
+    "keheh-ar":               "\u06A9",  # ک
+    "gaf-ar":                 "\u06AF",  # گ
+    "lam-ar":                 "\u0644",  # ل
+    "meem-ar":                "\u0645",  # م
+    "heh-ar":                 "\u0647",  # ه
+    "tehMarbuta-ar":          "\u0629",  # ة
+    "hehDoachashmee-ar":      "\u06BE",  # ھ
+    "hehgoal-ar":             "\u06C1",  # ہ
+    "hehgoalHamzaabove-ar":   "\u06C2",  # ۂ
+    "tehMarbutagoal-ar":      "\u06C3",  # ۃ
+    "waw-ar":                 "\u0648",  # و
+    "wawHamzaabove-ar":       "\u0624",  # ؤ
+    "yehbarree-ar":           "\u06D2",  # ے
+    "yehbarreeHamzaabove-ar": "\u06D3",  # ۓ
+}
+
+# Shape groups from arabic_group_list.txt.
+# Each tuple: (base_group_name, positional_suffix, [glyph_names])
+# suffix "init" → wordsiv startswith, "medi" → inner, "fina" → endswith, "" → inner
+# Non-connectors (hamza, alef, dal, reh, waw, alefMaksura) appear in both fina and isolated ("").
+ARABIC_SHAPE_GROUPS = [
+    # Non-connectors: fina (endswith) + isolated (inner)
+    ("hamza-ar",          "fina", ["hamza-ar"]),
+    ("hamza-ar",          "",     ["hamza-ar"]),
+    ("alef-ar",           "fina", ["alef-ar", "alefHamzaabove", "alefHamzabelow-ar", "alefMadda-ar", "alefWasla-ar"]),
+    ("alef-ar",           "",     ["alef-ar", "alefHamzaabove", "alefHamzabelow-ar", "alefMadda-ar", "alefWasla-ar"]),
+    # Dual-joiners: fina, medi, init
+    ("behDotless-ar",     "fina", ["behDotless-ar", "beh-ar", "peh-ar", "teh-ar", "theh-ar", "tteh-ar"]),
+    ("behDotless-ar",     "medi", ["behDotless-ar", "beh-ar", "peh-ar", "alefMaksura-ar", "teh-ar", "theh-ar", "tteh-ar", "noon-ar", "noonghunna-ar", "yeh-ar", "yehHamzaabove-ar", "yehFarsi-ar"]),
+    ("behDotless-ar",     "init", ["behDotless-ar", "beh-ar", "peh-ar", "alefMaksura-ar", "teh-ar", "theh-ar", "tteh-ar", "noon-ar", "noonghunna-ar", "hehgoal-ar", "yeh-ar", "yehHamzaabove-ar", "yehFarsi-ar"]),
+    ("hah-ar",            "fina", ["jeem-ar", "tcheh-ar", "hah-ar", "khah-ar"]),
+    ("hah-ar",            "medi", ["jeem-ar", "tcheh-ar", "hah-ar", "khah-ar"]),
+    ("hah-ar",            "init", ["jeem-ar", "tcheh-ar", "hah-ar", "khah-ar"]),
+    # Non-connectors: fina + isolated
+    ("dal-ar",            "fina", ["dal-ar", "thal-ar", "ddal-ar"]),
+    ("dal-ar",            "",     ["dal-ar", "thal-ar", "ddal-ar"]),
+    ("reh-ar",            "fina", ["reh-ar", "zain-ar", "rreh-ar", "jeh-ar"]),
+    ("reh-ar",            "",     ["reh-ar", "zain-ar", "rreh-ar", "jeh-ar"]),
+    # Dual-joiners
+    ("seen-ar",           "fina", ["seen-ar", "sheen-ar"]),
+    ("seen-ar",           "medi", ["seen-ar", "sheen-ar"]),
+    ("seen-ar",           "init", ["seen-ar", "sheen-ar"]),
+    ("sad-ar",            "fina", ["sad-ar", "dad-ar"]),
+    ("sad-ar",            "medi", ["sad-ar", "dad-ar"]),
+    ("sad-ar",            "init", ["sad-ar", "dad-ar"]),
+    ("tah-ar",            "fina", ["tah-ar", "zah-ar"]),
+    ("tah-ar",            "medi", ["tah-ar", "zah-ar"]),
+    ("tah-ar",            "init", ["tah-ar", "zah-ar"]),
+    ("ain-ar",            "fina", ["ain-ar", "ghain-ar"]),
+    ("ain-ar",            "medi", ["ain-ar", "ghain-ar"]),
+    ("ain-ar",            "init", ["ain-ar", "ghain-ar"]),
+    ("fehDotless-ar",     "fina", ["fehDotless-ar", "feh-ar", "veh-ar"]),
+    ("fehDotless-ar",     "medi", ["fehDotless-ar", "feh-ar", "veh-ar", "qaf-ar"]),
+    ("fehDotless-ar",     "init", ["fehDotless-ar", "feh-ar", "veh-ar", "qaf-ar"]),
+    ("qafDotless-ar",     "fina", ["qafDotless-ar", "qaf-ar"]),
+    ("kaf-ar",            "fina", ["kaf-ar"]),
+    ("kaf-ar",            "medi", ["kaf-ar", "keheh-ar", "gaf-ar"]),
+    ("kaf-ar",            "init", ["kaf-ar", "keheh-ar", "gaf-ar"]),
+    ("keheh-ar",          "fina", ["keheh-ar", "gaf-ar"]),
+    ("lam-ar",            "fina", ["lam-ar"]),
+    ("lam-ar",            "medi", ["lam-ar"]),
+    ("lam-ar",            "init", ["lam-ar"]),
+    ("meem-ar",           "fina", ["meem-ar"]),
+    ("meem-ar",           "medi", ["meem-ar"]),
+    ("meem-ar",           "init", ["meem-ar"]),
+    ("noonghunna-ar",     "fina", ["noonghunna-ar", "noon-ar"]),
+    ("heh-ar",            "fina", ["heh-ar", "tehMarbuta-ar"]),
+    ("heh-ar",            "medi", ["heh-ar", "hehDoachashmee-ar"]),
+    ("heh-ar",            "init", ["heh-ar", "hehDoachashmee-ar"]),
+    ("hehgoal-ar",        "fina", ["hehgoal-ar", "hehgoalHamzaabove-ar", "tehMarbutagoal-ar"]),
+    ("hehgoal-ar",        "medi", ["hehgoal-ar"]),
+    ("hehDoachashmee-ar", "fina", ["hehDoachashmee-ar"]),
+    # Non-connectors: fina + isolated
+    ("waw-ar",            "fina", ["waw-ar", "wawHamzaabove-ar"]),
+    ("waw-ar",            "",     ["waw-ar", "wawHamzaabove-ar"]),
+    ("alefMaksura-ar",    "fina", ["alefMaksura-ar", "yeh-ar", "yehHamzaabove-ar", "yehFarsi-ar"]),
+    ("alefMaksura-ar",    "",     ["alefMaksura-ar", "yeh-ar", "yehHamzaabove-ar", "yehFarsi-ar"]),
+    ("yehbarree-ar",      "fina", ["yehbarree-ar", "yehbarreeHamzaabove-ar"]),
+]
+
 # Positional forms for Arabic/Farsi contextual analysis
 POS_FORMS = ("init", "medi", "fina")
 
@@ -225,7 +350,7 @@ arabicFarsiUrduNumbers = ARABIC_TEXTS["arabic_farsi_urdu_numbers"]
 # Single source of truth for all proof definitions
 PROOF_REGISTRY = {
     "filtered_character_set": {
-        "display_name": "Filtered Character Set",
+        "display_name": "Character Overview",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 1,
@@ -234,7 +359,7 @@ PROOF_REGISTRY = {
         "has_categories": True,
     },
     "spacing_proof": {
-        "display_name": "Spacing Proof",
+        "display_name": "Spacing Test",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 2,
@@ -243,7 +368,7 @@ PROOF_REGISTRY = {
         "has_categories": True,
     },
     "basic_paragraph_large": {
-        "display_name": "Basic Paragraph Large",
+        "display_name": "Structured Text (Heading)",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 1,
@@ -256,7 +381,7 @@ PROOF_REGISTRY = {
         },
     },
     "diacritic_words_large": {
-        "display_name": "Diacritic Words Large",
+        "display_name": "Accented Words (Heading)",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 1,
@@ -269,7 +394,7 @@ PROOF_REGISTRY = {
         },
     },
     "basic_paragraph_small": {
-        "display_name": "Basic Paragraph Small",
+        "display_name": "Structured Text (Text)",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 2,
@@ -282,7 +407,7 @@ PROOF_REGISTRY = {
         },
     },
     "paired_styles_paragraph_small": {
-        "display_name": "Paired Styles Paragraph Small",
+        "display_name": "Style Pairing",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 2,
@@ -296,7 +421,7 @@ PROOF_REGISTRY = {
         },
     },
     "generative_text_small": {
-        "display_name": "Generative Text Small",
+        "display_name": "Auto-Generated Text",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 2,
@@ -309,7 +434,7 @@ PROOF_REGISTRY = {
         },
     },
     "diacritic_words_small": {
-        "display_name": "Diacritic Words Small",
+        "display_name": "Accented Words (Text)",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 2,
@@ -322,7 +447,7 @@ PROOF_REGISTRY = {
         },
     },
     "misc_paragraph_small": {
-        "display_name": "Misc Paragraph Small",
+        "display_name": "Practical Figures & Punctuation",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 2,
@@ -336,7 +461,7 @@ PROOF_REGISTRY = {
         },
     },
     "ar_character_set": {
-        "display_name": "Ar Character Set",
+        "display_name": "Ar Character Overview",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 1,
@@ -344,7 +469,7 @@ PROOF_REGISTRY = {
         "default_size": 78,  # charsetFontSize
     },
     "ar_paragraph_large": {
-        "display_name": "Ar Paragraph Large",
+        "display_name": "Ar Structured Text (Heading)",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 1,
@@ -357,7 +482,7 @@ PROOF_REGISTRY = {
         },
     },
     "fa_paragraph_large": {
-        "display_name": "Fa Paragraph Large",
+        "display_name": "Fa Structured Text (Heading)",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 1,
@@ -370,7 +495,7 @@ PROOF_REGISTRY = {
         },
     },
     "ar_paragraph_small": {
-        "display_name": "Ar Paragraph Small",
+        "display_name": "Ar Structured Text (Text)",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 2,
@@ -383,7 +508,7 @@ PROOF_REGISTRY = {
         },
     },
     "fa_paragraph_small": {
-        "display_name": "Fa Paragraph Small",
+        "display_name": "Fa Structured Text (Text)",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 2,
@@ -396,7 +521,7 @@ PROOF_REGISTRY = {
         },
     },
     "ar_vocalization_paragraph_small": {
-        "display_name": "Ar Vocalization Paragraph Small",
+        "display_name": "Ar Vowel Marks",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 2,
@@ -410,7 +535,7 @@ PROOF_REGISTRY = {
         },
     },
     "ar_lat_mixed_paragraph_small": {
-        "display_name": "Ar-Lat Mixed Paragraph Small",
+        "display_name": "Ar-Latin Mixed",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 2,
@@ -424,7 +549,7 @@ PROOF_REGISTRY = {
         },
     },
     "ar_numbers_small": {
-        "display_name": "Ar Numbers Small",
+        "display_name": "Ar Numerals",
         "is_arabic": True,
         "has_settings": True,
         "default_cols": 2,
@@ -437,6 +562,34 @@ PROOF_REGISTRY = {
             "inject_text_key": "arabicFarsiUrduNumbers",
         },
     },
+    "ar_generative_paragraph_small": {
+        "display_name": "Ar All Combinations",
+        "is_arabic": True,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+        "default_size": 10,
+        "text": {
+            "character_set_key": "arabic",
+            "default_paragraphs": 5,
+            "language": "ar",
+            "hoefler_style": True,
+        },
+    },
+    "fa_generative_paragraph_small": {
+        "display_name": "Fa All Combinations",
+        "is_arabic": True,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+        "default_size": 10,
+        "text": {
+            "character_set_key": "farsi",
+            "default_paragraphs": 5,
+            "language": "fa",
+            "hoefler_style": True,
+        },
+    },
     "custom_text": {
         "display_name": "Custom Text",
         "is_arabic": False,
@@ -447,7 +600,7 @@ PROOF_REGISTRY = {
         "has_custom_text": True,
     },
     "multi_style_comparison": {
-        "display_name": "Multi-Style Comparison",
+        "display_name": "Style Comparison",
         "is_arabic": False,
         "has_settings": True,
         "default_cols": 1,
@@ -505,6 +658,8 @@ def get_proof_display_names(include_arabic=True):
         "ar_vocalization_paragraph_small",
         "ar_lat_mixed_paragraph_small",
         "ar_numbers_small",
+        "ar_generative_paragraph_small",
+        "fa_generative_paragraph_small",
     ]
 
     result = []

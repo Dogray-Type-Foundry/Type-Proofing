@@ -303,13 +303,13 @@ class TestValidateSettingValue:
 class TestCreateUniqueProofKey:
     def test_basic_conversion(self):
         assert (
-            create_unique_proof_key("Basic Paragraph Large") == "basic_paragraph_large"
+            create_unique_proof_key("Structured Text (Heading)") == "structured_text_(heading)"
         )
 
     def test_numbered_variant(self):
         assert (
-            create_unique_proof_key("Basic Paragraph Large 2")
-            == "basic_paragraph_large_2"
+            create_unique_proof_key("Structured Text (Heading) 2")
+            == "structured_text_(heading)_2"
         )
 
     def test_slash_handling(self):
@@ -317,8 +317,8 @@ class TestCreateUniqueProofKey:
 
     def test_hyphen_handling(self):
         assert (
-            create_unique_proof_key("Ar-Lat Mixed Paragraph Small")
-            == "ar_lat_mixed_paragraph_small"
+            create_unique_proof_key("Ar-Latin Mixed")
+            == "ar_latin_mixed"
         )
 
     def test_already_snake_case(self):
