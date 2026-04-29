@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01D7394CB1127DDAFAE38060 /* SettingsPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B4B0E69F25CBAFA4C0B8F6E /* SettingsPanelView.swift */; };
+		0E9398AE32C814E4C7DEF9CB /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = E493E6A783430EC1B5DCD13C /* README.md */; };
 		21C09CBC972E6F495E0A7326 /* Assets.car in Resources */ = {isa = PBXBuildFile; fileRef = 97840A987134E3D7752BC503 /* Assets.car */; };
 		2BDA8F37615B3B5B15331217 /* PythonSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE953E15DAE1B6D459834F9F /* PythonSetup.swift */; };
 		2D1FC97C23A2CF0042055394 /* HoverComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9149A97ACE7210EC141D56B7 /* HoverComponents.swift */; };
@@ -94,6 +95,7 @@
 		D4FC692BC2E944259717D652 /* FontSortBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontSortBar.swift; sourceTree = "<group>"; };
 		D7B45C6D0EF3F226D95AF506 /* SettingsPanelUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanelUITests.swift; sourceTree = "<group>"; };
 		DE953E15DAE1B6D459834F9F /* PythonSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonSetup.swift; sourceTree = "<group>"; };
+		E493E6A783430EC1B5DCD13C /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		E647C0F98E8D79FEC457A44B /* TypeProofingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TypeProofingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E8FB027921231229D0CEAE7D /* PDFViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFViewerView.swift; sourceTree = "<group>"; };
 		FAE140EC7E4A8EC46F447012 /* Python.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Python.framework; path = ../../../../../../Library/Frameworks/Python.framework; sourceTree = "<group>"; };
@@ -186,6 +188,7 @@
 			children = (
 				BD0FC932935540E76A1FC78A /* AppIntegrationUITests.swift */,
 				04A8C01627880490D4A7E2E2 /* PageFormatUITests.swift */,
+				E493E6A783430EC1B5DCD13C /* README.md */,
 				D7B45C6D0EF3F226D95AF506 /* SettingsPanelUITests.swift */,
 				9769F1DB175821D894C4A9FC /* SidebarFontsUITests.swift */,
 				A23EF8E2D87DC6BA2B05BCFC /* SidebarProofsUITests.swift */,
@@ -234,6 +237,7 @@
 			buildConfigurationList = 0A3E3B73436BC809DF73AD29 /* Build configuration list for PBXNativeTarget "TypeProofingUITests" */;
 			buildPhases = (
 				E81012DC63C0938254ED163E /* Sources */,
+				CFAA7F6BDC4CDD49483FC1C6 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -305,6 +309,14 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		CFAA7F6BDC4CDD49483FC1C6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0E9398AE32C814E4C7DEF9CB /* README.md in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DBB74F200945AC77C16FDC8B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
