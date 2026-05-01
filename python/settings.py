@@ -705,6 +705,7 @@ class ProofSettingsManager:
         "filtered_character_set",
         "spacing_proof",
         "ar_character_set",
+        "substitution_overview",
     }
 
     # Consolidated setting type configuration

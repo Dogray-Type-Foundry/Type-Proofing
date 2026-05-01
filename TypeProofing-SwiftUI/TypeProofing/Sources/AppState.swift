@@ -13,10 +13,23 @@ func pythonProofKey(for name: String) -> String {
         .replacingOccurrences(of: "-", with: "_")
 }
 
+func pythonSettingsKey(for option: ProofOption, entry: ProofRegistryEntry) -> String {
+    if option.name == entry.displayName {
+        return option.baseType
+    }
+    return pythonProofKey(for: option.name)
+}
+
 // MARK: - Supporting Types
 
 struct OTFeature: Identifiable, Codable {
     let id: String   // tag, e.g. "liga"
+    var tag: String
+    var enabled: Bool
+}
+
+struct SubstitutionFeature: Identifiable, Codable {
+    let id: String
     var tag: String
     var enabled: Bool
 }
@@ -41,6 +54,7 @@ struct ProofSettings: Codable {
     var generateOnce: Bool = false
     var categories: CategorySettings = CategorySettings()
     var otFeatures: [OTFeature] = []
+    var substitutionFeatures: [SubstitutionFeature] = []
     // Custom Text: default font path for "generate once"
     var defaultFontPath: String = ""
     var defaultFontAxisDict: [String: Double]? = nil
@@ -48,6 +62,47 @@ struct ProofSettings: Codable {
     var enabledStyleIndices: [String: Bool] = [:]
     // Auto-size: fit category on one page (charset) or fit longest line (multi-style)
     var autoSize: Bool = false
+
+    init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case fontSize
+        case tracking
+        case lineHeight
+        case columns
+        case paragraphs
+        case alignment
+        case customText
+        case markupEnabled
+        case generateOnce
+        case categories
+        case otFeatures
+        case substitutionFeatures
+        case defaultFontPath
+        case defaultFontAxisDict
+        case enabledStyleIndices
+        case autoSize
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 12
+        tracking = try container.decodeIfPresent(Double.self, forKey: .tracking) ?? 0
+        lineHeight = try container.decodeIfPresent(Double.self, forKey: .lineHeight) ?? 1.2
+        columns = try container.decodeIfPresent(Int.self, forKey: .columns) ?? 1
+        paragraphs = try container.decodeIfPresent(Int.self, forKey: .paragraphs) ?? 5
+        alignment = try container.decodeIfPresent(String.self, forKey: .alignment) ?? "left"
+        customText = try container.decodeIfPresent(String.self, forKey: .customText) ?? ""
+        markupEnabled = try container.decodeIfPresent(Bool.self, forKey: .markupEnabled) ?? false
+        generateOnce = try container.decodeIfPresent(Bool.self, forKey: .generateOnce) ?? false
+        categories = try container.decodeIfPresent(CategorySettings.self, forKey: .categories) ?? CategorySettings()
+        otFeatures = try container.decodeIfPresent([OTFeature].self, forKey: .otFeatures) ?? []
+        substitutionFeatures = try container.decodeIfPresent([SubstitutionFeature].self, forKey: .substitutionFeatures) ?? []
+        defaultFontPath = try container.decodeIfPresent(String.self, forKey: .defaultFontPath) ?? ""
+        defaultFontAxisDict = try container.decodeIfPresent([String: Double].self, forKey: .defaultFontAxisDict)
+        enabledStyleIndices = try container.decodeIfPresent([String: Bool].self, forKey: .enabledStyleIndices) ?? [:]
+        autoSize = try container.decodeIfPresent(Bool.self, forKey: .autoSize) ?? false
+    }
 }
 
 /// Represents a single font style entry (static font or VF named instance).
@@ -113,10 +168,15 @@ final class AppState: ObservableObject {
 
     // Available OT features from loaded fonts (minus hidden)
     private(set) var availableOTFeatures: [String] = []
+    private(set) var availableSubstitutionFeatures: [String] = []
 
     // MARK: - Registry cache
 
     private(set) var registryByKey: [String: ProofRegistryEntry] = [:]
+
+    var isRegistryLoaded: Bool {
+        !registryByKey.isEmpty
+    }
 
     // MARK: - Persistence
 
@@ -198,6 +258,7 @@ final class AppState: ObservableObject {
                     refreshFontStyles(engine: engine)
                     let allFeatures = engine.getAvailableOTFeatures(path: fontPaths[0])
                     availableOTFeatures = allFeatures.filter { !HIDDEN_FEATURES.contains($0) }
+                    availableSubstitutionFeatures = engine.getAvailableSubstitutionFeatures(path: fontPaths[0])
                     if outputDirectory.isEmpty {
                         outputDirectory = (fontPaths[0] as NSString).deletingLastPathComponent
                     }
@@ -211,18 +272,7 @@ final class AppState: ObservableObject {
             pageFormat = pageFormats.first!
         }
 
-        let defaultOrder = engine.getDefaultProofOrder()
-        proofOptions = defaultOrder.enumerated().compactMap { (index, displayName) -> ProofOption? in
-            guard let entry = registry.first(where: { $0.displayName == displayName }) else {
-                return nil
-            }
-            return ProofOption(
-                name: displayName,
-                baseType: entry.key,
-                enabled: true,
-                order: index
-            )
-        }
+        proofOptions = makeDefaultProofOptions()
 
         // Initialize default proof settings for each
         for option in proofOptions {
@@ -243,6 +293,42 @@ final class AppState: ObservableObject {
         settings.alignment = entry.isArabic ? "right" : "left"
         settings.paragraphs = entry.hasParagraphs ? 5 : 2
         proofSettingsByProof[option.name] = settings
+    }
+
+    private func makeDefaultProofOptions() -> [ProofOption] {
+        registryByKey.values.sorted { lhs, rhs in
+            if lhs.displayOrder == rhs.displayOrder {
+                return lhs.displayName < rhs.displayName
+            }
+            return lhs.displayOrder < rhs.displayOrder
+        }.enumerated().map { index, entry in
+            ProofOption(
+                name: entry.displayName,
+                baseType: entry.key,
+                enabled: entry.defaultEnabled,
+                order: index
+            )
+        }
+    }
+
+    private func resetProofDefaults() {
+        proofOptions = makeDefaultProofOptions()
+        proofSettingsByProof.removeAll()
+        for option in proofOptions {
+            initializeDefaultSettings(for: option)
+            if !availableOTFeatures.isEmpty {
+                proofSettingsByProof[option.name]?.otFeatures = buildDefaultOTFeatures(for: option.baseType)
+            }
+            if !availableSubstitutionFeatures.isEmpty {
+                proofSettingsByProof[option.name]?.substitutionFeatures = buildDefaultSubstitutionFeatures(for: option.baseType)
+            }
+        }
+        selectedProof = proofOptions.first?.id
+    }
+
+    private func clearGeneratedOutput() {
+        currentPDFPath = nil
+        proofSections = []
     }
 
     // MARK: - Font Management
@@ -283,12 +369,17 @@ final class AppState: ObservableObject {
         if let firstPath = fontPaths.first {
             let allFeatures = engine.getAvailableOTFeatures(path: firstPath)
             availableOTFeatures = allFeatures.filter { !HIDDEN_FEATURES.contains($0) }
+            availableSubstitutionFeatures = engine.getAvailableSubstitutionFeatures(path: firstPath)
 
             // Apply to all proofs that don't have features yet
             for (name, settings) in proofSettingsByProof where settings.otFeatures.isEmpty {
                 proofSettingsByProof[name]?.otFeatures = buildDefaultOTFeatures(
                     for: proofOptions.first(where: { $0.name == name })?.baseType
                 )
+            }
+            for (name, settings) in proofSettingsByProof where settings.substitutionFeatures.isEmpty {
+                let baseType = proofOptions.first(where: { $0.name == name })?.baseType
+                proofSettingsByProof[name]?.substitutionFeatures = buildDefaultSubstitutionFeatures(for: baseType)
             }
         }
 
@@ -310,6 +401,19 @@ final class AppState: ObservableObject {
                 enabled = false
             }
             return OTFeature(id: tag, tag: tag, enabled: enabled)
+        }
+    }
+
+    private func supportsSubstitutionCategories(_ baseType: String?) -> Bool {
+        baseType == "filtered_character_set" ||
+            baseType == "spacing_proof" ||
+            baseType == "multi_style_comparison"
+    }
+
+    private func buildDefaultSubstitutionFeatures(for baseType: String?) -> [SubstitutionFeature] {
+        guard supportsSubstitutionCategories(baseType) else { return [] }
+        return availableSubstitutionFeatures.map { tag in
+            SubstitutionFeature(id: tag, tag: tag, enabled: false)
         }
     }
 
@@ -342,9 +446,14 @@ final class AppState: ObservableObject {
         fontPaths.removeAll()
         loadedFonts.removeAll()
         axisValuesByFont.removeAll()
+        disabledFontPaths.removeAll()
+        fontStyles.removeAll()
         availableOTFeatures.removeAll()
+        availableSubstitutionFeatures.removeAll()
         outputDirectory = ""
-        currentPDFPath = nil
+        useCustomOutputLocation = false
+        customOutputLocation = ""
+        clearGeneratedOutput()
         schedulePersist()
     }
 
@@ -386,6 +495,9 @@ final class AppState: ObservableObject {
         // Copy OT features if available
         if !availableOTFeatures.isEmpty {
             proofSettingsByProof[newName]?.otFeatures = buildDefaultOTFeatures(for: baseType)
+        }
+        if !availableSubstitutionFeatures.isEmpty {
+            proofSettingsByProof[newName]?.substitutionFeatures = buildDefaultSubstitutionFeatures(for: baseType)
         }
 
         schedulePersist()
@@ -437,9 +549,9 @@ final class AppState: ObservableObject {
         var flat: [String: PythonObject] = [:]
 
         for option in proofOptions {
-            let settingsKey = pythonProofKey(for: option.name)
             guard let settings = proofSettingsByProof[option.name] else { continue }
             guard let entry = registryByKey[option.baseType] else { continue }
+            let settingsKey = pythonSettingsKey(for: option, entry: entry)
 
             // Font size — always present
             flat["\(settingsKey)_fontSize"] = PythonObject(Int(settings.fontSize))
@@ -476,6 +588,11 @@ final class AppState: ObservableObject {
                 flat["\(settingsKey)_cat_numbers_symbols"] = PythonObject(settings.categories.numbersSymbols)
                 flat["\(settingsKey)_cat_punctuation"] = PythonObject(settings.categories.punctuation)
                 flat["\(settingsKey)_cat_accented"] = PythonObject(settings.categories.accented)
+            }
+            if supportsSubstitutionCategories(option.baseType) {
+                for feature in settings.substitutionFeatures {
+                    flat["\(settingsKey)_sub_\(feature.tag)"] = PythonObject(feature.enabled)
+                }
             }
 
             // Custom text
@@ -597,20 +714,28 @@ final class AppState: ObservableObject {
     }
 
     func resetAllSettings() {
-        proofSettingsByProof.removeAll()
-        for option in proofOptions {
-            initializeDefaultSettings(for: option)
-            if !availableOTFeatures.isEmpty {
-                proofSettingsByProof[option.name]?.otFeatures = buildDefaultOTFeatures(for: option.baseType)
-            }
-        }
+        guard isRegistryLoaded else { return }
+
+        resetProofDefaults()
         showBaselines = false
-        pageFormat = "A4Landscape"
+        pageFormat = pageFormats.contains("A4Landscape") ? "A4Landscape" : (pageFormats.first ?? "A4Landscape")
+        useCustomOutputLocation = false
+        customOutputLocation = ""
+        if let first = fontPaths.first {
+            outputDirectory = (first as NSString).deletingLastPathComponent
+        } else {
+            outputDirectory = ""
+        }
+        clearGeneratedOutput()
         persistState()
     }
 
     func setAvailableOTFeatures(_ features: [String]) {
         availableOTFeatures = features
+    }
+
+    func setAvailableSubstitutionFeatures(_ features: [String]) {
+        availableSubstitutionFeatures = features
     }
 }
 

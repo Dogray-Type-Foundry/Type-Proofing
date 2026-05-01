@@ -141,7 +141,7 @@ class TestProofRegistry:
                 ), f"{key} text config missing default_paragraphs"
 
     def test_expected_proof_count(self):
-        assert len(PROOF_REGISTRY) == 21
+        assert len(PROOF_REGISTRY) == 22
 
 
 # =============================================================================

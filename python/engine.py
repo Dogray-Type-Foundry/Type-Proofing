@@ -537,6 +537,20 @@ def get_available_ot_features(font_path):
     return list(db.listOpenTypeFeatures(font_path))
 
 
+def get_available_substitution_features(font_path):
+    """Return visible GSUB substitution feature tags available in the font."""
+    from opentype_substitutions import get_substitution_features
+
+    return get_substitution_features(font_path)
+
+
+def get_font_substitutions(font_path):
+    """Return plain GSUB substitution data grouped by feature tag."""
+    from opentype_substitutions import get_font_substitutions as _get
+
+    return _get(font_path)
+
+
 def get_proof_registry():
     """Return the full proof registry dict for the Swift UI to consume.
 

@@ -22,6 +22,7 @@ PYTHON_FILES=(
     settings.py
     pdf_manager.py
     markup_parser.py
+    opentype_substitutions.py
     sample_texts.py
     script_texts.py
     accented_dictionary.py

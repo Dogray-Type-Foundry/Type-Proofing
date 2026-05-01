@@ -91,6 +91,7 @@ class TestHandlerRegistry:
             "Ar Character Overview",
             "Custom Text",
             "Style Comparison",
+            "Substitution Overview",
         }
         assert expected == set(PROOF_HANDLER_REGISTRY.keys())
 

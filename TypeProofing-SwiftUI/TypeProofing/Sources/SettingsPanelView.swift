@@ -132,6 +132,11 @@ struct SettingsPanelView: View {
                     // Character categories (if applicable)
                     if entry?.hasCategories ?? false {
                         CategoryCheckboxes(categories: state.selectedProofSettings.categories)
+                        if option.baseType == "filtered_character_set" ||
+                            option.baseType == "spacing_proof" ||
+                            option.baseType == "multi_style_comparison" {
+                            SubstitutionCheckboxes(features: state.selectedProofSettings.substitutionFeatures)
+                        }
                         Divider()
                     }
 
@@ -340,6 +345,35 @@ struct CategoryCheckboxes: View {
                 .toggleStyle(.checkbox)
             Toggle("Accented", isOn: $categories.accented)
                 .toggleStyle(.checkbox)
+        }
+    }
+}
+
+// MARK: - SubstitutionCheckboxes
+
+struct SubstitutionCheckboxes: View {
+    @Binding var features: [SubstitutionFeature]
+
+    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("OpenType Substitutions")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
+            if features.isEmpty {
+                Text("Load a font with GSUB substitutions to see categories")
+                    .foregroundStyle(.tertiary)
+                    .font(.caption)
+            } else {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 4) {
+                    ForEach($features) { $feature in
+                        Toggle(feature.tag, isOn: $feature.enabled)
+                            .toggleStyle(.checkbox)
+                    }
+                }
+            }
         }
     }
 }

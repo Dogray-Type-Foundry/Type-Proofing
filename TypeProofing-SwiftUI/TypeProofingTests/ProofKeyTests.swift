@@ -150,4 +150,36 @@ final class ProofKeyTests: XCTestCase {
             "filtered_character_set_2_cat_uppercase_base"
         )
     }
+
+    func testBaseProofSettingsUseRegistryKey() {
+        let entry = ProofRegistryEntry(
+            key: "filtered_character_set",
+            displayName: "Character Overview",
+            isArabic: false,
+            hasSettings: true,
+            defaultColumns: 1,
+            hasParagraphs: false,
+            defaultFontSize: 78,
+            hasCustomText: false,
+            hasCategories: true,
+            isMultiStyle: false,
+            defaultEnabled: true,
+            displayOrder: 0
+        )
+        let baseOption = ProofOption(
+            name: "Character Overview",
+            baseType: "filtered_character_set",
+            enabled: true,
+            order: 0
+        )
+        let duplicateOption = ProofOption(
+            name: "Character Overview 2",
+            baseType: "filtered_character_set",
+            enabled: true,
+            order: 1
+        )
+
+        XCTAssertEqual(pythonSettingsKey(for: baseOption, entry: entry), "filtered_character_set")
+        XCTAssertEqual(pythonSettingsKey(for: duplicateOption, entry: entry), "character_overview_2")
+    }
 }

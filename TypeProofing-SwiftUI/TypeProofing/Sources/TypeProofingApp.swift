@@ -20,9 +20,11 @@ struct TypeProofingApp: App {
                 Button("Reset Settings") {
                     appState.resetAllSettings()
                 }
+                .disabled(!engine.isReady || !appState.isRegistryLoaded)
                 Button("Reset Fonts") {
                     appState.resetFonts()
                 }
+                .disabled(!engine.isReady || !appState.isRegistryLoaded)
             }
         }
     }

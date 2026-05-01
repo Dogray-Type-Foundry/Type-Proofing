@@ -610,6 +610,15 @@ PROOF_REGISTRY = {
         "has_categories": True,
         "multi_style": True,
     },
+    "substitution_overview": {
+        "display_name": "Substitution Overview",
+        "is_arabic": False,
+        "has_settings": True,
+        "default_cols": 2,
+        "has_paragraphs": False,
+        "default_size": 48,
+        "default_enabled": False,
+    },
 }
 
 # =============================================================================
@@ -650,6 +659,7 @@ def get_proof_display_names(include_arabic=True):
         "misc_paragraph_small",
         "custom_text",
         "multi_style_comparison",
+        "substitution_overview",
         "ar_character_set",
         "ar_paragraph_large",
         "fa_paragraph_large",
@@ -767,6 +777,7 @@ def proof_supports_formatting(proof_key):
         "filtered_character_set",
         "spacing_proof",
         "ar_character_set",
+        "substitution_overview",
     ]
 
 

@@ -1889,6 +1889,267 @@ class CategoryBasedProofHandler(BaseProofHandler):
 
         return proof_sections
 
+    def get_substitution_category_setting(self, feature_tag):
+        """Get a GSUB substitution category setting. Defaults are always off."""
+        key = make_settings_key(self.unique_proof_key, "sub", feature_tag)
+        return bool(self.proof_settings.get(key, False))
+
+    def get_substitution_sections(self, font_path):
+        """Return selected GSUB output glyph groups for direct glyph drawing."""
+        from opentype_substitutions import get_font_substitutions
+
+        sections = []
+        for feature in get_font_substitutions(font_path):
+            tag = feature["feature_tag"]
+            if self.get_substitution_category_setting(tag):
+                output_glyphs = feature.get("output_glyphs", [])
+                if output_glyphs:
+                    sections.append((tag, output_glyphs))
+        return sections
+
+
+def _glyph_formatted_string(
+    glyph_groups,
+    font_path,
+    font_size,
+    tracking=0,
+    align="center",
+    axis_dict=None,
+    spacing_mode=False,
+):
+    formatted = db.FormattedString(
+        txt="",
+        font=font_path,
+        fallbackFont=myFallbackFont,
+        fontSize=font_size,
+        align=align,
+        tracking=tracking,
+        fontVariations=axis_dict,
+    )
+
+    for group_index, (label, glyph_names) in enumerate(glyph_groups):
+        formatted.append(
+            txt=f"{label}\n",
+            font=FOOTER_FONT_NAME,
+            fontSize=max(8, font_size * 0.16),
+            lineHeight=max(10, font_size * 0.28),
+            tracking=0,
+        )
+        formatted.append(
+            txt="",
+            font=font_path,
+            fallbackFont=myFallbackFont,
+            fontSize=font_size,
+            tracking=tracking,
+            fontVariations=axis_dict,
+        )
+        for glyph_name in glyph_names:
+            if spacing_mode:
+                formatted.appendGlyph(
+                    "H",
+                    "H",
+                    "H",
+                    glyph_name,
+                    "H",
+                    "O",
+                    "H",
+                    glyph_name,
+                    "O",
+                    glyph_name,
+                    "O",
+                    "O",
+                    "O",
+                )
+                formatted.append(txt="\n")
+            else:
+                formatted.appendGlyph(glyph_name)
+                formatted.append(txt=" ")
+        if group_index < len(glyph_groups) - 1:
+            formatted.append(txt="\n")
+    return formatted
+
+
+def _glyph_run_formatted_string(
+    glyph_names,
+    font_path,
+    font_size,
+    axis_dict=None,
+    align="center",
+):
+    formatted = db.FormattedString(
+        txt="",
+        font=font_path,
+        fallbackFont=myFallbackFont,
+        fontSize=font_size,
+        lineHeight=font_size * 1.1,
+        align=align,
+        fontVariations=axis_dict,
+    )
+    formatted.appendGlyph(*glyph_names)
+    return formatted
+
+
+def _draw_direct_glyph_grid(
+    glyph_names,
+    axesProduct,
+    indFont,
+    fontSize,
+    sectionName,
+):
+    if not glyph_names:
+        return
+
+    global _PROOF_PAGE_INDEX
+
+    content_x = marginHorizontal
+    content_y = marginVertical
+    content_w = config.pageDimensions[0] - marginHorizontal * 2
+    content_h = config.pageDimensions[1] - marginVertical * 2
+    cell_w_min = max(fontSize * 1.45, 72)
+    cell_h = max(fontSize * 1.28, 54)
+    col_count = max(1, int(content_w // cell_w_min))
+    row_count = max(1, int(content_h // cell_h))
+    cell_w = content_w / col_count
+    cells_per_page = col_count * row_count
+
+    for suffix, axisDict in _normalize_axes(axesProduct, indFont):
+        page_title = f"{sectionName} - {suffix}"
+        for start in range(0, len(glyph_names), cells_per_page):
+            page_glyphs = glyph_names[start : start + cells_per_page]
+            db.newPage(*config.pageDimensions)
+            _PROOF_PAGE_INDEX += 1
+            drawFooter(page_title, indFont, None, None, pageNumber=_PROOF_PAGE_INDEX)
+            db.hyphenation(False)
+
+            for index, glyph_name in enumerate(page_glyphs):
+                row = index // col_count
+                col = index % col_count
+                x = content_x + col * cell_w
+                y = content_y + content_h - (row + 1) * cell_h
+                glyph = _glyph_run_formatted_string(
+                    [glyph_name],
+                    indFont,
+                    fontSize,
+                    axis_dict=axisDict,
+                    align="center",
+                )
+                db.textBox(glyph, (x, y, cell_w, cell_h))
+
+
+def _draw_direct_glyph_sections(
+    glyph_groups,
+    axesProduct,
+    indFont,
+    fontSize,
+    sectionName,
+):
+    if not glyph_groups:
+        return
+
+    global _PROOF_PAGE_INDEX
+
+    content_x = marginHorizontal
+    content_y = marginVertical
+    content_w = config.pageDimensions[0] - marginHorizontal * 2
+    content_h = config.pageDimensions[1] - marginVertical * 2
+    cell_w_min = max(fontSize * 1.45, 72)
+    cell_h = max(fontSize * 1.28, 54)
+    label_size = max(7, min(10, fontSize * 0.13))
+    label_h = max(label_size * 1.5, 12)
+    col_count = max(1, int(content_w // cell_w_min))
+    cell_w = content_w / col_count
+
+    for suffix, axisDict in _normalize_axes(axesProduct, indFont):
+        page_title = f"{sectionName} - {suffix}"
+        y_top = content_y
+
+        def new_page():
+            global _PROOF_PAGE_INDEX
+            nonlocal y_top
+            db.newPage(*config.pageDimensions)
+            _PROOF_PAGE_INDEX += 1
+            drawFooter(page_title, indFont, None, None, pageNumber=_PROOF_PAGE_INDEX)
+            db.hyphenation(False)
+            y_top = content_y + content_h
+
+        def ensure_space(height):
+            if y_top - height < content_y:
+                new_page()
+
+        new_page()
+        for label, glyph_names in glyph_groups:
+            if not glyph_names:
+                continue
+
+            ensure_space(label_h + cell_h)
+            y_top -= label_h
+            feature_label = db.FormattedString(
+                txt=label,
+                font=FOOTER_FONT_NAME,
+                fontSize=label_size,
+                lineHeight=label_h,
+            )
+            db.textBox(feature_label, (content_x, y_top, content_w, label_h))
+
+            for start in range(0, len(glyph_names), col_count):
+                ensure_space(cell_h)
+                y_top -= cell_h
+                row_glyphs = glyph_names[start : start + col_count]
+                for col, glyph_name in enumerate(row_glyphs):
+                    x = content_x + col * cell_w
+                    glyph = _glyph_run_formatted_string(
+                        [glyph_name],
+                        indFont,
+                        fontSize,
+                        axis_dict=axisDict,
+                        align="center",
+                    )
+                    db.textBox(glyph, (x, y_top, cell_w, cell_h))
+
+
+def drawGlyphGroups(
+    glyph_groups,
+    axesProduct,
+    indFont,
+    fontSize,
+    sectionName,
+    columns=1,
+    tracking=0,
+    align="center",
+    spacing_mode=False,
+):
+    if not glyph_groups:
+        return
+    if not spacing_mode:
+        _draw_direct_glyph_sections(
+            glyph_groups,
+            axesProduct,
+            indFont,
+            fontSize,
+            sectionName,
+        )
+        return
+
+    for suffix, axisDict in _normalize_axes(axesProduct, indFont):
+        formatted = _glyph_formatted_string(
+            glyph_groups,
+            indFont,
+            fontSize,
+            tracking=tracking,
+            align=align,
+            axis_dict=axisDict,
+            spacing_mode=spacing_mode,
+        )
+        drawContent(
+            formatted,
+            f"{sectionName} - {suffix}",
+            columns,
+            indFont,
+            "ltr",
+            None,
+            tracking,
+        )
+
 
 class FilteredCharacterSetHandler(CategoryBasedProofHandler):
     """Handler for Filtered Character Set proof type."""
@@ -1923,6 +2184,21 @@ class FilteredCharacterSetHandler(CategoryBasedProofHandler):
                     tracking=tracking_value,
                 )
 
+        substitution_sections = self.get_substitution_sections(context.ind_font)
+        if substitution_sections:
+            font_size = base_font_size
+            tracking_value = font_size / 1.5
+            drawGlyphGroups(
+                substitution_sections,
+                context.axes_product,
+                context.ind_font,
+                font_size,
+                f"Character Set - OpenType Substitutions - {font_size}pt",
+                columns=1,
+                tracking=tracking_value,
+                align="center",
+            )
+
 
 class SpacingProofHandler(CategoryBasedProofHandler):
     """Handler for Spacing Proof type."""
@@ -1946,6 +2222,20 @@ class SpacingProofHandler(CategoryBasedProofHandler):
                     tracking=params["tracking_value"],
                 )
 
+        substitution_sections = self.get_substitution_sections(context.ind_font)
+        if substitution_sections:
+            drawGlyphGroups(
+                substitution_sections,
+                context.axes_product,
+                context.ind_font,
+                params["font_size"],
+                f"Spacing - OpenType Substitutions - {params['font_size']}pt",
+                columns=params["columns"],
+                tracking=params["tracking_value"],
+                align="left",
+                spacing_mode=True,
+            )
+
 
 class ArCharacterSetHandler(BaseProofHandler):
     """Handler for Arabic Character Set proof type."""
@@ -1965,6 +2255,177 @@ class ArCharacterSetHandler(BaseProofHandler):
             sectionName=section_name,
             tracking=tracking_value,
         )
+
+
+class SubstitutionOverviewProofHandler(BaseProofHandler):
+    """Render GSUB substitution relationships as before/after glyph rows."""
+
+    def generate_proof(self, context):
+        from opentype_substitutions import get_font_substitutions
+
+        features = get_font_substitutions(context.ind_font)
+        if not features:
+            print(f"No substitutions found for '{self.proof_name}', skipping")
+            return
+
+        params = self.get_common_proof_params(context, default_columns=2)
+        for suffix, axis_dict in _normalize_axes(context.axes_product, context.ind_font):
+            self._draw_overview_pages(
+                features,
+                context.ind_font,
+                params["font_size"],
+                axis_dict,
+                f"{self.proof_name} - {params['font_size']}pt - {suffix}",
+                params["columns"],
+            )
+
+    def _draw_overview_pages(
+        self,
+        features,
+        font_path,
+        font_size,
+        axis_dict,
+        page_title,
+        columns,
+    ):
+        global _PROOF_PAGE_INDEX
+
+        content_x = marginHorizontal
+        content_y = marginVertical
+        content_w = config.pageDimensions[0] - marginHorizontal * 2
+        content_h = config.pageDimensions[1] - marginVertical * 2
+        gutter = 20
+        col_count = max(1, columns)
+        col_w = (content_w - (col_count - 1) * gutter) / col_count
+        row_h = max(font_size * 1.35, 58)
+        header_h = max(font_size * 0.38, 16)
+        annotation_size = max(6, font_size * 0.18)
+        label_size = max(8, font_size * 0.22)
+        arrow_size = max(15, font_size * 0.48)
+        annotation_h = max(annotation_size * 1.25, 10)
+        arrow_w = max(font_size * 0.65, 24)
+        glyph_gap = max(font_size * 0.12, 6)
+
+        col_index = 0
+        y_top = content_y + content_h
+
+        def new_page():
+            global _PROOF_PAGE_INDEX
+            nonlocal col_index, y_top
+            db.newPage(*config.pageDimensions)
+            _PROOF_PAGE_INDEX += 1
+            drawFooter(page_title, font_path, None, 0, pageNumber=_PROOF_PAGE_INDEX)
+            db.hyphenation(False)
+            col_index = 0
+            y_top = content_y + content_h
+
+        def advance_column():
+            nonlocal col_index, y_top
+            if col_index + 1 < col_count:
+                col_index += 1
+                y_top = content_y + content_h
+            else:
+                new_page()
+
+        def ensure_space(height):
+            if y_top - height < content_y:
+                advance_column()
+
+        def column_x():
+            return content_x + col_index * (col_w + gutter)
+
+        new_page()
+        for feature in features:
+            eligible_entries = [
+                entry
+                for entry in feature.get("entries", [])
+                if entry.get("overview_eligible")
+                and self._source_glyphs(entry)
+                and self._result_glyphs(entry)
+            ]
+            if not eligible_entries:
+                continue
+
+            ensure_space(header_h)
+            x = column_x()
+            y_top -= header_h
+            feature_label = db.FormattedString(
+                txt=feature["feature_tag"],
+                font=FOOTER_FONT_NAME,
+                fontSize=label_size,
+                lineHeight=header_h,
+            )
+            db.textBox(feature_label, (x, y_top, col_w, header_h))
+
+            for entry in eligible_entries:
+                source_glyphs = self._source_glyphs(entry)
+                result_glyphs = self._result_glyphs(entry)
+                ensure_space(row_h)
+                x = column_x()
+                y_top -= row_h
+                glyph_y = y_top + annotation_h
+                glyph_h = row_h - annotation_h
+                source_formatted = _glyph_run_formatted_string(
+                    source_glyphs,
+                    font_path,
+                    font_size,
+                    axis_dict=axis_dict,
+                    align="left",
+                )
+                result_formatted = _glyph_run_formatted_string(
+                    result_glyphs,
+                    font_path,
+                    font_size,
+                    axis_dict=axis_dict,
+                    align="left",
+                )
+                try:
+                    measured_source_w = db.textSize(source_formatted)[0]
+                except Exception:
+                    measured_source_w = font_size * max(1, len(source_glyphs))
+                source_w = min(max(measured_source_w, font_size * 0.6), col_w * 0.42)
+                result_w = col_w - source_w - arrow_w - glyph_gap * 2
+
+                arrow = db.FormattedString(
+                    txt="→",
+                    font=FOOTER_FONT_NAME,
+                    fontSize=arrow_size,
+                    lineHeight=glyph_h,
+                    align="center",
+                )
+                arrow_x = x + source_w + glyph_gap
+                result_x = arrow_x + arrow_w + glyph_gap
+                db.textBox(source_formatted, (x, glyph_y, source_w, glyph_h))
+                db.textBox(arrow, (arrow_x, glyph_y, arrow_w, glyph_h))
+                db.textBox(result_formatted, (result_x, glyph_y, result_w, glyph_h))
+                annotation = db.FormattedString(
+                    txt=f"{' '.join(source_glyphs)} -> {' '.join(result_glyphs)}",
+                    font=FOOTER_FONT_NAME,
+                    fontSize=annotation_size,
+                    lineHeight=annotation_h,
+                    align="left",
+                )
+                db.textBox(annotation, (x, y_top, col_w, annotation_h))
+
+    def _source_glyphs(self, entry):
+        context = entry.get("context_glyphs") or {}
+        if context:
+            return (
+                list(reversed(context.get("backtrack", [])))
+                + list(context.get("input", []))
+                + list(context.get("lookahead", []))
+            )
+        return list(entry.get("input_glyphs", []))
+
+    def _result_glyphs(self, entry):
+        context = entry.get("context_glyphs") or {}
+        if context:
+            return (
+                list(reversed(context.get("backtrack", [])))
+                + list(entry.get("output_glyphs", []))
+                + list(context.get("lookahead", []))
+            )
+        return list(entry.get("output_glyphs", []))
 
 
 class CustomTextProofHandler(BaseProofHandler):
@@ -2087,7 +2548,8 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
 
         # Collect the text groups to render
         text_groups = self._collect_text_groups(all_fonts)
-        if not text_groups:
+        substitution_groups = self.get_substitution_sections(all_fonts[0])
+        if not text_groups and not substitution_groups:
             print(f"No text groups selected for '{self.proof_name}', skipping")
             return
 
@@ -2129,6 +2591,25 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
                 styles[0][1] if styles else context.ind_font,
                 "ltr",
                 otfeatures,
+                tracking_value,
+            )
+
+        for group_label, glyph_names in substitution_groups:
+            section_name = f"{self.proof_name} - {group_label} - {font_size}pt"
+            formatted = self._build_multi_style_glyph_string(
+                glyph_names,
+                styles,
+                font_size,
+                tracking_value,
+                align_value,
+            )
+            drawContent(
+                formatted,
+                section_name,
+                1,
+                styles[0][1] if styles else context.ind_font,
+                "ltr",
+                None,
                 tracking_value,
             )
 
@@ -2266,6 +2747,39 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
                 formatted.append(txt="\n")
         return formatted
 
+    def _build_multi_style_glyph_string(
+        self,
+        glyph_names,
+        styles,
+        font_size,
+        tracking,
+        align,
+    ):
+        """Build one direct-glyph line per style."""
+        formatted = db.FormattedString(
+            txt="",
+            font=styles[0][1] if styles else "",
+            fallbackFont=myFallbackFont,
+            fontSize=font_size,
+            align=align,
+            tracking=tracking,
+        )
+        for i, (_label, font_path, axis_dict) in enumerate(styles):
+            formatted.append(
+                txt="",
+                font=font_path,
+                fallbackFont=myFallbackFont,
+                fontSize=font_size,
+                tracking=tracking,
+                fontVariations=axis_dict,
+            )
+            for glyph_name in glyph_names:
+                formatted.appendGlyph(glyph_name)
+                formatted.append(txt=" ")
+            if i < len(styles) - 1:
+                formatted.append(txt="\n")
+        return formatted
+
 
 # =============================================================================
 # Handler Registry and Factory
@@ -2279,6 +2793,7 @@ PROOF_HANDLER_REGISTRY = {
     "Ar Character Overview": ArCharacterSetHandler,
     "Custom Text": CustomTextProofHandler,
     "Style Comparison": MultiStyleComparisonProofHandler,
+    "Substitution Overview": SubstitutionOverviewProofHandler,
     # All other text-based proofs use StandardTextProofHandler with configuration
 }
 

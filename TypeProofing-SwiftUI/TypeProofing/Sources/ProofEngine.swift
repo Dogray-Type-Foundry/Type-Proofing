@@ -45,16 +45,17 @@ struct ProofRegistryEntry {
     let hasCustomText: Bool
     let hasCategories: Bool
     let isMultiStyle: Bool
+    let defaultEnabled: Bool
     let displayOrder: Int
 
     /// Proofs that don't support tracking/alignment (character-set style proofs)
     private static let noFormattingKeys: Set<String> = [
-        "filtered_character_set", "spacing_proof", "ar_character_set"
+        "filtered_character_set", "spacing_proof", "ar_character_set", "substitution_overview"
     ]
 
     /// Proofs that don't support line height
     private static let noLineHeightKeys: Set<String> = [
-        "filtered_character_set", "spacing_proof", "ar_character_set"
+        "filtered_character_set", "spacing_proof", "ar_character_set", "substitution_overview"
     ]
 
     var supportsFormatting: Bool {
@@ -63,7 +64,7 @@ struct ProofRegistryEntry {
 
     var supportsCols: Bool {
         // Spacing proof supports columns but not other formatting
-        supportsFormatting || key == "spacing_proof"
+        supportsFormatting || key == "spacing_proof" || key == "substitution_overview"
     }
 
     var supportsLineHeight: Bool {
@@ -307,6 +308,12 @@ final class ProofEngine: ObservableObject {
         return Array<String>(result) ?? []
     }
 
+    func getAvailableSubstitutionFeatures(path: String) -> [String] {
+        guard let engine = engineModule else { return [] }
+        let result = engine.get_available_substitution_features(path)
+        return Array<String>(result) ?? []
+    }
+
     // MARK: - Config Queries
 
     func getProofRegistry() -> [ProofRegistryEntry] {
@@ -327,6 +334,7 @@ final class ProofEngine: ObservableObject {
                 hasCustomText: Bool(info.get("has_custom_text", false)) ?? false,
                 hasCategories: Bool(info.get("has_categories", false)) ?? false,
                 isMultiStyle: Bool(info.get("multi_style", false)) ?? false,
+                defaultEnabled: Bool(info.get("default_enabled", true)) ?? true,
                 displayOrder: Int(info.get("display_order", 999)) ?? 999
             )
         }.sorted { $0.displayOrder < $1.displayOrder }
