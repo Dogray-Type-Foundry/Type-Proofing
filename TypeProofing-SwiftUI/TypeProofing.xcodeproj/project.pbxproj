@@ -85,7 +85,7 @@
 		9149A97ACE7210EC141D56B7 /* HoverComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverComponents.swift; sourceTree = "<group>"; };
 		952879886E2B5AED1734715E /* FontSortCriterion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontSortCriterion.swift; sourceTree = "<group>"; };
 		9769F1DB175821D894C4A9FC /* SidebarFontsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFontsUITests.swift; sourceTree = "<group>"; };
-		97840A987134E3D7752BC503 /* Assets.car */ = {isa = PBXFileReference; path = Assets.car; sourceTree = "<group>"; };
+		97840A987134E3D7752BC503 /* Assets.car */ = {isa = PBXFileReference; lastKnownFileType = file; path = Assets.car; sourceTree = "<group>"; };
 		9CA3DEF34F455645E68CFC17 /* ProofKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofKeyTests.swift; sourceTree = "<group>"; };
 		A23EF8E2D87DC6BA2B05BCFC /* SidebarProofsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarProofsUITests.swift; sourceTree = "<group>"; };
 		B0F272E6A94B474DD21D5D59 /* FontAxesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontAxesView.swift; sourceTree = "<group>"; };
