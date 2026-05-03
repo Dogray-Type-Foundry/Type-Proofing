@@ -23,6 +23,7 @@ from proof import (
     get_font_display_name,
 )
 from settings import make_settings_key, create_unique_proof_key
+from config import PROOF_REGISTRY
 
 
 # =============================================================================
@@ -366,6 +367,69 @@ class TestStandardTextProofHandler:
         )
         assert handler.mixed_styles is True
 
+    def test_practical_figures_columns_reach_text_proof(self, sample_cat):
+        settings = {
+            make_settings_key("misc_paragraph_small", "cols"): 4,
+            make_settings_key("misc_paragraph_small", "fontSize"): 10,
+        }
+        handler = StandardTextProofHandler(
+            "Practical Figures & Punctuation",
+            settings,
+            lambda n: settings[make_settings_key("misc_paragraph_small", "fontSize")],
+            proof_key="misc_paragraph_small",
+        )
+        ctx = ProofContext(
+            full_character_set="ABCabc012",
+            axes_product=None,
+            ind_font="/test.otf",
+            paired_static_styles=None,
+            otfeatures_by_proof={},
+            cols_by_proof={},
+            paras_by_proof={},
+            cat=sample_cat,
+            proof_name="Practical Figures & Punctuation",
+        )
+
+        with patch("proof.textProof") as text_proof:
+            handler.generate_proof(ctx)
+
+        assert text_proof.call_args.args[4] == 4
+
+    @pytest.mark.parametrize(
+        "proof_key",
+        [key for key, info in PROOF_REGISTRY.items() if "text" in info],
+    )
+    def test_text_proof_registry_columns_reach_text_proof(self, proof_key, sample_cat):
+        display_name = PROOF_REGISTRY[proof_key]["display_name"]
+        settings = {
+            make_settings_key(proof_key, "cols"): 3,
+            make_settings_key(proof_key, "fontSize"): PROOF_REGISTRY[proof_key][
+                "default_size"
+            ],
+        }
+        handler = StandardTextProofHandler(
+            display_name,
+            settings,
+            lambda n: settings[make_settings_key(proof_key, "fontSize")],
+            proof_key=proof_key,
+        )
+        ctx = ProofContext(
+            full_character_set="ABCabc",
+            axes_product=None,
+            ind_font="/test.otf",
+            paired_static_styles=None,
+            otfeatures_by_proof={},
+            cols_by_proof={},
+            paras_by_proof={},
+            cat={**sample_cat, "ar": "ابت", "fa": "پچگ", "arab": "ابتپچگ"},
+            proof_name=display_name,
+        )
+
+        with patch("proof.textProof") as text_proof:
+            handler.generate_proof(ctx)
+
+        assert text_proof.call_args.args[4] == 3
+
 
 # =============================================================================
 # CategoryBasedProofHandler
@@ -503,6 +567,40 @@ class TestMultiStyleComparisonHandler:
             "Style Comparison", {key: False}, lambda n: 78
         )
         assert handler._is_style_enabled(0) is False
+
+    def test_columns_and_line_height_reach_multi_style_rendering(self):
+        settings = {
+            make_settings_key("multi_style_comparison", "cols"): 3,
+            make_settings_key("multi_style_comparison", "lineHeight"): 2.0,
+        }
+        handler = MultiStyleComparisonProofHandler(
+            "Style Comparison", settings, lambda n: 10
+        )
+        handler._collect_text_groups = MagicMock(return_value=[("Custom", "ABC")])
+        handler.get_substitution_sections = MagicMock(return_value=[])
+        handler._collect_styles = MagicMock(return_value=[("Regular", "/test.otf", None)])
+        ctx = ProofContext(
+            full_character_set="ABC",
+            axes_product=None,
+            ind_font="/test.otf",
+            paired_static_styles=None,
+            otfeatures_by_proof={},
+            cols_by_proof={},
+            paras_by_proof={},
+            cat={},
+            proof_name="Style Comparison",
+            all_fonts=["/test.otf"],
+            font_manager=MagicMock(),
+        )
+
+        with patch("proof.drawContent") as draw_content, patch(
+            "proof.db.FormattedString"
+        ) as formatted_string:
+            formatted_string.return_value = MagicMock()
+            handler.generate_proof(ctx)
+
+        assert draw_content.call_args.args[2] == 3
+        assert formatted_string.call_args.kwargs["lineHeight"] == 20
 
 
 # =============================================================================

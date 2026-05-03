@@ -2545,6 +2545,9 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
         align_value = self.get_align_value()
         otfeatures = self.get_otfeatures()
         auto_size = self.get_auto_size()
+        params = self.get_common_proof_params(context, default_columns=1)
+        columns = params["columns"]
+        line_height = params["line_height"]
 
         # Collect the text groups to render
         text_groups = self._collect_text_groups(all_fonts)
@@ -2583,11 +2586,12 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
                 tracking_value,
                 align_value,
                 otfeatures,
+                line_height,
             )
             drawContent(
                 formatted,
                 section_name,
-                1,  # single column
+                columns,
                 styles[0][1] if styles else context.ind_font,
                 "ltr",
                 otfeatures,
@@ -2602,11 +2606,12 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
                 font_size,
                 tracking_value,
                 align_value,
+                line_height,
             )
             drawContent(
                 formatted,
                 section_name,
-                1,
+                columns,
                 styles[0][1] if styles else context.ind_font,
                 "ltr",
                 None,
@@ -2727,9 +2732,10 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
         tracking,
         align,
         otfeatures,
+        line_height=None,
     ):
         """Build a single FormattedString with one line per style."""
-        formatted = db.FormattedString(
+        kwargs = dict(
             txt="",
             font=styles[0][1] if styles else "",
             fallbackFont=myFallbackFont,
@@ -2738,6 +2744,9 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
             tracking=tracking,
             openTypeFeatures=otfeatures,
         )
+        if line_height:
+            kwargs["lineHeight"] = line_height
+        formatted = db.FormattedString(**kwargs)
         for i, (label, font_path, axis_dict) in enumerate(styles):
             kwargs = dict(font=font_path, openTypeFeatures=otfeatures)
             if axis_dict:
@@ -2754,9 +2763,10 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
         font_size,
         tracking,
         align,
+        line_height=None,
     ):
         """Build one direct-glyph line per style."""
-        formatted = db.FormattedString(
+        kwargs = dict(
             txt="",
             font=styles[0][1] if styles else "",
             fallbackFont=myFallbackFont,
@@ -2764,8 +2774,11 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
             align=align,
             tracking=tracking,
         )
+        if line_height:
+            kwargs["lineHeight"] = line_height
+        formatted = db.FormattedString(**kwargs)
         for i, (_label, font_path, axis_dict) in enumerate(styles):
-            formatted.append(
+            kwargs = dict(
                 txt="",
                 font=font_path,
                 fallbackFont=myFallbackFont,
@@ -2773,6 +2786,9 @@ class MultiStyleComparisonProofHandler(CategoryBasedProofHandler):
                 tracking=tracking,
                 fontVariations=axis_dict,
             )
+            if line_height:
+                kwargs["lineHeight"] = line_height
+            formatted.append(**kwargs)
             for glyph_name in glyph_names:
                 formatted.appendGlyph(glyph_name)
                 formatted.append(txt=" ")
