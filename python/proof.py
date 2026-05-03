@@ -2264,6 +2264,13 @@ class SubstitutionOverviewProofHandler(BaseProofHandler):
         from opentype_substitutions import get_font_substitutions
 
         features = get_font_substitutions(context.ind_font)
+        selected_tags = self._selected_substitution_tags()
+        if selected_tags is not None:
+            features = [
+                feature
+                for feature in features
+                if feature["feature_tag"] in selected_tags
+            ]
         if not features:
             print(f"No substitutions found for '{self.proof_name}', skipping")
             return
@@ -2407,25 +2414,35 @@ class SubstitutionOverviewProofHandler(BaseProofHandler):
                 )
                 db.textBox(annotation, (x, y_top, col_w, annotation_h))
 
+    def _selected_substitution_tags(self):
+        prefix = make_settings_key(self.unique_proof_key, "sub") + "_"
+        selected = set()
+        found = False
+        for key, value in self.proof_settings.items():
+            if key.startswith(prefix):
+                found = True
+                if value:
+                    selected.add(key[len(prefix) :])
+        return selected if found else None
+
     def _source_glyphs(self, entry):
         context = entry.get("context_glyphs") or {}
         if context:
-            return (
-                list(reversed(context.get("backtrack", [])))
-                + list(context.get("input", []))
-                + list(context.get("lookahead", []))
-            )
+            return self._context_glyphs(context)
         return list(entry.get("input_glyphs", []))
 
     def _result_glyphs(self, entry):
         context = entry.get("context_glyphs") or {}
         if context:
-            return (
-                list(reversed(context.get("backtrack", [])))
-                + list(entry.get("output_glyphs", []))
-                + list(context.get("lookahead", []))
-            )
+            return list(entry.get("output_glyphs", []))
         return list(entry.get("output_glyphs", []))
+
+    def _context_glyphs(self, context):
+        return (
+            list(reversed(context.get("backtrack", [])))
+            + list(context.get("input", []))
+            + list(context.get("lookahead", []))
+        )
 
 
 class CustomTextProofHandler(BaseProofHandler):

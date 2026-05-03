@@ -130,11 +130,14 @@ struct SettingsPanelView: View {
                     Divider()
 
                     // Character categories (if applicable)
-                    if entry?.hasCategories ?? false {
-                        CategoryCheckboxes(categories: state.selectedProofSettings.categories)
+                    if (entry?.hasCategories ?? false) || option.baseType == "substitution_overview" {
+                        if entry?.hasCategories ?? false {
+                            CategoryCheckboxes(categories: state.selectedProofSettings.categories)
+                        }
                         if option.baseType == "filtered_character_set" ||
                             option.baseType == "spacing_proof" ||
-                            option.baseType == "multi_style_comparison" {
+                            option.baseType == "multi_style_comparison" ||
+                            option.baseType == "substitution_overview" {
                             SubstitutionCheckboxes(features: state.selectedProofSettings.substitutionFeatures)
                         }
                         Divider()
@@ -168,11 +171,12 @@ struct SettingsPanelView: View {
                         Divider()
                     }
 
-                    // OpenType features
-                    OTFeaturesSection(
-                        features: state.selectedProofSettings.otFeatures,
-                        isSpacingProof: option.baseType == "spacing_proof"
-                    )
+                    if option.baseType != "substitution_overview" {
+                        OTFeaturesSection(
+                            features: state.selectedProofSettings.otFeatures,
+                            isSpacingProof: option.baseType == "spacing_proof"
+                        )
+                    }
 
                 } else {
                     Text("Select a proof to see settings")

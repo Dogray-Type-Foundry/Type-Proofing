@@ -407,13 +407,14 @@ final class AppState: ObservableObject {
     private func supportsSubstitutionCategories(_ baseType: String?) -> Bool {
         baseType == "filtered_character_set" ||
             baseType == "spacing_proof" ||
-            baseType == "multi_style_comparison"
+            baseType == "multi_style_comparison" ||
+            baseType == "substitution_overview"
     }
 
     private func buildDefaultSubstitutionFeatures(for baseType: String?) -> [SubstitutionFeature] {
         guard supportsSubstitutionCategories(baseType) else { return [] }
         return availableSubstitutionFeatures.map { tag in
-            SubstitutionFeature(id: tag, tag: tag, enabled: false)
+            SubstitutionFeature(id: tag, tag: tag, enabled: baseType == "substitution_overview")
         }
     }
 

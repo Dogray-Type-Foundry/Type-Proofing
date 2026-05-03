@@ -216,7 +216,8 @@ def _extract_context_substitutions(
             nested["kind"] = f"contextual_{nested['kind']}"
             nested["lookup_type"] = lookup_type
             nested["context_glyphs"] = context
-            nested["overview_eligible"] = bool(context and nested.get("input_text"))
+            nested["substitution_index"] = getattr(record, "SequenceIndex", 0)
+            nested["overview_eligible"] = bool(context and nested.get("output_glyphs"))
             entries.append(nested)
     return entries
 
@@ -287,6 +288,7 @@ def _dedupe_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
             tuple(entry.get("input_glyphs", [])),
             tuple(entry.get("output_glyphs", [])),
             repr(entry.get("context_glyphs", {})),
+            entry.get("substitution_index"),
         )
         if key in seen:
             continue

@@ -604,6 +604,58 @@ class TestMultiStyleComparisonHandler:
 
 
 # =============================================================================
+# SubstitutionOverviewProofHandler
+# =============================================================================
+
+
+class TestSubstitutionOverviewProofHandler:
+    def test_contextual_source_uses_context_not_nested_lookup_input(self):
+        clear_handler_cache()
+        handler = get_proof_handler(
+            "Substitution Overview",
+            "Substitution Overview",
+            {},
+            lambda n: 48,
+        )
+        entry = {
+            "input_glyphs": ["f"],
+            "output_glyphs": ["beh-ar.init"],
+            "context_glyphs": {
+                "backtrack": ["alef-ar"],
+                "input": ["beh-ar"],
+                "lookahead": ["meem-ar"],
+            },
+            "substitution_index": 0,
+        }
+
+        assert handler._source_glyphs(entry) == ["alef-ar", "beh-ar", "meem-ar"]
+        assert handler._result_glyphs(entry) == ["beh-ar.init"]
+
+    def test_selected_substitution_tags_distinguishes_no_settings_from_all_off(self):
+        clear_handler_cache()
+        handler = get_proof_handler(
+            "Substitution Overview",
+            "Substitution Overview",
+            {},
+            lambda n: 48,
+        )
+        assert handler._selected_substitution_tags() is None
+
+        settings = {
+            make_settings_key("substitution_overview", "sub", "calt"): False,
+            make_settings_key("substitution_overview", "sub", "liga"): True,
+        }
+        handler = get_proof_handler(
+            "Substitution Overview",
+            "Substitution Overview",
+            settings,
+            lambda n: 48,
+        )
+        assert handler._selected_substitution_tags() == {"liga"}
+        clear_handler_cache()
+
+
+# =============================================================================
 # generateArabicContextualFormsProof
 # =============================================================================
 
