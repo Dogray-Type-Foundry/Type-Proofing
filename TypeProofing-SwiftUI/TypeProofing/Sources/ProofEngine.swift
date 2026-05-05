@@ -109,16 +109,30 @@ struct DiagnosticEvent: Identifiable, Equatable {
             message: message,
             fontPath: dict["font_path"] as? String,
             proofName: dict["proof_name"] as? String,
-            details: rawDetails.mapValues { value in
-                if let string = value as? String { return string }
-                if let data = try? JSONSerialization.data(withJSONObject: value),
-                   let string = String(data: data, encoding: .utf8) {
-                    return string
-                }
-                return String(describing: value)
-            },
+            details: rawDetails.mapValues(Self.stringifyDetailValue),
             timestamp: dict["timestamp"] as? String ?? ""
         )
+    }
+
+    private static func stringifyDetailValue(_ value: Any) -> String {
+        if let string = value as? String {
+            return string
+        }
+        if value is NSNull {
+            return "null"
+        }
+        if let number = value as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return number.boolValue ? "true" : "false"
+            }
+            return number.stringValue
+        }
+        if JSONSerialization.isValidJSONObject(value),
+           let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+           let string = String(data: data, encoding: .utf8) {
+            return string
+        }
+        return String(describing: value)
     }
 }
 
