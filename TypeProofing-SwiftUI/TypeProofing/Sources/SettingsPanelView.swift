@@ -51,8 +51,32 @@ struct PlainTextEditor: NSViewRepresentable {
 struct SettingsPanelView: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var engine: ProofEngine
+    @State private var selectedTab: SettingsPanelTab = .settings
 
     var body: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $selectedTab) {
+                ForEach(SettingsPanelTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding([.horizontal, .top], 10)
+
+            Divider()
+                .padding(.top, 8)
+
+            switch selectedTab {
+            case .settings:
+                settingsContent
+            case .diagnostics:
+                DiagnosticsPanelView()
+            }
+        }
+    }
+
+    private var settingsContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 if let option = state.selectedProofOption {
@@ -185,6 +209,128 @@ struct SettingsPanelView: View {
                 }
             }
             .padding()
+        }
+    }
+}
+
+private enum SettingsPanelTab: String, CaseIterable {
+    case settings = "Settings"
+    case diagnostics = "Diagnostics"
+}
+
+private struct DiagnosticsPanelView: View {
+    @EnvironmentObject var engine: ProofEngine
+    @State private var filter: DiagnosticFilter = .all
+
+    private var filteredEvents: [DiagnosticEvent] {
+        engine.diagnostics.filter { event in
+            switch filter {
+            case .all:
+                return true
+            case .errors:
+                return event.level == "error"
+            case .warnings:
+                return event.level == "warning"
+            case .debug:
+                return event.level == "debug"
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle("Debug Mode", isOn: $engine.debugMode)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+            Picker("", selection: $filter) {
+                ForEach(DiagnosticFilter.allCases, id: \.self) { filter in
+                    Text(filter.rawValue).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            if filteredEvents.isEmpty {
+                Text("No diagnostics")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(filteredEvents) { event in
+                            DiagnosticRow(event: event)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .padding()
+    }
+}
+
+private enum DiagnosticFilter: String, CaseIterable {
+    case all = "All"
+    case errors = "Errors"
+    case warnings = "Warnings"
+    case debug = "Debug"
+}
+
+private struct DiagnosticRow: View {
+    let event: DiagnosticEvent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .foregroundStyle(color)
+                Text(event.category)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Spacer()
+                if !event.timestamp.isEmpty {
+                    Text(event.timestamp)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Text(event.message)
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+            if let proofName = event.proofName, !proofName.isEmpty {
+                Text(proofName)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if let fontPath = event.fontPath, !fontPath.isEmpty {
+                Text((fontPath as NSString).lastPathComponent)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.secondary.opacity(0.08))
+        )
+    }
+
+    private var icon: String {
+        switch event.level {
+        case "error": return "xmark.octagon.fill"
+        case "warning": return "exclamationmark.triangle.fill"
+        case "debug": return "terminal"
+        default: return "info.circle"
+        }
+    }
+
+    private var color: Color {
+        switch event.level {
+        case "error": return .red
+        case "warning": return .orange
+        case "debug": return .purple
+        default: return .secondary
         }
     }
 }

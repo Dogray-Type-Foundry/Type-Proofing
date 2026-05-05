@@ -36,6 +36,14 @@ struct SidebarView: View {
                 .help("Generate Proof")
                 .disabled(engine.isGenerating || state.enabledFontPaths.isEmpty)
 
+                if engine.isGenerating {
+                    GenerationProgressView(progress: engine.generationProgress) {
+                        engine.cancelGeneration()
+                    }
+                } else {
+                    ProofRunSummaryCompact(summary: state.makeRunSummary())
+                }
+
                 // Page format + Grid on one line
                 HStack(spacing: 8) {
                     Picker("", selection: $state.pageFormat) {
@@ -209,6 +217,7 @@ struct SidebarView: View {
     private func generateProof() async {
         state.persistState()
         let config = state.buildProofConfig()
+        engine.refreshRunSummary(config: config)
         // Clear previous results before generating
         state.currentPDFPath = nil
         state.proofSections = []
@@ -218,6 +227,60 @@ struct SidebarView: View {
             state.currentPDFPath = result.path
             state.proofSections = result.sections
         }
+    }
+}
+
+// MARK: - Run Summary
+
+private struct ProofRunSummaryCompact: View {
+    let summary: ProofRunSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Label("\(summary.fontCount)", systemImage: "textformat")
+                Label("\(summary.enabledProofCount)", systemImage: "doc.text")
+                Label("\(summary.totalAxisInstances)", systemImage: "slider.horizontal.3")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            if let warning = summary.warnings.first {
+                Label(warning, systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct GenerationProgressView: View {
+    let progress: GenerationProgress?
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            if let progress {
+                Text(progress.proofName)
+                    .font(.caption)
+                    .lineLimit(1)
+                ProgressView(
+                    value: Double(progress.proofIndex),
+                    total: Double(max(progress.proofCount, 1))
+                )
+                Text("Font \(progress.fontIndex)/\(max(progress.fontCount, 1))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+            }
+            Button("Cancel", action: onCancel)
+                .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

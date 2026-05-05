@@ -16,6 +16,9 @@ PYTHON_SRC="${SRCROOT}/../python"
 
 PYTHON_FILES=(
     engine.py
+    generation_config.py
+    diagnostics.py
+    worker.py
     proof.py
     fonts.py
     config.py

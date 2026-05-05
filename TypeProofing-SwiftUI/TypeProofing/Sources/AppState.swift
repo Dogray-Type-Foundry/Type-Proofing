@@ -544,10 +544,46 @@ final class AppState: ObservableObject {
         )
     }
 
+    func makeRunSummary() -> ProofRunSummary {
+        let enabledProofs = proofOptions.filter(\.enabled)
+        let axisCounts = enabledFontPaths.map { path -> Int in
+            guard let axes = axisValuesByFont[path], !axes.isEmpty else { return 1 }
+            return axes.values.reduce(1) { partial, values in
+                partial * max(1, values.count)
+            }
+        }
+        let totalAxisInstances = axisCounts.reduce(0, +)
+        let outputDir = useCustomOutputLocation && !customOutputLocation.isEmpty
+            ? customOutputLocation
+            : outputDirectory
+        var warnings: [String] = []
+        if totalAxisInstances >= 40 {
+            warnings.append("Variable font settings will generate \(totalAxisInstances) font instances.")
+        }
+        if enabledProofs.count >= 12 {
+            warnings.append("\(enabledProofs.count) proof sections are enabled.")
+        }
+        if outputDir.isEmpty {
+            warnings.append("No output directory is available.")
+        }
+
+        return ProofRunSummary(
+            fontCount: enabledFontPaths.count,
+            enabledProofCount: enabledProofs.count,
+            enabledProofs: enabledProofs.map(\.name),
+            totalAxisInstances: totalAxisInstances,
+            estimatedWorkItems: enabledProofs.count * max(1, totalAxisInstances),
+            pageFormat: pageFormat,
+            outputDir: outputDir,
+            showBaselines: showBaselines,
+            warnings: warnings
+        )
+    }
+
     /// Convert the per-proof ProofSettings structs into the flat dictionary
     /// format the Python engine expects: `{proof_key}_fontSize`, `otf_{proof_key}_{tag}`, etc.
-    private func buildFlatProofSettings() -> [String: PythonObject] {
-        var flat: [String: PythonObject] = [:]
+    private func buildFlatProofSettings() -> [String: Any] {
+        var flat: [String: Any] = [:]
 
         for option in proofOptions {
             guard let settings = proofSettingsByProof[option.name] else { continue }
@@ -555,61 +591,59 @@ final class AppState: ObservableObject {
             let settingsKey = pythonSettingsKey(for: option, entry: entry)
 
             // Font size — always present
-            flat["\(settingsKey)_fontSize"] = PythonObject(Int(settings.fontSize))
+            flat["\(settingsKey)_fontSize"] = Int(settings.fontSize)
 
             // Line height — always send for proofs that support it (em ratio)
             if entry.supportsLineHeight {
-                flat["\(settingsKey)_lineHeight"] = PythonObject(settings.lineHeight)
+                flat["\(settingsKey)_lineHeight"] = settings.lineHeight
             }
 
             // Columns — only for proofs that support it
             if entry.supportsCols {
-                flat["\(settingsKey)_cols"] = PythonObject(settings.columns)
+                flat["\(settingsKey)_cols"] = settings.columns
             }
 
             // Tracking — only for proofs that support formatting
             if entry.supportsFormatting {
-                flat["\(settingsKey)_tracking"] = PythonObject(settings.tracking)
+                flat["\(settingsKey)_tracking"] = settings.tracking
             }
 
             // Alignment — only for proofs that support formatting
             if entry.supportsFormatting {
-                flat["\(settingsKey)_align"] = PythonObject(settings.alignment)
+                flat["\(settingsKey)_align"] = settings.alignment
             }
 
             // Paragraphs — only for proofs that have them
             if entry.hasParagraphs {
-                flat["\(settingsKey)_para"] = PythonObject(settings.paragraphs)
+                flat["\(settingsKey)_para"] = settings.paragraphs
             }
 
             // Character categories
             if entry.hasCategories {
-                flat["\(settingsKey)_cat_uppercase_base"] = PythonObject(settings.categories.uppercaseBase)
-                flat["\(settingsKey)_cat_lowercase_base"] = PythonObject(settings.categories.lowercaseBase)
-                flat["\(settingsKey)_cat_numbers_symbols"] = PythonObject(settings.categories.numbersSymbols)
-                flat["\(settingsKey)_cat_punctuation"] = PythonObject(settings.categories.punctuation)
-                flat["\(settingsKey)_cat_accented"] = PythonObject(settings.categories.accented)
+                flat["\(settingsKey)_cat_uppercase_base"] = settings.categories.uppercaseBase
+                flat["\(settingsKey)_cat_lowercase_base"] = settings.categories.lowercaseBase
+                flat["\(settingsKey)_cat_numbers_symbols"] = settings.categories.numbersSymbols
+                flat["\(settingsKey)_cat_punctuation"] = settings.categories.punctuation
+                flat["\(settingsKey)_cat_accented"] = settings.categories.accented
             }
             if supportsSubstitutionCategories(option.baseType) {
                 for feature in settings.substitutionFeatures {
-                    flat["\(settingsKey)_sub_\(feature.tag)"] = PythonObject(feature.enabled)
+                    flat["\(settingsKey)_sub_\(feature.tag)"] = feature.enabled
                 }
             }
 
             // Custom text
             if entry.hasCustomText {
-                flat["\(settingsKey)_customText"] = PythonObject(settings.customText)
-                flat["\(settingsKey)_markupEnabled"] = PythonObject(settings.markupEnabled)
+                flat["\(settingsKey)_customText"] = settings.customText
+                flat["\(settingsKey)_markupEnabled"] = settings.markupEnabled
                 if !entry.isMultiStyle {
-                    flat["\(settingsKey)_generateOnce"] = PythonObject(settings.generateOnce)
+                    flat["\(settingsKey)_generateOnce"] = settings.generateOnce
                     // Default font path for "generate once"
                     if !settings.defaultFontPath.isEmpty {
-                        flat["\(settingsKey)_defaultFontPath"] = PythonObject(settings.defaultFontPath)
+                        flat["\(settingsKey)_defaultFontPath"] = settings.defaultFontPath
                     }
                     if let axisDict = settings.defaultFontAxisDict {
-                        flat["\(settingsKey)_defaultFontAxisDict"] = PythonObject(
-                            axisDict.mapValues { PythonObject($0) }
-                        )
+                        flat["\(settingsKey)_defaultFontAxisDict"] = axisDict
                     }
                 }
             }
@@ -617,18 +651,18 @@ final class AppState: ObservableObject {
             // Multi-style: per-style enabled flags
             if entry.isMultiStyle {
                 for (indexStr, enabled) in settings.enabledStyleIndices {
-                    flat["\(settingsKey)_style_\(indexStr)"] = PythonObject(enabled)
+                    flat["\(settingsKey)_style_\(indexStr)"] = enabled
                 }
             }
 
             // Auto-size (charset: fit category in one page; multi-style: fit in one line)
             if option.baseType == "filtered_character_set" || entry.isMultiStyle {
-                flat["\(settingsKey)_autoSize"] = PythonObject(settings.autoSize)
+                flat["\(settingsKey)_autoSize"] = settings.autoSize
             }
 
             // OpenType features
             for feature in settings.otFeatures {
-                flat["otf_\(settingsKey)_\(feature.tag)"] = PythonObject(feature.enabled)
+                flat["otf_\(settingsKey)_\(feature.tag)"] = feature.enabled
             }
         }
 

@@ -31,6 +31,8 @@ from fonts import (
     get_ttfont,
 )
 from settings import Settings, ProofSettingsManager, log_error
+from diagnostics import DiagnosticsCollector
+from generation_config import GenerationConfig, validate_generation_config
 from proof import (
     ProofContext,
     get_proof_handler,
@@ -84,7 +86,67 @@ def _end_pdf(output_dir, family_name, now=None):
 # ---------------------------------------------------------------------------
 
 
-def generate_proof(config: dict) -> str:
+def _emit_progress(event_callback, **payload):
+    if event_callback:
+        event_callback({"type": "progress", **payload})
+
+
+def _diagnose_missing_enabled_features(
+    diagnostics,
+    proof_name,
+    font_path,
+    selected_features,
+):
+    if not selected_features:
+        return
+    try:
+        available = set(db.listOpenTypeFeatures(font_path))
+    except Exception:
+        return
+    missing = sorted(
+        tag for tag, enabled in selected_features.items() if enabled and tag not in available
+    )
+    if missing:
+        diagnostics.add(
+            "warning",
+            "missing_feature",
+            f"{len(missing)} enabled OpenType feature(s) are not available in this font.",
+            font_path=font_path,
+            proof_name=proof_name,
+            details={"features": missing},
+        )
+
+
+def _diagnose_custom_text_fallbacks(
+    diagnostics,
+    proof_name,
+    font_path,
+    charset,
+    handler,
+):
+    settings_key = getattr(handler, "unique_proof_key", "")
+    if not settings_key:
+        return
+    custom_text = handler.proof_settings.get(f"{settings_key}_customText", "")
+    if not custom_text:
+        return
+    charset_set = set(charset)
+    missing = sorted(
+        {char for char in custom_text if not char.isspace() and char not in charset_set},
+        key=ord,
+    )
+    if missing:
+        diagnostics.add(
+            "info",
+            "fallback_glyph",
+            f"Custom text contains {len(missing)} character(s) missing from this font.",
+            font_path=font_path,
+            proof_name=proof_name,
+            details={"characters": missing[:25]},
+        )
+
+
+def generate_proof(config: dict, event_callback=None) -> str:
     """Generate a proof PDF from a configuration dictionary.
 
     Args:
@@ -102,18 +164,27 @@ def generate_proof(config: dict) -> str:
     Returns:
         str – absolute path to the generated PDF, or empty string on failure.
     """
+    typed_config = GenerationConfig.from_dict(config)
+    diagnostics = DiagnosticsCollector(
+        debug=typed_config.debug_mode,
+        sink=event_callback,
+    )
     try:
-        font_paths = config.get("font_paths", [])
+        for warning in validate_generation_config(typed_config):
+            diagnostics.add("warning", "config", warning)
+
+        font_paths = typed_config.font_paths
         if not font_paths:
             print("Error: No font paths provided")
-            return ""
+            diagnostics.add("error", "config", "No font paths provided")
+            return {"path": "", "sections": [], "diagnostics": diagnostics.to_list()}
 
-        axis_values_by_font = config.get("axis_values_by_font", {})
+        axis_values_by_font = typed_config.axis_values_by_font
         proof_options = config.get("proof_options", [])
-        proof_settings = config.get("proof_settings", {})
-        page_format = config.get("page_format", "A4Landscape")
-        output_dir = config.get("output_dir", "")
-        show_baselines = config.get("show_baselines", True)
+        proof_settings = typed_config.proof_settings.flat
+        page_format = typed_config.page_format
+        output_dir = typed_config.output_dir
+        show_baselines = typed_config.show_baselines
 
         # Build a minimal Settings + FontManager without touching disk
         settings = Settings.__new__(Settings)
@@ -143,6 +214,8 @@ def generate_proof(config: dict) -> str:
             output_dir = os.path.dirname(os.path.abspath(font_paths[0]))
 
         now = datetime.datetime.now()
+        summary = typed_config.build_summary()
+        diagnostics.debug_event("summary", "Proof run summary prepared", details=summary)
 
         # --- Initialize PDF generation ---
         _begin_pdf(page_format, show_baselines=show_baselines)
@@ -162,7 +235,9 @@ def generate_proof(config: dict) -> str:
         sections = []  # list of {"name": str, "first_page": int}
 
         # --- Loop: proof options → fonts ---
-        for item in proof_options:
+        enabled_options = [item for item in proof_options if item.get("Enabled", False)]
+        proof_count = len(enabled_options)
+        for proof_index, item in enumerate(enabled_options, 1):
             if not item.get("Enabled", False):
                 continue
 
@@ -183,11 +258,38 @@ def generate_proof(config: dict) -> str:
             )
             if not handler:
                 print(f"Warning: No handler for '{base_proof_type}'")
+                diagnostics.add(
+                    "warning",
+                    "skipped_proof",
+                    f"No handler for '{base_proof_type}'",
+                    proof_name=proof_name,
+                )
                 continue
 
             page_before = db.pageCount()
 
-            for ind_font in font_manager.fonts:
+            for font_index, ind_font in enumerate(font_manager.fonts, 1):
+                _emit_progress(
+                    event_callback,
+                    proof_name=proof_name,
+                    proof_index=proof_index,
+                    proof_count=proof_count,
+                    font_path=ind_font,
+                    font_index=font_index,
+                    font_count=len(font_manager.fonts),
+                )
+                diagnostics.debug_event(
+                    "progress",
+                    "Starting proof/font combination",
+                    font_path=ind_font,
+                    proof_name=proof_name,
+                    details={
+                        "proof_index": proof_index,
+                        "proof_count": proof_count,
+                        "font_index": font_index,
+                        "font_count": len(font_manager.fonts),
+                    },
+                )
                 full_charset = filteredCharset(ind_font)
                 cat = categorize(full_charset)
                 variable_dict = db.listFontVariations(ind_font)
@@ -216,30 +318,74 @@ def generate_proof(config: dict) -> str:
                 )
 
                 try:
+                    _diagnose_missing_enabled_features(
+                        diagnostics,
+                        proof_name,
+                        ind_font,
+                        handler.get_otfeatures(),
+                    )
+                    _diagnose_custom_text_fallbacks(
+                        diagnostics,
+                        proof_name,
+                        ind_font,
+                        full_charset,
+                        handler,
+                    )
                     handler.generate_proof(proof_context)
                 except Exception as exc:
                     print(f"Error generating proof '{proof_name}': {exc}")
                     traceback.print_exc()
+                    diagnostics.add(
+                        "error",
+                        "generation_error",
+                        str(exc),
+                        font_path=ind_font,
+                        proof_name=proof_name,
+                        details={"traceback": traceback.format_exc()},
+                    )
                     continue
 
             page_after = db.pageCount()
             if page_after > page_before:
                 sections.append({"name": proof_name, "first_page": page_before})
+            else:
+                diagnostics.add(
+                    "info",
+                    "skipped_proof",
+                    "Proof produced no pages.",
+                    proof_name=proof_name,
+                )
 
         # --- Finalize ---
         family_name = font_manager.get_family_name() or "proof"
         pdf_path = _end_pdf(output_dir, family_name, now)
         elapsed = datetime.datetime.now() - now
         print(f"Proof generated in {elapsed}")
-        return {"path": pdf_path or "", "sections": sections}
+        diagnostics.debug_event(
+            "performance",
+            "Proof generation finished",
+            details={"elapsed_seconds": elapsed.total_seconds()},
+        )
+        return {
+            "path": pdf_path or "",
+            "sections": sections,
+            "diagnostics": diagnostics.to_list(),
+            "summary": summary,
+        }
 
     except Exception as exc:
         log_error(f"generate_proof failed: {exc}", traceback.format_exc())
+        diagnostics.add(
+            "error",
+            "generation_error",
+            str(exc),
+            details={"traceback": traceback.format_exc()},
+        )
         try:
             db.endDrawing()
         except Exception:
             pass
-        return {"path": "", "sections": []}
+        return {"path": "", "sections": [], "diagnostics": diagnostics.to_list()}
 
 
 # ---------------------------------------------------------------------------
@@ -570,6 +716,16 @@ def get_proof_registry():
 def get_page_formats():
     """Return available page format names."""
     return list(PAGE_FORMAT_OPTIONS)
+
+
+def get_proof_run_summary(config):
+    """Return a lightweight summary for the configured proof run."""
+    typed_config = GenerationConfig.from_dict(config)
+    summary = typed_config.build_summary()
+    warnings = list(summary.get("warnings", []))
+    warnings.extend(validate_generation_config(typed_config))
+    summary["warnings"] = warnings
+    return summary
 
 
 def get_font_styles(font_paths):
