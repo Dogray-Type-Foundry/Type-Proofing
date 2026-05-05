@@ -622,13 +622,18 @@ class TestSubstitutionOverviewProofHandler:
             "output_glyphs": ["beh-ar.init"],
             "context_glyphs": {
                 "backtrack": ["alef-ar"],
-                "input": ["beh-ar"],
+                "input": ["lam-ar", "beh-ar"],
                 "lookahead": ["meem-ar"],
             },
-            "substitution_index": 0,
+            "substitution_index": 1,
         }
 
-        assert handler._source_glyphs(entry) == ["alef-ar", "beh-ar", "meem-ar"]
+        assert handler._source_glyphs(entry) == [
+            "alef-ar",
+            "lam-ar",
+            "beh-ar",
+            "meem-ar",
+        ]
         assert handler._result_glyphs(entry) == ["beh-ar.init"]
 
     def test_selected_substitution_tags_distinguishes_no_settings_from_all_off(self):

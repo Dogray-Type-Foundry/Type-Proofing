@@ -202,6 +202,7 @@ def _extract_context_substitutions(
     for record in records:
         if record.LookupListIndex == lookup_index:
             continue
+        sequence_index = getattr(record, "SequenceIndex", 0)
         nested_lookup = lookup_list.Lookup[record.LookupListIndex]
         nested_entries = _extract_lookup_entries(
             nested_lookup,
@@ -212,14 +213,35 @@ def _extract_context_substitutions(
             depth=depth + 1,
         )
         for nested in nested_entries:
+            if not _nested_entry_matches_context(nested, context, sequence_index):
+                continue
             nested = dict(nested)
             nested["kind"] = f"contextual_{nested['kind']}"
             nested["lookup_type"] = lookup_type
             nested["context_glyphs"] = context
-            nested["substitution_index"] = getattr(record, "SequenceIndex", 0)
+            nested["substitution_index"] = sequence_index
             nested["overview_eligible"] = bool(context and nested.get("output_glyphs"))
             entries.append(nested)
     return entries
+
+
+def _nested_entry_matches_context(
+    entry: dict[str, Any],
+    context: dict[str, list[str]],
+    sequence_index: int,
+) -> bool:
+    """Only keep nested lookup results that apply to this context position."""
+    input_glyphs = list(entry.get("input_glyphs", []))
+    context_input = list((context or {}).get("input", []))
+    if not input_glyphs or not context_input:
+        return False
+    if sequence_index < 0:
+        return False
+
+    end_index = sequence_index + len(input_glyphs)
+    if end_index > len(context_input):
+        return False
+    return context_input[sequence_index:end_index] == input_glyphs
 
 
 def _format3_context(subtable) -> dict[str, list[str]]:
@@ -236,9 +258,13 @@ def _format3_context(subtable) -> dict[str, list[str]]:
             result.append(glyphs[0])
         return result
 
+    input_coverage = getattr(subtable, "InputCoverage", None)
+    if input_coverage is None:
+        input_coverage = getattr(subtable, "Coverage", [])
+
     return {
         "backtrack": first_glyphs(getattr(subtable, "BacktrackCoverage", [])),
-        "input": first_glyphs(getattr(subtable, "InputCoverage", [])),
+        "input": first_glyphs(input_coverage),
         "lookahead": first_glyphs(getattr(subtable, "LookAheadCoverage", [])),
     }
 

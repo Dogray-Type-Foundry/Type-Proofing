@@ -209,9 +209,9 @@ class TestDuplicateProofIndependentSettings:
                 "generative_text_small_fontSize": 8,
                 "generative_text_small_tracking": 0,
                 "generative_text_small_para": 2,
-                "generative_text_small_2_fontSize": 8,
-                "generative_text_small_2_tracking": 20,
-                "generative_text_small_2_para": 2,
+                "auto_generated_text_2_fontSize": 8,
+                "auto_generated_text_2_tracking": 20,
+                "auto_generated_text_2_para": 2,
             },
             str(tmp_path / "diff"),
             axis,
@@ -225,9 +225,9 @@ class TestDuplicateProofIndependentSettings:
                 "generative_text_small_fontSize": 8,
                 "generative_text_small_tracking": 0,
                 "generative_text_small_para": 2,
-                "generative_text_small_2_fontSize": 8,
-                "generative_text_small_2_tracking": 0,
-                "generative_text_small_2_para": 2,
+                "auto_generated_text_2_fontSize": 8,
+                "auto_generated_text_2_tracking": 0,
+                "auto_generated_text_2_para": 2,
             },
             str(tmp_path / "same"),
             axis,
@@ -507,6 +507,29 @@ class TestColumnsWiring:
             [vf_font_path],
             opts,
             {**base, "basic_paragraph_large_cols": 3},
+            str(tmp_path / "three"),
+            axis,
+        )
+        assert size1 > 0
+        assert size3 > 0
+        assert size1 != size3
+
+    def test_columns_affect_practical_figures_punctuation(self, vf_font_path, tmp_path):
+        opts = [_opt("misc_paragraph_small")]
+        axis = {vf_font_path: {"wght": [400]}}
+        base = {"misc_paragraph_small_fontSize": 10}
+
+        _, _, size1 = _gen(
+            [vf_font_path],
+            opts,
+            {**base, "misc_paragraph_small_cols": 1},
+            str(tmp_path / "one"),
+            axis,
+        )
+        _, _, size3 = _gen(
+            [vf_font_path],
+            opts,
+            {**base, "misc_paragraph_small_cols": 3},
             str(tmp_path / "three"),
             axis,
         )
