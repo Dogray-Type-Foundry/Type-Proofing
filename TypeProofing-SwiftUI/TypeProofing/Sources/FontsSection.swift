@@ -33,21 +33,22 @@ struct FontsSection: View {
                         if let idx = state.loadedFonts.firstIndex(where: { $0.id == font.id }) {
                             state.removeFont(at: IndexSet(integer: idx), engine: engine)
                         }
-                    }
-                ) {
-                    if font.isVariable {
-                        FontAxesView(
-                            font: font,
-                            axisValues: Binding(
-                                get: { state.axisValuesByFont[font.id] ?? [:] },
-                                set: {
-                                    state.axisValuesByFont[font.id] = $0
-                                    state.schedulePersistPublic()
-                                }
+                    },
+                    detail: {
+                        if font.isVariable {
+                            FontAxesView(
+                                font: font,
+                                axisValues: Binding(
+                                    get: { state.axisValuesByFont[font.id] ?? [:] },
+                                    set: {
+                                        state.axisValuesByFont[font.id] = $0
+                                        state.schedulePersistPublic()
+                                    }
+                                )
                             )
-                        )
+                        }
                     }
-                }
+                )
                 .onDrag {
                     NSItemProvider(object: font.id as NSString)
                 }
@@ -130,10 +131,9 @@ struct FontDropDelegate: DropDelegate {
         let providers = info.itemProviders(for: [.text])
         guard let provider = providers.first else { return false }
         provider.loadObject(ofClass: NSString.self) { item, _ in
-            guard let draggedID = item as? String,
-                  let fromIndex = state.loadedFonts.firstIndex(where: { $0.id == draggedID })
-            else { return }
+            guard let draggedID = item as? String else { return }
             DispatchQueue.main.async {
+                guard let fromIndex = state.loadedFonts.firstIndex(where: { $0.id == draggedID }) else { return }
                 state.moveFonts(from: IndexSet(integer: fromIndex), to: targetIndex > fromIndex ? targetIndex + 1 : targetIndex)
             }
         }

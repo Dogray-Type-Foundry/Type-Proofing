@@ -314,10 +314,10 @@ struct ProofDropDelegate: DropDelegate {
         guard let provider = providers.first else { return false }
         provider.loadObject(ofClass: NSString.self) { item, _ in
             guard let draggedID = item as? String,
-                  let uuid = UUID(uuidString: draggedID),
-                  let fromIndex = state.proofOptions.firstIndex(where: { $0.id == uuid })
+                  let uuid = UUID(uuidString: draggedID)
             else { return }
-            DispatchQueue.main.async {
+            Task { @MainActor in
+                guard let fromIndex = state.proofOptions.firstIndex(where: { $0.id == uuid }) else { return }
                 state.moveProofOptions(
                     from: IndexSet(integer: fromIndex),
                     to: targetIndex > fromIndex ? targetIndex + 1 : targetIndex

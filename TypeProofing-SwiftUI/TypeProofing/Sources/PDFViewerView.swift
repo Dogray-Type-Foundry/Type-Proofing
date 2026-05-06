@@ -38,7 +38,7 @@ struct PDFSplitContainer: NSViewRepresentable {
     let sections: [ProofSection]
     let navigationRequest: PreviewNavigationRequest?
 
-    private static let defaultThumbWidth: CGFloat = 160
+    private static let defaultThumbWidth: CGFloat = 220
 
     func makeNSView(context: Context) -> NSView {
         let container = NSView()
@@ -192,7 +192,7 @@ struct PDFSplitContainer: NSViewRepresentable {
         }
 
         func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposedMaximumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
-            min(proposedMaximumPosition, 300)
+            min(proposedMaximumPosition, 420)
         }
 
         func splitView(_ splitView: NSSplitView, resizeSubviewsWithOldSize oldSize: NSSize) {
@@ -274,6 +274,7 @@ final class ThumbnailSidebarView: NSView {
         let width = max(bounds.width, 80)
         let height = max(bounds.height, 0)
         thumbnailScroll.frame = NSRect(x: 0, y: 0, width: width, height: height)
+        thumbnailList.updateAvailableWidth(thumbnailAvailableWidth)
     }
 
     func scrollToPage(_ pageIndex: Int) {

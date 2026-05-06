@@ -76,7 +76,7 @@ final class PreviewCoordinator: ObservableObject {
         if debounced {
             globalDebounceTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-                await self?.invalidateAll()
+                self?.invalidateAll()
             }
         } else {
             invalidateAll()
@@ -88,7 +88,7 @@ final class PreviewCoordinator: ObservableObject {
         debounceTasks[proofID]?.cancel()
         debounceTasks[proofID] = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
-            await self?.invalidateProof(proofID)
+            self?.invalidateProof(proofID)
         }
     }
 
@@ -234,7 +234,7 @@ final class PreviewCoordinator: ObservableObject {
 
         let task = Task { [weak self] in
             let result = await engine.generatePreviewFragment(config: config)
-            await self?.finish(job: job, result: result)
+            self?.finish(job: job, result: result)
         }
         if job.cost == .wordsiv {
             runningWordsiv = job.proofID

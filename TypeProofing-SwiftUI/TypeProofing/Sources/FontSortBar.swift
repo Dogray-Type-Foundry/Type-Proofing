@@ -108,10 +108,12 @@ struct SortChipDropDelegate: DropDelegate {
         guard let provider = providers.first else { return false }
         provider.loadObject(ofClass: NSString.self) { item, _ in
             guard let draggedID = item as? String,
-                  let draggedUUID = UUID(uuidString: draggedID),
-                  let fromIndex = state.fontSortCriteria.firstIndex(where: { $0.id == draggedUUID })
+                  let draggedUUID = UUID(uuidString: draggedID)
             else { return }
             DispatchQueue.main.async {
+                guard let fromIndex = state.fontSortCriteria.firstIndex(where: { $0.id == draggedUUID }) else {
+                    return
+                }
                 let dest = targetIndex > fromIndex ? targetIndex + 1 : targetIndex
                 state.fontSortCriteria.move(
                     fromOffsets: IndexSet(integer: fromIndex),

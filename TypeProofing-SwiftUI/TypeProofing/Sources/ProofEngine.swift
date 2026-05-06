@@ -345,29 +345,23 @@ final class ProofEngine: ObservableObject {
     }
 
     private func bootstrap() async {
-        do {
-            PythonSetup.initialize()
+        PythonSetup.initialize()
 
-            let engine  = Python.import("engine")
-            let config  = Python.import("config")
-            let fonts   = Python.import("fonts")
+        let engine  = Python.import("engine")
+        let config  = Python.import("config")
+        let fonts   = Python.import("fonts")
 
-            self.engineModule = engine
-            self.configModule = config
-            self.fontsModule  = fonts
+        self.engineModule = engine
+        self.configModule = config
+        self.fontsModule  = fonts
 
-            // Quick sanity check — ask for the registry size
-            let registry = engine.get_proof_registry()
-            let count = Int(Python.len(registry)) ?? 0
-            self.proofRegistryCount = count
+        // Quick sanity check — ask for the registry size
+        let registry = engine.get_proof_registry()
+        let count = Int(Python.len(registry)) ?? 0
+        self.proofRegistryCount = count
 
-            print("Python engine loaded — \(count) proof types")
-            self.isReady = true
-        } catch {
-            let msg = "Python init failed: \(error)"
-            print(msg)
-            self.errorMessage = msg
-        }
+        print("Python engine loaded — \(count) proof types")
+        self.isReady = true
     }
 
     // MARK: - Proof Generation
@@ -479,24 +473,69 @@ final class ProofEngine: ObservableObject {
         let shouldCaptureWorkerOutput = config.debugMode
 
         return await withCheckedContinuation { continuation in
-            let lock = NSLock()
-            var stdoutBuffer = Data()
-            var stderrBuffer = Data()
-            var completedResult: (path: String, sections: [ProofSection])?
-            var didResume = false
+            final class ResumeGate: @unchecked Sendable {
+                private let lock = NSLock()
+                private var didResume = false
 
-            func resumeOnce(_ value: (path: String, sections: [ProofSection])?) {
-                lock.lock()
-                guard !didResume else {
-                    lock.unlock()
-                    return
+                func tryResume() -> Bool {
+                    lock.lock()
+                    defer { lock.unlock() }
+                    guard !didResume else { return false }
+                    didResume = true
+                    return true
                 }
-                didResume = true
-                lock.unlock()
+            }
+
+            final class WorkerState: @unchecked Sendable {
+                private let lock = NSLock()
+                private var stdoutBuffer = Data()
+                private var stderrBuffer = Data()
+                private var completedResult: (path: String, sections: [ProofSection])?
+
+                func setCompletedResult(_ value: (path: String, sections: [ProofSection])?) {
+                    lock.lock()
+                    completedResult = value
+                    lock.unlock()
+                }
+
+                func appendStdout(_ data: Data) -> [Data] {
+                    lock.lock()
+                    stdoutBuffer.append(data)
+                    let parts = stdoutBuffer.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false)
+                    let completeCount = stdoutBuffer.last == UInt8(ascii: "\n") ? parts.count : max(0, parts.count - 1)
+                    let complete = Array(parts.prefix(completeCount)).map { Data($0) }
+                    stdoutBuffer = stdoutBuffer.last == UInt8(ascii: "\n")
+                        ? Data()
+                        : parts.last.map { Data($0) } ?? Data()
+                    lock.unlock()
+                    return complete
+                }
+
+                func appendStderr(_ data: Data) {
+                    lock.lock()
+                    stderrBuffer.append(data)
+                    lock.unlock()
+                }
+
+                func snapshot() -> (stdout: Data, stderr: String, result: (path: String, sections: [ProofSection])?) {
+                    lock.lock()
+                    let stdout = stdoutBuffer
+                    let stderr = String(data: stderrBuffer, encoding: .utf8) ?? ""
+                    let result = completedResult
+                    lock.unlock()
+                    return (stdout, stderr, result)
+                }
+            }
+
+            let resumeGate = ResumeGate()
+            let workerState = WorkerState()
+
+            @Sendable func resumeOnce(_ value: (path: String, sections: [ProofSection])?) {
+                guard resumeGate.tryResume() else { return }
                 continuation.resume(returning: value)
             }
 
-            func handleLine(_ lineData: Data) {
+            @Sendable func handleLine(_ lineData: Data) {
                 guard !lineData.isEmpty else { return }
                 guard let object = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
                       let type = object["type"] as? String else {
@@ -539,9 +578,7 @@ final class ProofEngine: ObservableObject {
                 case "completed":
                     if let result = object["result"] as? [String: Any] {
                         let parsed = Self.parseWorkerResult(result)
-                        lock.lock()
-                        completedResult = parsed.result
-                        lock.unlock()
+                        workerState.setCompletedResult(parsed.result)
                         if let summary = parsed.summary {
                             Task { @MainActor in self.proofRunSummary = summary }
                         }
@@ -558,16 +595,8 @@ final class ProofEngine: ObservableObject {
                 }
             }
 
-            func consumeStdout(_ data: Data) {
-                lock.lock()
-                stdoutBuffer.append(data)
-                let parts = stdoutBuffer.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false)
-                let completeCount = stdoutBuffer.last == UInt8(ascii: "\n") ? parts.count : max(0, parts.count - 1)
-                let complete = Array(parts.prefix(completeCount)).map { Data($0) }
-                stdoutBuffer = stdoutBuffer.last == UInt8(ascii: "\n")
-                    ? Data()
-                    : parts.last.map { Data($0) } ?? Data()
-                lock.unlock()
+            @Sendable func consumeStdout(_ data: Data) {
+                let complete = workerState.appendStdout(data)
                 for line in complete {
                     handleLine(line)
                 }
@@ -582,19 +611,16 @@ final class ProofEngine: ObservableObject {
             stderrPipe.fileHandleForReading.readabilityHandler = { handle in
                 let data = handle.availableData
                 if data.isEmpty { return }
-                lock.lock()
-                stderrBuffer.append(data)
-                lock.unlock()
+                workerState.appendStderr(data)
             }
 
             process.terminationHandler = { _ in
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
                 stderrPipe.fileHandleForReading.readabilityHandler = nil
-                lock.lock()
-                let remainingStdout = stdoutBuffer
-                let stderr = String(data: stderrBuffer, encoding: .utf8) ?? ""
-                let result = completedResult
-                lock.unlock()
+                let snapshot = workerState.snapshot()
+                let remainingStdout = snapshot.stdout
+                let stderr = snapshot.stderr
+                let result = snapshot.result
                 if !remainingStdout.isEmpty {
                     handleLine(remainingStdout)
                 }
@@ -656,59 +682,80 @@ final class ProofEngine: ObservableObject {
         process.standardError = stderrPipe
 
         return await withCheckedContinuation { continuation in
-            let lock = NSLock()
-            var stdoutBuffer = Data()
-            var completedResult: PreviewFragmentResult?
-            var didResume = false
+            final class PreviewWorkerState: @unchecked Sendable {
+                private let lock = NSLock()
+                private var stdoutBuffer = Data()
+                private var completedResult: PreviewFragmentResult?
+                private var didResume = false
 
-            func resumeOnce(_ value: PreviewFragmentResult?) {
-                lock.lock()
-                guard !didResume else {
-                    lock.unlock()
-                    return
+                func tryResume() -> Bool {
+                    lock.lock()
+                    defer { lock.unlock() }
+                    guard !didResume else { return false }
+                    didResume = true
+                    return true
                 }
-                didResume = true
-                lock.unlock()
+
+                func setCompletedResult(_ value: PreviewFragmentResult?) {
+                    lock.lock()
+                    completedResult = value
+                    lock.unlock()
+                }
+
+                func appendStdout(_ data: Data) -> [Data] {
+                    lock.lock()
+                    stdoutBuffer.append(data)
+                    let parts = stdoutBuffer.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false)
+                    let completeCount = stdoutBuffer.last == UInt8(ascii: "\n") ? parts.count : max(0, parts.count - 1)
+                    let complete = Array(parts.prefix(completeCount)).map { Data($0) }
+                    stdoutBuffer = stdoutBuffer.last == UInt8(ascii: "\n")
+                        ? Data()
+                        : parts.last.map { Data($0) } ?? Data()
+                    lock.unlock()
+                    return complete
+                }
+
+                func snapshot() -> (stdout: Data, result: PreviewFragmentResult?) {
+                    lock.lock()
+                    let stdout = stdoutBuffer
+                    let result = completedResult
+                    lock.unlock()
+                    return (stdout, result)
+                }
+            }
+
+            let state = PreviewWorkerState()
+
+            @Sendable func resumeOnce(_ value: PreviewFragmentResult?) {
+                guard state.tryResume() else { return }
                 continuation.resume(returning: value)
             }
 
-            func handleLine(_ lineData: Data) {
+            @Sendable func handleLine(_ lineData: Data) {
                 guard !lineData.isEmpty,
                       let object = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
                       let type = object["type"] as? String else { return }
 
                 if (type == "completed" || type == "failed"),
                    let result = object["result"] as? [String: Any] {
-                    lock.lock()
-                    completedResult = Self.parsePreviewWorkerResult(
+                    state.setCompletedResult(Self.parsePreviewWorkerResult(
                         result,
                         fallbackMessage: object["message"] as? String
-                    )
-                    lock.unlock()
+                    ))
                 } else if type == "failed" {
-                    lock.lock()
-                    completedResult = PreviewFragmentResult(
+                    state.setCompletedResult(PreviewFragmentResult(
                         path: "",
                         pageCount: 0,
                         sections: [],
                         proofName: config.targetProofName,
                         baseType: config.targetProofBaseType,
                         errorMessage: object["message"] as? String ?? "Preview fragment generation failed."
-                    )
-                    lock.unlock()
+                    ))
                 }
             }
 
-            func consumeStdout(_ data: Data) {
-                lock.lock()
-                stdoutBuffer.append(data)
-                let parts = stdoutBuffer.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false)
-                let completeCount = stdoutBuffer.last == UInt8(ascii: "\n") ? parts.count : max(0, parts.count - 1)
-                let complete = Array(parts.prefix(completeCount)).map { Data($0) }
-                stdoutBuffer = stdoutBuffer.last == UInt8(ascii: "\n")
-                    ? Data()
-                    : parts.last.map { Data($0) } ?? Data()
-                lock.unlock()
+            @Sendable func consumeStdout(_ data: Data) {
+                let complete = state.appendStdout(data)
                 for line in complete {
                     handleLine(line)
                 }
@@ -723,10 +770,9 @@ final class ProofEngine: ObservableObject {
 
             process.terminationHandler = { _ in
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
-                lock.lock()
-                let remainingStdout = stdoutBuffer
-                let result = completedResult
-                lock.unlock()
+                let snapshot = state.snapshot()
+                let remainingStdout = snapshot.stdout
+                let result = snapshot.result
                 if !remainingStdout.isEmpty {
                     handleLine(remainingStdout)
                 }
