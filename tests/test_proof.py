@@ -355,6 +355,29 @@ class TestStandardTextProofHandler:
         assert handler.accents == 3
         assert handler.character_set_key == "accented_plus"
 
+    def test_accented_skip_reason_when_font_has_no_accents(self, sample_cat):
+        cat = dict(sample_cat)
+        cat["accented"] = ""
+        cat["accented_plus"] = ""
+        handler = StandardTextProofHandler(
+            "Accented Words (Text)", {}, lambda n: 10, proof_key="diacritic_words_small"
+        )
+        ctx = ProofContext(
+            full_character_set="ABCabc",
+            axes_product=None,
+            ind_font="/test.otf",
+            paired_static_styles=None,
+            otfeatures_by_proof={},
+            cols_by_proof={},
+            paras_by_proof={},
+            cat=cat,
+            proof_name="Accented Words (Text)",
+        )
+
+        assert handler.get_skip_reason(ctx) == (
+            "No Latin accented characters were found in the enabled font(s)."
+        )
+
     def test_force_wordsiv(self):
         handler = StandardTextProofHandler(
             "Auto-Generated Text", {}, lambda n: 10, proof_key="generative_text_small"

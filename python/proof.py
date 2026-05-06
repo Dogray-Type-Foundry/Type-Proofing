@@ -320,6 +320,7 @@ def drawFooter(
     otFeatures: Optional[dict] = None,
     tracking: Optional[int | float] = None,
     pageNumber: Optional[int] = None,
+    showPageNumber: Optional[bool] = None,
 ) -> None:
     """Draw a simple footer with some minimal but useful info."""
     with db.savedState():
@@ -339,17 +340,20 @@ def drawFooter(
             fontSize=FOOTER_FONT_SIZE,
             lineHeight=FOOTER_FONT_SIZE,
         )
-        # Use provided pageNumber when available; fallback to DrawBot's pageCount
-        current_page_str = (
-            str(pageNumber) if pageNumber is not None else str(db.pageCount())
-        )
-        folio = db.FormattedString(
-            current_page_str,
-            font=FOOTER_FONT_NAME,
-            fontSize=FOOTER_FONT_SIZE,
-            lineHeight=FOOTER_FONT_SIZE,
-            align="right",
-        )
+        if showPageNumber is None:
+            showPageNumber = not getattr(db, "previewMode", False)
+        if showPageNumber:
+            # Use provided pageNumber when available; fallback to DrawBot's pageCount
+            current_page_str = (
+                str(pageNumber) if pageNumber is not None else str(db.pageCount())
+            )
+            folio = db.FormattedString(
+                current_page_str,
+                font=FOOTER_FONT_NAME,
+                fontSize=FOOTER_FONT_SIZE,
+                lineHeight=FOOTER_FONT_SIZE,
+                align="right",
+            )
 
         # Calculate feature info text if OpenType features are provided
         features_text = ""
@@ -393,15 +397,16 @@ def drawFooter(
                 FOOTER_FONT_SIZE,
             ),
         )
-        db.textBox(
-            folio,
-            (
-                marginHorizontal,
-                marginVertical - 18,
-                db.width() - marginHorizontal * 2,
-                FOOTER_FONT_SIZE,
-            ),
-        )
+        if showPageNumber:
+            db.textBox(
+                folio,
+                (
+                    marginHorizontal,
+                    marginVertical - 18,
+                    db.width() - marginHorizontal * 2,
+                    FOOTER_FONT_SIZE,
+                ),
+            )
 
         # Features line (if any features to display)
         if features_text:
@@ -1730,6 +1735,10 @@ class BaseProofHandler(ABC):
         """
         pass
 
+    def get_skip_reason(self, context):
+        """Return a user-facing reason when a proof generated no pages."""
+        return None
+
     def generate_text_proof(
         self,
         context,
@@ -1849,6 +1858,18 @@ class StandardTextProofHandler(BaseProofHandler):
             self.language,
             self.hoefler_style,
         )
+
+    def get_skip_reason(self, context):
+        character_set = self.get_character_set(context)
+        if character_set:
+            return None
+        if self.character_set_key == "accented_plus":
+            return "No Latin accented characters were found in the enabled font(s)."
+        if self.language == "ar":
+            return "No Arabic characters were found in the enabled font(s)."
+        if self.language == "fa":
+            return "No Farsi characters were found in the enabled font(s)."
+        return "The enabled font(s) do not contain characters required by this proof."
 
 
 class CategoryBasedProofHandler(BaseProofHandler):

@@ -14,6 +14,7 @@ from config import (
     PROOF_REGISTRY,
     DEFAULT_ON_FEATURES,
     PAGE_FORMAT_OPTIONS,
+    PAGE_DIMENSIONS,
     get_proof_settings_mapping,
     get_proof_display_names,
     resolve_base_proof_key,
@@ -47,11 +48,12 @@ from proof import (
 # ---------------------------------------------------------------------------
 
 
-def _begin_pdf(page_format, show_baselines=True):
+def _begin_pdf(page_format, show_baselines=True, preview_mode=False):
     """Initialize a new DrawBot drawing with the given page format."""
     setup_page_format(page_format)
     reset_proof_page_counter()
     db.showBaselines = show_baselines
+    db.previewMode = preview_mode
     db.newDrawing()
 
 
@@ -146,6 +148,202 @@ def _diagnose_custom_text_fallbacks(
         )
 
 
+def _build_generation_runtime(typed_config, diagnostics, event_callback=None):
+    font_paths = typed_config.font_paths
+    axis_values_by_font = typed_config.axis_values_by_font
+    proof_settings = typed_config.proof_settings.flat
+    page_format = typed_config.page_format
+    output_dir = typed_config.resolved_output_dir
+
+    # Build a minimal Settings + FontManager without touching disk
+    settings = Settings.__new__(Settings)
+    settings.settings_path = None
+    settings.user_settings_file = None
+    settings.data = {
+        "fonts": {"paths": list(font_paths)},
+        "page_format": page_format,
+    }
+    settings.get_fonts = lambda: list(font_paths)
+    settings.get_page_format = lambda: page_format
+    settings.get_proof_settings = lambda: dict(proof_settings)
+    settings.get_font_axis_values = lambda fp: axis_values_by_font.get(fp, {})
+
+    font_manager = FontManager(settings)
+    for fp, axes in axis_values_by_font.items():
+        font_manager.axis_values_by_font[fp] = axes
+
+    psm = ProofSettingsManager(settings, font_manager)
+    psm.proof_settings.update(proof_settings)
+
+    now = datetime.datetime.now()
+    summary = typed_config.build_summary()
+    diagnostics.debug_event("summary", "Proof run summary prepared", details=summary)
+
+    _begin_pdf(
+        page_format,
+        show_baselines=typed_config.show_baselines,
+        preview_mode=typed_config.preview_mode,
+    )
+
+    MultiStyleComparisonProofHandler.reset_generated()
+
+    return {
+        "typed_config": typed_config,
+        "font_manager": font_manager,
+        "psm": psm,
+        "paired_static_styles": pairStaticStyles(font_manager.fonts),
+        "output_dir": output_dir,
+        "now": now,
+        "summary": summary,
+    }
+
+
+def _generate_proof_options(runtime, enabled_options, diagnostics, event_callback=None):
+    font_manager = runtime["font_manager"]
+    psm = runtime["psm"]
+    paired_static_styles = runtime["paired_static_styles"]
+    sections = []
+
+    proof_count = len(enabled_options)
+    for proof_index, item in enumerate(enabled_options, 1):
+        proof_name = item.name
+        base_proof_type = item.base_type
+
+        registry_entry = PROOF_REGISTRY.get(base_proof_type)
+        if registry_entry:
+            base_proof_type = registry_entry["display_name"]
+
+        handler = get_proof_handler(
+            base_proof_type,
+            proof_name,
+            psm.proof_settings,
+            psm.get_proof_font_size,
+        )
+        if not handler:
+            print(f"Warning: No handler for '{base_proof_type}'")
+            diagnostics.add(
+                "warning",
+                "skipped_proof",
+                f"No handler for '{base_proof_type}'",
+                proof_name=proof_name,
+            )
+            continue
+
+        page_before = db.pageCount()
+        skip_reasons = []
+
+        for font_index, ind_font in enumerate(font_manager.fonts, 1):
+            _emit_progress(
+                event_callback,
+                proof_name=proof_name,
+                proof_index=proof_index,
+                proof_count=proof_count,
+                font_path=ind_font,
+                font_index=font_index,
+                font_count=len(font_manager.fonts),
+            )
+            diagnostics.debug_event(
+                "progress",
+                "Starting proof/font combination",
+                font_path=ind_font,
+                proof_name=proof_name,
+                details={
+                    "proof_index": proof_index,
+                    "proof_count": proof_count,
+                    "font_index": font_index,
+                    "font_count": len(font_manager.fonts),
+                },
+            )
+            full_charset = filteredCharset(ind_font)
+            cat = categorize(full_charset)
+            variable_dict = db.listFontVariations(ind_font)
+
+            axes_dict = font_manager.get_axis_values_for_font(ind_font)
+            if axes_dict:
+                axes_product = list(product_dict(**axes_dict))
+            elif not bool(variable_dict):
+                axes_product = ""
+            else:
+                axes_product = variableFont(ind_font)[0]
+
+            proof_context = ProofContext(
+                full_character_set=full_charset,
+                axes_product=axes_product,
+                ind_font=ind_font,
+                paired_static_styles=paired_static_styles,
+                otfeatures_by_proof={},
+                cols_by_proof={},
+                paras_by_proof={},
+                cat=cat,
+                proof_name=proof_name,
+                all_fonts=list(font_manager.fonts),
+                font_manager=font_manager,
+            )
+
+            try:
+                _diagnose_missing_enabled_features(
+                    diagnostics,
+                    proof_name,
+                    ind_font,
+                    handler.get_otfeatures(),
+                )
+                _diagnose_custom_text_fallbacks(
+                    diagnostics,
+                    proof_name,
+                    ind_font,
+                    full_charset,
+                    handler,
+                )
+                page_before_font = db.pageCount()
+                handler.generate_proof(proof_context)
+                if db.pageCount() == page_before_font:
+                    reason = getattr(handler, "get_skip_reason", lambda _context: None)(
+                        proof_context
+                    )
+                    if reason:
+                        skip_reasons.append(reason)
+            except Exception as exc:
+                print(f"Error generating proof '{proof_name}': {exc}")
+                traceback.print_exc()
+                diagnostics.add(
+                    "error",
+                    "generation_error",
+                    str(exc),
+                    font_path=ind_font,
+                    proof_name=proof_name,
+                    details={"traceback": traceback.format_exc()},
+                )
+                continue
+
+        page_after = db.pageCount()
+        if page_after > page_before:
+            sections.append({"name": proof_name, "first_page": page_before})
+        else:
+            reason = skip_reasons[-1] if skip_reasons else "Proof produced no pages."
+            diagnostics.add(
+                "info",
+                "skipped_proof",
+                reason,
+                proof_name=proof_name,
+            )
+
+    return sections
+
+
+def _save_generation_pdf(runtime, diagnostics):
+    font_manager = runtime["font_manager"]
+    family_name = font_manager.get_family_name() or "proof"
+    pdf_path = _end_pdf(runtime["output_dir"], family_name, runtime["now"])
+    elapsed = datetime.datetime.now() - runtime["now"]
+    print(f"Proof generated in {elapsed}")
+    diagnostics.debug_event(
+        "performance",
+        "Proof generation finished",
+        details={"elapsed_seconds": elapsed.total_seconds()},
+    )
+    return pdf_path
+
+
 def generate_proof(config: dict, event_callback=None) -> str:
     """Generate a proof PDF from a configuration dictionary.
 
@@ -173,204 +371,24 @@ def generate_proof(config: dict, event_callback=None) -> str:
         for warning in validate_generation_config(typed_config):
             diagnostics.add("warning", "config", warning)
 
-        font_paths = typed_config.font_paths
-        if not font_paths:
+        if not typed_config.font_paths:
             print("Error: No font paths provided")
             diagnostics.add("error", "config", "No font paths provided")
             return {"path": "", "sections": [], "diagnostics": diagnostics.to_list()}
 
-        axis_values_by_font = typed_config.axis_values_by_font
-        proof_options = config.get("proof_options", [])
-        proof_settings = typed_config.proof_settings.flat
-        page_format = typed_config.page_format
-        output_dir = typed_config.output_dir
-        show_baselines = typed_config.show_baselines
-
-        # Build a minimal Settings + FontManager without touching disk
-        settings = Settings.__new__(Settings)
-        settings.settings_path = None
-        settings.user_settings_file = None
-        settings.data = {
-            "fonts": {"paths": list(font_paths)},
-            "page_format": page_format,
-        }
-        settings.get_fonts = lambda: list(font_paths)
-        settings.get_page_format = lambda: page_format
-        settings.get_proof_settings = lambda: dict(proof_settings)
-        settings.get_font_axis_values = lambda fp: axis_values_by_font.get(fp, {})
-
-        font_manager = FontManager(settings)
-        # Override axis values with those supplied by the caller
-        for fp, axes in axis_values_by_font.items():
-            font_manager.axis_values_by_font[fp] = axes
-
-        # Build a ProofSettingsManager so handlers can look up sizes, etc.
-        psm = ProofSettingsManager(settings, font_manager)
-        # Merge caller-supplied proof_settings on top of defaults
-        psm.proof_settings.update(proof_settings)
-
-        # Determine output directory
-        if not output_dir:
-            output_dir = os.path.dirname(os.path.abspath(font_paths[0]))
-
-        now = datetime.datetime.now()
-        summary = typed_config.build_summary()
-        diagnostics.debug_event("summary", "Proof run summary prepared", details=summary)
-
-        # --- Initialize PDF generation ---
-        _begin_pdf(page_format, show_baselines=show_baselines)
-
-        paired_static_styles = pairStaticStyles(font_manager.fonts)
-
-        # Default OT features from first font
-        feature_tags = (
-            db.listOpenTypeFeatures(font_manager.fonts[0]) if font_manager.fonts else []
+        runtime = _build_generation_runtime(typed_config, diagnostics, event_callback)
+        sections = _generate_proof_options(
+            runtime,
+            typed_config.enabled_proofs,
+            diagnostics,
+            event_callback,
         )
-        default_otfeatures = {tag: tag in DEFAULT_ON_FEATURES for tag in feature_tags}
-
-        # Reset multi-style dedup so it generates once per PDF run
-        MultiStyleComparisonProofHandler.reset_generated()
-
-        # Track which pages belong to which proof section
-        sections = []  # list of {"name": str, "first_page": int}
-
-        # --- Loop: proof options → fonts ---
-        enabled_options = [item for item in proof_options if item.get("Enabled", False)]
-        proof_count = len(enabled_options)
-        for proof_index, item in enumerate(enabled_options, 1):
-            if not item.get("Enabled", False):
-                continue
-
-            proof_name = item.get("Option", "")
-            base_proof_type = item.get("_original_option", proof_name)
-
-            # Resolve proof key → display name for get_proof_handler(),
-            # which indexes handlers by display name.
-            registry_entry = PROOF_REGISTRY.get(base_proof_type)
-            if registry_entry:
-                base_proof_type = registry_entry["display_name"]
-
-            handler = get_proof_handler(
-                base_proof_type,
-                proof_name,
-                psm.proof_settings,
-                psm.get_proof_font_size,
-            )
-            if not handler:
-                print(f"Warning: No handler for '{base_proof_type}'")
-                diagnostics.add(
-                    "warning",
-                    "skipped_proof",
-                    f"No handler for '{base_proof_type}'",
-                    proof_name=proof_name,
-                )
-                continue
-
-            page_before = db.pageCount()
-
-            for font_index, ind_font in enumerate(font_manager.fonts, 1):
-                _emit_progress(
-                    event_callback,
-                    proof_name=proof_name,
-                    proof_index=proof_index,
-                    proof_count=proof_count,
-                    font_path=ind_font,
-                    font_index=font_index,
-                    font_count=len(font_manager.fonts),
-                )
-                diagnostics.debug_event(
-                    "progress",
-                    "Starting proof/font combination",
-                    font_path=ind_font,
-                    proof_name=proof_name,
-                    details={
-                        "proof_index": proof_index,
-                        "proof_count": proof_count,
-                        "font_index": font_index,
-                        "font_count": len(font_manager.fonts),
-                    },
-                )
-                full_charset = filteredCharset(ind_font)
-                cat = categorize(full_charset)
-                variable_dict = db.listFontVariations(ind_font)
-
-                # Prefer per-font axes if supplied
-                axes_dict = font_manager.get_axis_values_for_font(ind_font)
-                if axes_dict:
-                    axes_product = list(product_dict(**axes_dict))
-                elif not bool(variable_dict):
-                    axes_product = ""
-                else:
-                    axes_product = variableFont(ind_font)[0]
-
-                proof_context = ProofContext(
-                    full_character_set=full_charset,
-                    axes_product=axes_product,
-                    ind_font=ind_font,
-                    paired_static_styles=paired_static_styles,
-                    otfeatures_by_proof={},
-                    cols_by_proof={},
-                    paras_by_proof={},
-                    cat=cat,
-                    proof_name=proof_name,
-                    all_fonts=list(font_manager.fonts),
-                    font_manager=font_manager,
-                )
-
-                try:
-                    _diagnose_missing_enabled_features(
-                        diagnostics,
-                        proof_name,
-                        ind_font,
-                        handler.get_otfeatures(),
-                    )
-                    _diagnose_custom_text_fallbacks(
-                        diagnostics,
-                        proof_name,
-                        ind_font,
-                        full_charset,
-                        handler,
-                    )
-                    handler.generate_proof(proof_context)
-                except Exception as exc:
-                    print(f"Error generating proof '{proof_name}': {exc}")
-                    traceback.print_exc()
-                    diagnostics.add(
-                        "error",
-                        "generation_error",
-                        str(exc),
-                        font_path=ind_font,
-                        proof_name=proof_name,
-                        details={"traceback": traceback.format_exc()},
-                    )
-                    continue
-
-            page_after = db.pageCount()
-            if page_after > page_before:
-                sections.append({"name": proof_name, "first_page": page_before})
-            else:
-                diagnostics.add(
-                    "info",
-                    "skipped_proof",
-                    "Proof produced no pages.",
-                    proof_name=proof_name,
-                )
-
-        # --- Finalize ---
-        family_name = font_manager.get_family_name() or "proof"
-        pdf_path = _end_pdf(output_dir, family_name, now)
-        elapsed = datetime.datetime.now() - now
-        print(f"Proof generated in {elapsed}")
-        diagnostics.debug_event(
-            "performance",
-            "Proof generation finished",
-            details={"elapsed_seconds": elapsed.total_seconds()},
-        )
+        pdf_path = _save_generation_pdf(runtime, diagnostics)
         return {
             "path": pdf_path or "",
             "sections": sections,
             "diagnostics": diagnostics.to_list(),
-            "summary": summary,
+            "summary": runtime["summary"],
         }
 
     except Exception as exc:
@@ -386,6 +404,99 @@ def generate_proof(config: dict, event_callback=None) -> str:
         except Exception:
             pass
         return {"path": "", "sections": [], "diagnostics": diagnostics.to_list()}
+
+
+def generate_preview_fragment(config: dict, event_callback=None) -> dict:
+    """Generate one enabled proof option as a transient preview fragment."""
+    raw_config = dict(config)
+    raw_config["preview_mode"] = True
+    typed_config = GenerationConfig.from_dict(raw_config)
+    diagnostics = DiagnosticsCollector(
+        debug=typed_config.debug_mode,
+        sink=event_callback,
+    )
+    try:
+        for warning in validate_generation_config(typed_config):
+            diagnostics.add("warning", "config", warning)
+
+        if not typed_config.font_paths:
+            diagnostics.add("error", "config", "No font paths provided")
+            return {
+                "path": "",
+                "sections": [],
+                "diagnostics": diagnostics.to_list(),
+                "page_count": 0,
+                "proof_name": typed_config.target_proof_name,
+                "base_type": typed_config.target_proof_base_type,
+            }
+
+        target_name = typed_config.target_proof_name
+        target_base_type = typed_config.target_proof_base_type
+        target_options = [
+            option
+            for option in typed_config.proof_options
+            if option.enabled
+            and option.name == target_name
+            and option.base_type == target_base_type
+        ]
+        if not target_options:
+            diagnostics.add(
+                "info",
+                "skipped_proof",
+                "Target proof is disabled or missing.",
+                proof_name=target_name,
+                details={"base_type": target_base_type},
+            )
+            return {
+                "path": "",
+                "sections": [],
+                "diagnostics": diagnostics.to_list(),
+                "summary": typed_config.build_summary(),
+                "page_count": 0,
+                "proof_name": target_name,
+                "base_type": target_base_type,
+            }
+
+        runtime = _build_generation_runtime(typed_config, diagnostics, event_callback)
+        sections = _generate_proof_options(
+            runtime,
+            target_options[:1],
+            diagnostics,
+            event_callback,
+        )
+        page_count = db.pageCount()
+        pdf_path = _save_generation_pdf(runtime, diagnostics)
+        return {
+            "path": pdf_path or "",
+            "sections": sections,
+            "diagnostics": diagnostics.to_list(),
+            "summary": runtime["summary"],
+            "page_count": page_count,
+            "proof_name": target_name,
+            "base_type": target_base_type,
+        }
+
+    except Exception as exc:
+        log_error(f"generate_preview_fragment failed: {exc}", traceback.format_exc())
+        diagnostics.add(
+            "error",
+            "generation_error",
+            str(exc),
+            proof_name=typed_config.target_proof_name,
+            details={"traceback": traceback.format_exc()},
+        )
+        try:
+            db.endDrawing()
+        except Exception:
+            pass
+        return {
+            "path": "",
+            "sections": [],
+            "diagnostics": diagnostics.to_list(),
+            "page_count": 0,
+            "proof_name": typed_config.target_proof_name,
+            "base_type": typed_config.target_proof_base_type,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -709,6 +820,12 @@ def get_proof_registry():
     for key, info in PROOF_REGISTRY.items():
         entry = dict(info)
         entry["display_order"] = order_map.get(info["display_name"], 999)
+        text_config = entry.get("text") or {}
+        entry["preview_cost"] = (
+            "wordsiv"
+            if text_config.get("hoefler_style") or text_config.get("force_wordsiv")
+            else "fast"
+        )
         result[key] = entry
     return result
 
@@ -716,6 +833,11 @@ def get_proof_registry():
 def get_page_formats():
     """Return available page format names."""
     return list(PAGE_FORMAT_OPTIONS)
+
+
+def get_page_format_dimensions():
+    """Return page format dimensions in points for Swift preview placeholders."""
+    return {key: list(value) for key, value in PAGE_DIMENSIONS.items()}
 
 
 def get_proof_run_summary(config):

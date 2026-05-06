@@ -13,6 +13,7 @@
 		2BDA8F37615B3B5B15331217 /* PythonSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE953E15DAE1B6D459834F9F /* PythonSetup.swift */; };
 		2D1FC97C23A2CF0042055394 /* HoverComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9149A97ACE7210EC141D56B7 /* HoverComponents.swift */; };
 		2E1F606AC843602F4C5E60CA /* TypeProofingApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01C9B31020CDF64BC53338BE /* TypeProofingApp.swift */; };
+		310FE15D73EEDCF9C6C08195 /* PreviewCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF0A080F064F287805B720FC /* PreviewCoordinator.swift */; };
 		36F5D730FC9BCF3F220D8ED2 /* Python.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FAE140EC7E4A8EC46F447012 /* Python.framework */; };
 		38B4777F7E10599BBCAF4709 /* TypeProofing.icns in Resources */ = {isa = PBXBuildFile; fileRef = 3D33E010FA40B61EFD0077A8 /* TypeProofing.icns */; };
 		43E7BC229EB9768F13C0F01F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90438448008FA276EEC20F55 /* AppState.swift */; };
@@ -96,6 +97,7 @@
 		D4FC692BC2E944259717D652 /* FontSortBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontSortBar.swift; sourceTree = "<group>"; };
 		D7B45C6D0EF3F226D95AF506 /* SettingsPanelUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanelUITests.swift; sourceTree = "<group>"; };
 		DE953E15DAE1B6D459834F9F /* PythonSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonSetup.swift; sourceTree = "<group>"; };
+		DF0A080F064F287805B720FC /* PreviewCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewCoordinator.swift; sourceTree = "<group>"; };
 		E493E6A783430EC1B5DCD13C /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		E647C0F98E8D79FEC457A44B /* TypeProofingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TypeProofingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E8FB027921231229D0CEAE7D /* PDFViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFViewerView.swift; sourceTree = "<group>"; };
@@ -147,6 +149,7 @@
 				20244E9C11E156EFEECBE024 /* FontStyleSelectionViews.swift */,
 				9149A97ACE7210EC141D56B7 /* HoverComponents.swift */,
 				E8FB027921231229D0CEAE7D /* PDFViewerView.swift */,
+				DF0A080F064F287805B720FC /* PreviewCoordinator.swift */,
 				8FD87BE6E04F0FA9E7911E43 /* ProofEngine.swift */,
 				DE953E15DAE1B6D459834F9F /* PythonSetup.swift */,
 				7B4B0E69F25CBAFA4C0B8F6E /* SettingsPanelView.swift */,
@@ -368,6 +371,7 @@
 				95D0EB1AEABF12F46DCC7153 /* FontsSection.swift in Sources */,
 				2D1FC97C23A2CF0042055394 /* HoverComponents.swift in Sources */,
 				7A6BE132E1E3936AFBD08415 /* PDFViewerView.swift in Sources */,
+				310FE15D73EEDCF9C6C08195 /* PreviewCoordinator.swift in Sources */,
 				AC25D54500E6445CC063E8A1 /* ProofEngine.swift in Sources */,
 				2BDA8F37615B3B5B15331217 /* PythonSetup.swift in Sources */,
 				01D7394CB1127DDAFAE38060 /* SettingsPanelView.swift in Sources */,

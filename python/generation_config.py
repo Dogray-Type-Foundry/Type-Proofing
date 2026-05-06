@@ -65,6 +65,10 @@ class GenerationConfig:
     output_dir: str = ""
     show_baselines: bool = False
     debug_mode: bool = False
+    preview_mode: bool = False
+    target_proof_name: str = ""
+    target_proof_base_type: str = ""
+    fragment_output_dir: str = ""
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "GenerationConfig":
@@ -81,6 +85,10 @@ class GenerationConfig:
             output_dir=str(raw.get("output_dir", "")),
             show_baselines=bool(raw.get("show_baselines", False)),
             debug_mode=bool(raw.get("debug_mode", False)),
+            preview_mode=bool(raw.get("preview_mode", False)),
+            target_proof_name=str(raw.get("target_proof_name", "")),
+            target_proof_base_type=str(raw.get("target_proof_base_type", "")),
+            fragment_output_dir=str(raw.get("fragment_output_dir", "")),
         )
 
     @property
@@ -89,6 +97,8 @@ class GenerationConfig:
 
     @property
     def resolved_output_dir(self) -> str:
+        if self.preview_mode and self.fragment_output_dir:
+            return self.fragment_output_dir
         if self.output_dir:
             return self.output_dir
         if self.font_paths:

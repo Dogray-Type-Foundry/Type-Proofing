@@ -32,6 +32,10 @@ def test_generation_config_parses_current_bridge_shape():
         "output_dir": "/tmp",
         "show_baselines": True,
         "debug_mode": True,
+        "preview_mode": True,
+        "target_proof_name": "Character Overview",
+        "target_proof_base_type": "filtered_character_set",
+        "fragment_output_dir": "/tmp/fragments",
     }
 
     config = GenerationConfig.from_dict(raw)
@@ -45,6 +49,10 @@ def test_generation_config_parses_current_bridge_shape():
         "kern": True
     }
     assert config.debug_mode is True
+    assert config.preview_mode is True
+    assert config.target_proof_name == "Character Overview"
+    assert config.target_proof_base_type == "filtered_character_set"
+    assert config.resolved_output_dir == "/tmp/fragments"
 
 
 def test_generation_summary_flags_large_variable_runs():

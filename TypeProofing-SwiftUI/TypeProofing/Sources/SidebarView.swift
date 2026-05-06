@@ -24,16 +24,20 @@ struct SidebarView: View {
                         if engine.isGenerating {
                             ProgressView()
                                 .controlSize(.small)
+                        } else if state.isFinalPDFStale {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.yellow)
                         } else {
                             Image(systemName: "wand.and.rays")
                         }
-                        Text("Generate")
+                        Text("Generate Final PDF")
                     }
                     .frame(maxWidth: .infinity)
                 }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
-                .help("Generate Proof")
+                .tint(state.isFinalPDFStale ? .orange : nil)
+                .help(state.isFinalPDFStale ? "Final PDF is out of sync with current settings" : "Generate Final PDF")
                 .disabled(engine.isGenerating || state.enabledFontPaths.isEmpty)
 
                 if engine.isGenerating {
@@ -115,7 +119,8 @@ struct SidebarView: View {
                                     get: { state.proofOptions[index].enabled },
                                     set: { newValue in
                                         state.proofOptions[index].enabled = newValue
-                                        state.schedulePersistPublic()
+                                        state.schedulePersistPublic(notifyPreview: false)
+                                        state.previewCoordinator?.proofEnableChanged(proofID: option.id)
                                     }
                                 ),
                                 isLast: option.id == visibleProofs.last?.id,
@@ -125,6 +130,7 @@ struct SidebarView: View {
                                 },
                                 onTap: {
                                     state.selectedProof = option.id
+                                    state.requestPreviewNavigation(to: option.id)
                                 },
                                 onRename: { newName in
                                     state.proofOptions[index].name = newName
@@ -215,18 +221,31 @@ struct SidebarView: View {
     // MARK: - Generate
 
     private func generateProof() async {
+        state.previewCoordinator?.pauseForFinalGeneration()
         state.persistState()
         let config = state.buildProofConfig()
+        let capturedFingerprint = config.fingerprint()
         engine.refreshRunSummary(config: config)
         // Clear previous results before generating
-        state.currentPDFPath = nil
-        state.proofSections = []
+        state.finalPDFPath = nil
+        state.finalSections = []
         // Yield so the UI can show the cleared state before blocking on Python
         await Task.yield()
         if let result = await engine.generateProof(config: config) {
+            state.finalPDFPath = result.path
+            state.finalSections = result.sections
             state.currentPDFPath = result.path
             state.proofSections = result.sections
+            if state.previewPDFPath == nil {
+                state.previewPDFPath = result.path
+                state.previewSections = result.sections
+            }
+            state.refreshCurrentConfigFingerprint()
+            if state.currentConfigFingerprint == capturedFingerprint {
+                state.finalGeneratedConfigFingerprint = capturedFingerprint
+            }
         }
+        state.previewCoordinator?.resumeAfterFinalGeneration()
     }
 }
 

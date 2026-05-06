@@ -164,7 +164,8 @@ final class ProofKeyTests: XCTestCase {
             hasCategories: true,
             isMultiStyle: false,
             defaultEnabled: true,
-            displayOrder: 0
+            displayOrder: 0,
+            previewCost: .fast
         )
         let baseOption = ProofOption(
             name: "Character Overview",

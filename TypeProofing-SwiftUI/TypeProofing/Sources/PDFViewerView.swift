@@ -8,20 +8,21 @@ struct PDFViewerView: View {
     @EnvironmentObject var state: AppState
 
     var body: some View {
-        if state.currentPDFPath != nil {
+        if state.previewPDFPath != nil {
             PDFSplitContainer(
-                pdfPath: state.currentPDFPath,
-                sections: state.proofSections
+                pdfPath: state.previewPDFPath,
+                sections: state.previewSections,
+                navigationRequest: state.previewNavigationRequest
             )
         } else {
             VStack(spacing: 12) {
                 Image(systemName: "doc.richtext")
                     .font(.system(size: 48))
                     .foregroundStyle(.secondary)
-                Text("No PDF Generated Yet")
+                Text(state.enabledFontPaths.isEmpty ? "No Fonts Loaded" : "Preview Not Ready")
                     .font(.title3)
                     .foregroundStyle(.secondary)
-                Text("Load fonts and press Generate to create a proof")
+                Text(state.enabledFontPaths.isEmpty ? "Load fonts to start preview generation" : "Preview fragments will appear here as they finish")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -35,6 +36,7 @@ struct PDFViewerView: View {
 struct PDFSplitContainer: NSViewRepresentable {
     let pdfPath: String?
     let sections: [ProofSection]
+    let navigationRequest: PreviewNavigationRequest?
 
     private static let defaultThumbWidth: CGFloat = 160
 
@@ -46,7 +48,7 @@ struct PDFSplitContainer: NSViewRepresentable {
         splitView.dividerStyle = .thin
         splitView.delegate = context.coordinator
 
-        // Thumbnail sidebar (index 0): fixed section list above scrolling thumbnails.
+        // Thumbnail sidebar (index 0)
         let thumbnailSidebar = ThumbnailSidebarView(defaultWidth: Self.defaultThumbWidth)
 
         // PDF view (index 1)
@@ -90,33 +92,32 @@ struct PDFSplitContainer: NSViewRepresentable {
         if let path = pdfPath {
             let url = URL(fileURLWithPath: path)
             if let document = PDFDocument(url: url) {
+                let anchor = context.coordinator.currentAnchor()
                 pdfView.document = document
+                context.coordinator.restore(anchor: anchor, in: document, sections: sections)
                 thumbnailSidebar.thumbnailList.update(
                     document: document,
                     sections: sections,
                     pdfView: pdfView,
                     availableWidth: thumbnailSidebar.thumbnailAvailableWidth
                 )
-                let sectionHeight = thumbnailSidebar.sectionList.update(
-                    document: document,
-                    sections: sections,
-                    pdfView: pdfView,
-                    onSelectPage: { [weak thumbnailSidebar] pageIndex in
-                        thumbnailSidebar?.scrollToPage(pageIndex)
-                    }
+                context.coordinator.sections = sections
+                context.coordinator.handleNavigation(
+                    navigationRequest,
+                    in: document,
+                    thumbnailSidebar: thumbnailSidebar
                 )
-                thumbnailSidebar.sectionHeight = sectionHeight
             }
         } else {
             pdfView.document = nil
+            context.coordinator.sections = []
             thumbnailSidebar.thumbnailList.update(
                 document: nil,
                 sections: [],
                 pdfView: pdfView,
                 availableWidth: thumbnailSidebar.thumbnailAvailableWidth
             )
-            let sectionHeight = thumbnailSidebar.sectionList.update(document: nil, sections: [], pdfView: pdfView)
-            thumbnailSidebar.sectionHeight = sectionHeight
+            context.coordinator.lastHandledNavigationRequestID = nil
         }
     }
 
@@ -126,6 +127,65 @@ struct PDFSplitContainer: NSViewRepresentable {
         var pdfView: PDFView?
         var thumbnailSidebar: ThumbnailSidebarView?
         var splitView: NSSplitView?
+        var sections: [ProofSection] = []
+        var lastHandledNavigationRequestID: UUID?
+
+        struct Anchor {
+            let sectionName: String?
+            let offset: Int
+            let absolutePage: Int
+        }
+
+        func currentAnchor() -> Anchor? {
+            guard let pdfView,
+                  let document = pdfView.document,
+                  let page = pdfView.currentPage else { return nil }
+            let pageIndex = document.index(for: page)
+            guard pageIndex != NSNotFound else { return nil }
+
+            var currentSection: ProofSection?
+            for section in sections.sorted(by: { $0.firstPage < $1.firstPage }) {
+                if section.firstPage <= pageIndex {
+                    currentSection = section
+                } else {
+                    break
+                }
+            }
+            return Anchor(
+                sectionName: currentSection?.name,
+                offset: currentSection.map { max(0, pageIndex - $0.firstPage) } ?? 0,
+                absolutePage: pageIndex
+            )
+        }
+
+        func restore(anchor: Anchor?, in document: PDFDocument, sections: [ProofSection]) {
+            guard let pdfView, let anchor, document.pageCount > 0 else { return }
+            let targetIndex: Int
+            if let sectionName = anchor.sectionName,
+               let section = sections.first(where: { $0.name == sectionName }) {
+                targetIndex = min(section.firstPage + anchor.offset, document.pageCount - 1)
+            } else {
+                targetIndex = min(anchor.absolutePage, document.pageCount - 1)
+            }
+            if let page = document.page(at: max(0, targetIndex)) {
+                pdfView.go(to: page)
+            }
+        }
+
+        func handleNavigation(
+            _ request: PreviewNavigationRequest?,
+            in document: PDFDocument,
+            thumbnailSidebar: ThumbnailSidebarView
+        ) {
+            guard let request,
+                  request.id != lastHandledNavigationRequestID,
+                  document.pageCount > 0 else { return }
+            let pageIndex = min(max(request.pageIndex, 0), document.pageCount - 1)
+            guard let page = document.page(at: pageIndex) else { return }
+            lastHandledNavigationRequestID = request.id
+            pdfView?.goToPageTop(page)
+            thumbnailSidebar.scrollToPage(pageIndex)
+        }
 
         func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
             100
@@ -185,15 +245,9 @@ final class WiderDividerSplitView: NSSplitView {
 
 /// AppKit frame-layout sidebar used inside NSSplitView.
 final class ThumbnailSidebarView: NSView {
-    let sectionList = SectionListView()
     let thumbnailList: ThumbnailListView
 
-    private let separator = NSBox()
     private let thumbnailScroll = NSScrollView()
-
-    var sectionHeight: CGFloat = 1 {
-        didSet { needsLayout = true }
-    }
 
     var thumbnailAvailableWidth: CGFloat {
         let contentWidth = thumbnailScroll.contentView.bounds.width
@@ -204,15 +258,11 @@ final class ThumbnailSidebarView: NSView {
         thumbnailList = ThumbnailListView(frame: NSRect(x: 0, y: 0, width: defaultWidth, height: 1))
         super.init(frame: NSRect(x: 0, y: 0, width: defaultWidth, height: 1))
 
-        separator.boxType = .separator
-
         thumbnailScroll.hasVerticalScroller = true
         thumbnailScroll.autohidesScrollers = true
         thumbnailScroll.drawsBackground = false
         thumbnailScroll.documentView = thumbnailList
 
-        addSubview(sectionList)
-        addSubview(separator)
         addSubview(thumbnailScroll)
     }
 
@@ -223,14 +273,7 @@ final class ThumbnailSidebarView: NSView {
 
         let width = max(bounds.width, 80)
         let height = max(bounds.height, 0)
-        let separatorHeight: CGFloat = sectionHeight > 0 ? 1 : 0
-        let clampedSectionHeight = min(sectionHeight, max(height - separatorHeight, 0))
-        let scrollY = clampedSectionHeight + separatorHeight
-        let scrollHeight = max(height - scrollY, 0)
-
-        sectionList.frame = NSRect(x: 0, y: 0, width: width, height: clampedSectionHeight)
-        separator.frame = NSRect(x: 0, y: clampedSectionHeight, width: width, height: separatorHeight)
-        thumbnailScroll.frame = NSRect(x: 0, y: scrollY, width: width, height: scrollHeight)
+        thumbnailScroll.frame = NSRect(x: 0, y: 0, width: width, height: height)
     }
 
     func scrollToPage(_ pageIndex: Int) {
@@ -243,81 +286,6 @@ final class ThumbnailSidebarView: NSView {
         let targetY = min(max(rect.minY - 8, 0), maxY)
         clipView.scroll(to: NSPoint(x: 0, y: targetY))
         thumbnailScroll.reflectScrolledClipView(thumbnailScroll.contentView)
-    }
-
-    override var isFlipped: Bool { true }
-}
-
-// MARK: - Section List View
-
-/// Fixed GUI-only table of contents for generated proof sections.
-final class SectionListView: NSView {
-    private var sectionViews: [NSView] = []
-
-    @discardableResult
-    func update(
-        document: PDFDocument?,
-        sections: [ProofSection],
-        pdfView: PDFView,
-        onSelectPage: ((Int) -> Void)? = nil
-    ) -> CGFloat {
-        for view in sectionViews { view.removeFromSuperview() }
-        sectionViews.removeAll()
-
-        guard let document, document.pageCount > 0, !sections.isEmpty else {
-            frame.size.height = 0
-            return 0
-        }
-
-        let containerWidth = max(bounds.width, 80)
-        var yOffset: CGFloat = 8
-
-        let label = NSTextField(labelWithString: "Sections")
-        label.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
-        label.textColor = .secondaryLabelColor
-        label.frame = NSRect(x: 8, y: yOffset, width: containerWidth - 16, height: 14)
-        addSubview(label)
-        sectionViews.append(label)
-        yOffset += 18
-
-        for section in sections {
-            let pageIndex = min(max(section.firstPage, 0), document.pageCount - 1)
-            guard let page = document.page(at: pageIndex) else { continue }
-            let button = SectionJumpButton(
-                title: section.name,
-                page: page,
-                pageIndex: pageIndex,
-                frame: NSRect(x: 6, y: yOffset, width: containerWidth - 12, height: 22),
-                pdfView: pdfView,
-                onSelectPage: onSelectPage
-            )
-            addSubview(button)
-            sectionViews.append(button)
-            yOffset += 24
-        }
-
-        let preferredHeight = min(yOffset + 8, 180)
-        frame = NSRect(x: 0, y: 0, width: containerWidth, height: preferredHeight)
-        invalidateIntrinsicContentSize()
-        return preferredHeight
-    }
-
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: max(frame.height, 1))
-    }
-
-    override func resizeSubviews(withOldSize oldSize: NSSize) {
-        super.resizeSubviews(withOldSize: oldSize)
-        let containerWidth = max(bounds.width, 80)
-        for view in sectionViews {
-            if view is SectionJumpButton {
-                view.frame.origin.x = 6
-                view.frame.size.width = containerWidth - 12
-            } else {
-                view.frame.origin.x = 8
-                view.frame.size.width = containerWidth - 16
-            }
-        }
     }
 
     override var isFlipped: Bool { true }
@@ -432,44 +400,6 @@ final class ThumbnailListView: NSView {
     }
 
     override var isFlipped: Bool { true }
-}
-
-final class SectionJumpButton: NSButton {
-    private let page: PDFPage
-    private let pageIndex: Int
-    private weak var pdfView: PDFView?
-    private let onSelectPage: ((Int) -> Void)?
-
-    init(
-        title: String,
-        page: PDFPage,
-        pageIndex: Int,
-        frame: NSRect,
-        pdfView: PDFView?,
-        onSelectPage: ((Int) -> Void)?
-    ) {
-        self.page = page
-        self.pageIndex = pageIndex
-        self.pdfView = pdfView
-        self.onSelectPage = onSelectPage
-        super.init(frame: frame)
-        self.title = title
-        font = NSFont.systemFont(ofSize: 11)
-        alignment = .left
-        isBordered = false
-        bezelStyle = .regularSquare
-        target = self
-        action = #selector(clicked)
-        lineBreakMode = .byTruncatingTail
-        contentTintColor = .labelColor
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    @objc private func clicked() {
-        pdfView?.goToPageTop(page)
-        onSelectPage?(pageIndex)
-    }
 }
 
 // MARK: - Page Thumbnail Button

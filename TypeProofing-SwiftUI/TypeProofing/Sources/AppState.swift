@@ -156,6 +156,13 @@ final class AppState: ObservableObject {
     @Published var outputDirectory: String = ""
     @Published var currentPDFPath: String?
     @Published var proofSections: [ProofSection] = []
+    @Published var previewPDFPath: String?
+    @Published var previewSections: [ProofSection] = []
+    @Published var finalPDFPath: String?
+    @Published var finalSections: [ProofSection] = []
+    @Published var finalGeneratedConfigFingerprint: String?
+    @Published var currentConfigFingerprint: String?
+    @Published var previewNavigationRequest: PreviewNavigationRequest?
 
     // PDF output
     @Published var useCustomOutputLocation: Bool = false
@@ -186,6 +193,7 @@ final class AppState: ObservableObject {
     }()
 
     private var persistTimer: Timer?
+    weak var previewCoordinator: PreviewCoordinator?
 
     // MARK: - Computed
 
@@ -207,7 +215,9 @@ final class AppState: ObservableObject {
                 guard let self,
                       let opt = self.selectedProofOption else { return }
                 self.proofSettingsByProof[opt.name] = newValue
-                self.schedulePersist()
+                self.refreshCurrentConfigFingerprint()
+                self.previewCoordinator?.proofSettingsChanged(proofID: opt.id)
+                self.schedulePersist(notifyPreview: false)
             }
         )
     }
@@ -215,6 +225,13 @@ final class AppState: ObservableObject {
     var selectedRegistryEntry: ProofRegistryEntry? {
         guard let opt = selectedProofOption else { return nil }
         return registryByKey[opt.baseType]
+    }
+
+    var isFinalPDFStale: Bool {
+        guard finalPDFPath != nil,
+              let finalGeneratedConfigFingerprint else { return false }
+        let current = currentConfigFingerprint ?? buildProofConfig().fingerprint()
+        return current != finalGeneratedConfigFingerprint
     }
 
     /// True when at least one loaded font supports the Arabic script.
@@ -264,6 +281,7 @@ final class AppState: ObservableObject {
                     }
                 }
             }
+            refreshCurrentConfigFingerprint()
             return
         }
 
@@ -283,6 +301,7 @@ final class AppState: ObservableObject {
         if let first = proofOptions.first {
             selectedProof = first.id
         }
+        refreshCurrentConfigFingerprint()
     }
 
     private func initializeDefaultSettings(for option: ProofOption) {
@@ -329,6 +348,24 @@ final class AppState: ObservableObject {
     private func clearGeneratedOutput() {
         currentPDFPath = nil
         proofSections = []
+        previewPDFPath = nil
+        previewSections = []
+        previewNavigationRequest = nil
+        finalPDFPath = nil
+        finalSections = []
+        finalGeneratedConfigFingerprint = nil
+    }
+
+    func requestPreviewNavigation(to proofID: ProofOption.ID) {
+        guard let option = proofOptions.first(where: { $0.id == proofID }),
+              option.enabled,
+              let section = previewSections.first(where: { $0.name == option.name })
+        else { return }
+        previewNavigationRequest = PreviewNavigationRequest(
+            proofID: proofID,
+            proofName: option.name,
+            pageIndex: section.firstPage
+        )
     }
 
     // MARK: - Font Management
@@ -465,7 +502,9 @@ final class AppState: ObservableObject {
         for (i, _) in proofOptions.enumerated() {
             proofOptions[i].order = i
         }
-        schedulePersist()
+        refreshCurrentConfigFingerprint()
+        previewCoordinator?.proofOrderChanged()
+        schedulePersist(notifyPreview: false)
     }
 
     // MARK: - Add/Remove Proof Instance
@@ -542,6 +581,37 @@ final class AppState: ObservableObject {
             outputDir: outDir,
             showBaselines: showBaselines
         )
+    }
+
+    func refreshCurrentConfigFingerprint() {
+        currentConfigFingerprint = buildProofConfig().fingerprint()
+    }
+
+    func previewFingerprint(for option: ProofOption) -> String {
+        guard let entry = registryByKey[option.baseType] else {
+            return buildProofConfig().fingerprint()
+        }
+        let settingsKey = pythonSettingsKey(for: option, entry: entry)
+        let flatSettings = buildFlatProofSettings().filter { key, _ in
+            key.hasPrefix("\(settingsKey)_") ||
+                key.hasPrefix("otf_\(settingsKey)_")
+        }
+        let payload: [String: Any] = [
+            "font_paths": enabledFontPaths,
+            "axis_values_by_font": axisValuesByFont.filter { enabledFontPaths.contains($0.key) },
+            "proof_option": [
+                "Option": option.name,
+                "Enabled": option.enabled,
+                "_original_option": option.baseType,
+            ],
+            "proof_settings": flatSettings,
+            "page_format": pageFormat,
+            "show_baselines": showBaselines,
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else {
+            return UUID().uuidString
+        }
+        return data.base64EncodedString()
     }
 
     func makeRunSummary() -> ProofRunSummary {
@@ -671,7 +741,11 @@ final class AppState: ObservableObject {
 
     // MARK: - Settings Persistence
 
-    private func schedulePersist() {
+    private func schedulePersist(notifyPreview: Bool = true) {
+        refreshCurrentConfigFingerprint()
+        if notifyPreview {
+            previewCoordinator?.stateChanged(debounced: true)
+        }
         persistTimer?.invalidate()
         persistTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -681,8 +755,8 @@ final class AppState: ObservableObject {
     }
 
     /// Public wrapper for views that need to trigger persistence (e.g. checkbox toggles)
-    func schedulePersistPublic() {
-        schedulePersist()
+    func schedulePersistPublic(notifyPreview: Bool = true) {
+        schedulePersist(notifyPreview: notifyPreview)
     }
 
     func persistState() {

@@ -1,4 +1,6 @@
 import Foundation
+import CryptoKit
+import CoreGraphics
 import PythonKit
 
 // MARK: - Swift Data Models
@@ -34,6 +36,11 @@ struct ProofOption: Identifiable, Equatable {
     var order: Int
 }
 
+enum ProofCost: String, Codable {
+    case fast
+    case wordsiv
+}
+
 struct ProofRegistryEntry {
     let key: String
     let displayName: String
@@ -47,6 +54,7 @@ struct ProofRegistryEntry {
     let isMultiStyle: Bool
     let defaultEnabled: Bool
     let displayOrder: Int
+    let previewCost: ProofCost
 
     /// Proofs that don't support tracking/alignment (character-set style proofs)
     private static let noFormattingKeys: Set<String> = [
@@ -83,9 +91,30 @@ let DEFAULT_ON_FEATURES: Set<String> = [
     "clig", "dist", "rclt", "rvrn", "curs", "locl"
 ]
 
-struct ProofSection {
+struct ProofSection: Equatable {
     let name: String
     let firstPage: Int   // 0-based page index
+}
+
+struct PreviewNavigationRequest: Equatable {
+    let id = UUID()
+    let proofID: ProofOption.ID
+    let proofName: String
+    let pageIndex: Int
+}
+
+struct PageFormatDimensions {
+    let width: CGFloat
+    let height: CGFloat
+}
+
+struct PreviewFragmentResult {
+    let path: String
+    let pageCount: Int
+    let sections: [ProofSection]
+    let proofName: String
+    let baseType: String
+    let errorMessage: String?
 }
 
 struct DiagnosticEvent: Identifiable, Equatable {
@@ -182,6 +211,10 @@ struct ProofConfig {
     var outputDir: String
     var showBaselines: Bool = false
     var debugMode: Bool = false
+    var previewMode: Bool = false
+    var targetProofName: String = ""
+    var targetProofBaseType: String = ""
+    var fragmentOutputDir: String = ""
 
     func toDictionary() -> [String: Any] {
         let options = proofOptions.map { opt in
@@ -201,11 +234,39 @@ struct ProofConfig {
             "output_dir": outputDir,
             "show_baselines": showBaselines,
             "debug_mode": debugMode,
+            "preview_mode": previewMode,
+            "target_proof_name": targetProofName,
+            "target_proof_base_type": targetProofBaseType,
+            "fragment_output_dir": fragmentOutputDir,
         ]
     }
 
     func toJSONData() throws -> Data {
         try JSONSerialization.data(withJSONObject: toDictionary(), options: [])
+    }
+
+    func fingerprint() -> String {
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: toDictionary(),
+            options: [.sortedKeys]
+        ) else {
+            return UUID().uuidString
+        }
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    func previewFragmentConfig(
+        proofName: String,
+        baseType: String,
+        outputDir: String
+    ) -> ProofConfig {
+        var copy = self
+        copy.previewMode = true
+        copy.targetProofName = proofName
+        copy.targetProofBaseType = baseType
+        copy.fragmentOutputDir = outputDir
+        return copy
     }
 
     /// Convert the whole config into a Python dict for PythonKit fallback calls.
@@ -567,6 +628,121 @@ final class ProofEngine: ObservableObject {
         }
     }
 
+    func generatePreviewFragment(config: ProofConfig) async -> PreviewFragmentResult? {
+        guard let workerURL = resolveWorkerScriptURL(),
+              let pythonURL = resolvePythonExecutableURL() else { return nil }
+
+        let configURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("type-proofing-preview-\(UUID().uuidString).json")
+
+        do {
+            try config.toJSONData().write(to: configURL, options: .atomic)
+        } catch {
+            return nil
+        }
+
+        let process = Process()
+        process.executableURL = pythonURL
+        process.arguments = [
+            workerURL.path,
+            "--config", configURL.path,
+            "--mode", "preview-fragment",
+        ]
+        process.environment = workerEnvironment()
+
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+
+        return await withCheckedContinuation { continuation in
+            let lock = NSLock()
+            var stdoutBuffer = Data()
+            var completedResult: PreviewFragmentResult?
+            var didResume = false
+
+            func resumeOnce(_ value: PreviewFragmentResult?) {
+                lock.lock()
+                guard !didResume else {
+                    lock.unlock()
+                    return
+                }
+                didResume = true
+                lock.unlock()
+                continuation.resume(returning: value)
+            }
+
+            func handleLine(_ lineData: Data) {
+                guard !lineData.isEmpty,
+                      let object = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                      let type = object["type"] as? String else { return }
+
+                if (type == "completed" || type == "failed"),
+                   let result = object["result"] as? [String: Any] {
+                    lock.lock()
+                    completedResult = Self.parsePreviewWorkerResult(
+                        result,
+                        fallbackMessage: object["message"] as? String
+                    )
+                    lock.unlock()
+                } else if type == "failed" {
+                    lock.lock()
+                    completedResult = PreviewFragmentResult(
+                        path: "",
+                        pageCount: 0,
+                        sections: [],
+                        proofName: config.targetProofName,
+                        baseType: config.targetProofBaseType,
+                        errorMessage: object["message"] as? String ?? "Preview fragment generation failed."
+                    )
+                    lock.unlock()
+                }
+            }
+
+            func consumeStdout(_ data: Data) {
+                lock.lock()
+                stdoutBuffer.append(data)
+                let parts = stdoutBuffer.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false)
+                let completeCount = stdoutBuffer.last == UInt8(ascii: "\n") ? parts.count : max(0, parts.count - 1)
+                let complete = Array(parts.prefix(completeCount)).map { Data($0) }
+                stdoutBuffer = stdoutBuffer.last == UInt8(ascii: "\n")
+                    ? Data()
+                    : parts.last.map { Data($0) } ?? Data()
+                lock.unlock()
+                for line in complete {
+                    handleLine(line)
+                }
+            }
+
+            stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                if !data.isEmpty {
+                    consumeStdout(data)
+                }
+            }
+
+            process.terminationHandler = { _ in
+                stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                lock.lock()
+                let remainingStdout = stdoutBuffer
+                let result = completedResult
+                lock.unlock()
+                if !remainingStdout.isEmpty {
+                    handleLine(remainingStdout)
+                }
+                try? FileManager.default.removeItem(at: configURL)
+                resumeOnce(result)
+            }
+
+            do {
+                try process.run()
+            } catch {
+                try? FileManager.default.removeItem(at: configURL)
+                resumeOnce(nil)
+            }
+        }
+    }
+
     private func resolveWorkerScriptURL() -> URL? {
         if let resourcePath = Bundle.main.resourcePath {
             let bundled = URL(fileURLWithPath: resourcePath)
@@ -620,6 +796,33 @@ final class ProofEngine: ObservableObject {
         let summary = (result["summary"] as? [String: Any]).map(ProofRunSummary.fromDictionary)
         let parsedResult = path.isEmpty ? nil : (path: path, sections: sections)
         return (parsedResult, summary)
+    }
+
+    nonisolated private static func parsePreviewWorkerResult(
+        _ result: [String: Any],
+        fallbackMessage: String?
+    ) -> PreviewFragmentResult? {
+        let path = result["path"] as? String ?? ""
+        let rawSections = result["sections"] as? [[String: Any]] ?? []
+        let sections = rawSections.compactMap { item -> ProofSection? in
+            guard let name = item["name"] as? String,
+                  let firstPage = item["first_page"] as? Int else { return nil }
+            return ProofSection(name: name, firstPage: firstPage)
+        }
+        let diagnostics = result["diagnostics"] as? [[String: Any]] ?? []
+        let diagnosticMessage = diagnostics.reversed().compactMap { event -> String? in
+            guard let level = event["level"] as? String,
+                  level == "error" || level == "warning" || level == "info" else { return nil }
+            return event["message"] as? String
+        }.first
+        return PreviewFragmentResult(
+            path: path,
+            pageCount: result["page_count"] as? Int ?? 0,
+            sections: sections,
+            proofName: result["proof_name"] as? String ?? "",
+            baseType: result["base_type"] as? String ?? "",
+            errorMessage: diagnosticMessage ?? fallbackMessage
+        )
     }
 
     nonisolated private static func parseDiagnostics(_ object: PythonObject) -> [DiagnosticEvent] {
@@ -748,7 +951,8 @@ final class ProofEngine: ObservableObject {
                 hasCategories: Bool(info.get("has_categories", false)) ?? false,
                 isMultiStyle: Bool(info.get("multi_style", false)) ?? false,
                 defaultEnabled: Bool(info.get("default_enabled", true)) ?? true,
-                displayOrder: Int(info.get("display_order", 999)) ?? 999
+                displayOrder: Int(info.get("display_order", 999)) ?? 999,
+                previewCost: ProofCost(rawValue: String(info.get("preview_cost", "fast")) ?? "fast") ?? .fast
             )
         }.sorted { $0.displayOrder < $1.displayOrder }
     }
@@ -756,6 +960,21 @@ final class ProofEngine: ObservableObject {
     func getPageFormats() -> [String] {
         guard let engine = engineModule else { return [] }
         return Array<String>(engine.get_page_formats()) ?? []
+    }
+
+    func getPageFormatDimensions() -> [String: PageFormatDimensions] {
+        guard let engine = engineModule else { return [:] }
+        let result = engine.get_page_format_dimensions()
+        guard let dict = Dictionary<String, PythonObject>(result) else { return [:] }
+        var dimensions: [String: PageFormatDimensions] = [:]
+        for (key, value) in dict {
+            guard let numbers = Array<Double>(value), numbers.count >= 2 else { continue }
+            dimensions[key] = PageFormatDimensions(
+                width: CGFloat(numbers[0]),
+                height: CGFloat(numbers[1])
+            )
+        }
+        return dimensions
     }
 
     func getDefaultProofOrder(includeArabic: Bool = true) -> [String] {

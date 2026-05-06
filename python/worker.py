@@ -28,17 +28,26 @@ def _load_config(path: str | None) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Type Proofing PDF worker")
     parser.add_argument("--config", help="Path to JSON generation config")
+    parser.add_argument(
+        "--mode",
+        choices=["final", "preview-fragment"],
+        default="final",
+        help="Generation mode. Defaults to final for backwards compatibility.",
+    )
     args = parser.parse_args(argv)
 
     # Ensure imports resolve when launched directly from the copied python-lib.
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
     try:
-        from engine import generate_proof
+        from engine import generate_preview_fragment, generate_proof
 
         config = _load_config(args.config)
         _emit({"type": "started"})
-        result = generate_proof(config, event_callback=_emit)
+        if args.mode == "preview-fragment":
+            result = generate_preview_fragment(config, event_callback=_emit)
+        else:
+            result = generate_proof(config, event_callback=_emit)
         if result.get("path"):
             _emit({"type": "completed", "result": result})
             return 0

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @EnvironmentObject var engine: ProofEngine
     @EnvironmentObject var state: AppState
+    @StateObject private var previewCoordinator = PreviewCoordinator()
 
 
     var body: some View {
@@ -18,7 +19,19 @@ struct ContentView: View {
         .onReceive(engine.$isReady) { ready in
             if ready {
                 state.loadFromEngine(engine)
+                previewCoordinator.configure(state: state, engine: engine)
+                state.previewCoordinator = previewCoordinator
+                previewCoordinator.startInitialPreview()
             }
+        }
+        .onChange(of: state.pageFormat) { _ in
+            state.schedulePersistPublic()
+        }
+        .onChange(of: state.showBaselines) { _ in
+            state.schedulePersistPublic()
+        }
+        .onChange(of: state.selectedProof) { _ in
+            previewCoordinator.selectedProofChanged()
         }
         // Add-proof popover is now presented from SidebarView
         .fileImporter(
