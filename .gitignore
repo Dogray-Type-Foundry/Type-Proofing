@@ -16,6 +16,7 @@ xcuserdata/
 
 # Xcode
 **/DerivedData/
+**/.spm-cache/
 **/build-release/
 **/python-packages/
 
