@@ -56,6 +56,8 @@ struct PDFSplitContainer: NSViewRepresentable {
         pdfView.autoScales = true
         pdfView.displaysPageBreaks = true
         pdfView.displayMode = .singlePageContinuous
+        let pageOverlayProvider = PageNumberOverlayProvider()
+        pdfView.pageOverlayViewProvider = pageOverlayProvider
 
         splitView.addSubview(thumbnailSidebar)
         splitView.addSubview(pdfView)
@@ -81,6 +83,7 @@ struct PDFSplitContainer: NSViewRepresentable {
         context.coordinator.pdfView = pdfView
         context.coordinator.thumbnailSidebar = thumbnailSidebar
         context.coordinator.splitView = splitView
+        context.coordinator.pageOverlayProvider = pageOverlayProvider
 
         return container
     }
@@ -127,6 +130,7 @@ struct PDFSplitContainer: NSViewRepresentable {
         var pdfView: PDFView?
         var thumbnailSidebar: ThumbnailSidebarView?
         var splitView: NSSplitView?
+        var pageOverlayProvider: PageNumberOverlayProvider?
         var sections: [ProofSection] = []
         var lastHandledNavigationRequestID: UUID?
 
@@ -219,6 +223,90 @@ struct PDFSplitContainer: NSViewRepresentable {
                 thumbnailSidebar.thumbnailList.updateAvailableWidth(thumbnailSidebar.thumbnailAvailableWidth)
             }
         }
+    }
+}
+
+// MARK: - Page Number Overlay
+
+final class PageNumberOverlayProvider: NSObject, PDFPageOverlayViewProvider {
+    func pdfView(_ view: PDFView, overlayViewFor page: PDFPage) -> NSView? {
+        guard let document = view.document else { return nil }
+
+        let pageIndex = document.index(for: page)
+        guard pageIndex != NSNotFound else { return nil }
+
+        return PageNumberOverlayView(
+            pageNumber: pageIndex + 1,
+            pageBounds: page.bounds(for: .mediaBox)
+        )
+    }
+}
+
+final class PageNumberOverlayView: NSView {
+    private let pageNumber: String
+    private let pageBounds: NSRect
+
+    private let footerFontSize: CGFloat = 9
+    private let marginHorizontal: CGFloat = 40
+    private let marginVertical: CGFloat = 50
+    private let footerBaselineOffset: CGFloat = 18
+
+    init(pageNumber: Int, pageBounds: NSRect) {
+        self.pageNumber = "\(pageNumber)"
+        self.pageBounds = pageBounds
+        super.init(frame: .zero)
+
+        wantsLayer = false
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override var isFlipped: Bool { true }
+
+    override func layout() {
+        super.layout()
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        let textRect = footerTextRect()
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .right
+
+        pageNumber.draw(
+            in: textRect,
+            withAttributes: [
+                .font: footerFont(),
+                .foregroundColor: NSColor.black,
+                .paragraphStyle: paragraphStyle,
+            ]
+        )
+    }
+
+    private func footerTextRect() -> NSRect {
+        let scaleX = bounds.width / max(pageBounds.width, 1)
+        let scaleY = bounds.height / max(pageBounds.height, 1)
+
+        let footerYFromBottom = marginVertical - footerBaselineOffset
+        return NSRect(
+            x: marginHorizontal * scaleX,
+            y: bounds.height - ((footerYFromBottom + footerFontSize) * scaleY),
+            width: max(0, bounds.width - marginHorizontal * 2 * scaleX),
+            height: footerFontSize * scaleY
+        )
+    }
+
+    private func footerFont() -> NSFont {
+        let scaleX = bounds.width / max(pageBounds.width, 1)
+        let scaleY = bounds.height / max(pageBounds.height, 1)
+        let fontSize = footerFontSize * min(scaleX, scaleY)
+        return NSFont(name: "Courier", size: fontSize) ?? NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }
 
