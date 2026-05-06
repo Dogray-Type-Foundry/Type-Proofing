@@ -125,6 +125,10 @@ for dev_dir in bin etc include share; do
     rm -rf "${PY_VER_DIR}/${dev_dir}" 2>/dev/null || true
 done
 
+# Remove upstream Python HTML documentation. It is not used at runtime and adds
+# significant weight to the embedded framework.
+rm -rf "${PY_VER_DIR}/Resources/English.lproj/Documentation" 2>/dev/null || true
+
 # 5a3. Slim Python.framework — remove large unused components
 # The app loads packages from Resources/python-lib (curated), so the full
 # site-packages inside the framework is dead weight.
