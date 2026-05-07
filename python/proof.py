@@ -665,7 +665,7 @@ def drawContent(
                     direction=direction,
                 )
             else:
-                textToDraw = db.textBox(
+                textToDraw = _plain_column_text_box(
                     textToDraw,
                     (
                         marginHorizontal,
@@ -673,12 +673,40 @@ def drawContent(
                         db.width() - marginHorizontal * 2,
                         db.height() - marginVertical * 2,
                     ),
+                    columnNumber,
+                    gutter=20,
+                    direction=direction,
                 )
 
     except Exception as e:
         print(f"Error in drawContent: {e}")
         traceback.print_exc()
         raise
+
+
+def _plain_column_text_box(
+    textToDraw: db.FormattedString,
+    box: tuple[int | float, int | float, int | float, int | float],
+    columnNumber: int,
+    gutter: int = 20,
+    direction: str = "ltr",
+):
+    col_count = max(1, int(columnNumber or 1))
+    if col_count == 1:
+        return db.textBox(textToDraw, box)
+
+    box_x, box_y, box_w, box_h = box
+    col_w = (box_w - (col_count - 1) * gutter) / col_count
+    overflow = textToDraw
+
+    for col_index in range(col_count):
+        if not overflow:
+            break
+        visual_index = col_count - col_index - 1 if direction == "rtl" else col_index
+        col_x = box_x + visual_index * (col_w + gutter)
+        overflow = db.textBox(overflow, (col_x, box_y, col_w, box_h))
+
+    return overflow
 
 
 def drawPageSegments(

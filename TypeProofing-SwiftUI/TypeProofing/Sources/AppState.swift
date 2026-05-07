@@ -332,6 +332,9 @@ final class AppState: ObservableObject {
 
     private func resetProofDefaults() {
         proofOptions = makeDefaultProofOptions()
+        for index in proofOptions.indices {
+            proofOptions[index].enabled = false
+        }
         proofSettingsByProof.removeAll()
         for option in proofOptions {
             initializeDefaultSettings(for: option)

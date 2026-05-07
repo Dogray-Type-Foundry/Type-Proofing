@@ -20,6 +20,7 @@ from proof import (
     generateArabicContextualFormsProof,
     reset_proof_page_counter,
     _normalize_axes,
+    drawContent,
     get_font_display_name,
 )
 from settings import make_settings_key, create_unique_proof_key
@@ -77,6 +78,42 @@ class TestResetProofPageCounter:
     def test_resets_without_error(self):
         reset_proof_page_counter()
         # Should not raise
+
+
+# =============================================================================
+# drawContent
+# =============================================================================
+
+
+class TestDrawContent:
+    def test_plain_fallback_honors_columns_when_drawbotgrid_unavailable(
+        self, monkeypatch
+    ):
+        import proof
+
+        calls = []
+
+        def fake_text_box(text, box):
+            calls.append((text, box))
+            return "overflow" if len(calls) < 3 else ""
+
+        monkeypatch.setattr(proof, "BaselineGrid", None)
+        monkeypatch.setattr(proof, "columnBaselineGridTextBox", None)
+        monkeypatch.setattr(proof, "columnTextBox", None)
+        monkeypatch.setattr(proof, "drawFooter", lambda *args, **kwargs: None)
+        monkeypatch.setattr(proof.db, "newPage", lambda *args: None)
+        monkeypatch.setattr(proof.db, "hyphenation", lambda *_args: None)
+        monkeypatch.setattr(proof.db, "width", lambda: 842)
+        monkeypatch.setattr(proof.db, "height", lambda: 595)
+        monkeypatch.setattr(proof.db, "textBox", fake_text_box)
+
+        reset_proof_page_counter()
+        drawContent("text", "Test", 3, "/test.otf")
+
+        assert len(calls) == 3
+        assert calls[0][1] == (40, 50, 240.66666666666666, 495)
+        assert calls[1][1] == (300.66666666666663, 50, 240.66666666666666, 495)
+        assert calls[2][1] == (561.3333333333333, 50, 240.66666666666666, 495)
 
 
 # =============================================================================
