@@ -36,6 +36,14 @@ private struct PreviewJob {
     let priority: PreviewPriority
 }
 
+private struct PlaceholderKey: Hashable {
+    let pageFormat: String
+    let title: String
+    let message: String
+    let width: Int
+    let height: Int
+}
+
 @MainActor
 final class PreviewCoordinator: ObservableObject {
     private weak var state: AppState?
@@ -45,18 +53,21 @@ final class PreviewCoordinator: ObservableObject {
     private var fastQueue: [PreviewJob] = []
     private var wordsivQueue: [PreviewJob] = []
     private var runningFast: [ProofOption.ID: Task<Void, Never>] = [:]
-    private var runningWordsiv: ProofOption.ID?
+    private var runningWordsiv: (proofID: ProofOption.ID, task: Task<Void, Never>)?
     private var debounceTasks: [ProofOption.ID: Task<Void, Never>] = [:]
     private var globalDebounceTask: Task<Void, Never>?
+    private var composeTask: Task<Void, Never>?
     private var generationPaused = false
 
     private let sessionDirectory = FileManager.default.temporaryDirectory
         .appendingPathComponent("type-proofing-preview")
         .appendingPathComponent(UUID().uuidString)
     private var pageDimensions: [String: PageFormatDimensions] = [:]
+    private var placeholderCache: [PlaceholderKey: URL] = [:]
+    private var retainedComposedURLs: [URL] = []
 
     private var maxFastParallelism: Int {
-        max(2, ProcessInfo.processInfo.processorCount - 2)
+        min(3, max(1, ProcessInfo.processInfo.processorCount / 2))
     }
 
     func configure(state: AppState, engine: ProofEngine) {
@@ -97,14 +108,15 @@ final class PreviewCoordinator: ObservableObject {
         if state.proofOptions.first(where: { $0.id == proofID })?.enabled == true {
             invalidateProof(proofID)
         } else {
+            cancelRunning(for: proofID)
             fragments.removeValue(forKey: proofID)
             removeQueuedJobs(for: proofID)
-            composePreview()
+            requestCompose(immediate: true)
         }
     }
 
     func proofOrderChanged() {
-        composePreview()
+        requestCompose(immediate: true)
     }
 
     func selectedProofChanged() {
@@ -118,8 +130,11 @@ final class PreviewCoordinator: ObservableObject {
         globalDebounceTask?.cancel()
         debounceTasks.values.forEach { $0.cancel() }
         debounceTasks.removeAll()
+        composeTask?.cancel()
+        composeTask = nil
         fastQueue.removeAll()
         wordsivQueue.removeAll()
+        cancelAllRunning()
     }
 
     func resumeAfterFinalGeneration() {
@@ -131,6 +146,7 @@ final class PreviewCoordinator: ObservableObject {
         guard let state else { return }
         state.refreshCurrentConfigFingerprint()
 
+        cancelAllRunning()
         fastQueue.removeAll()
         wordsivQueue.removeAll()
 
@@ -146,20 +162,21 @@ final class PreviewCoordinator: ObservableObject {
         for option in enabled {
             enqueue(option: option, priority: option.id == selectedID ? .selected : .normal)
         }
-        composePreview()
+        requestCompose(immediate: true)
         pumpQueues()
     }
 
     private func invalidateProof(_ proofID: ProofOption.ID) {
         guard let option = state?.proofOptions.first(where: { $0.id == proofID }) else { return }
+        cancelRunning(for: proofID)
         removeQueuedJobs(for: proofID)
         guard option.enabled else {
             fragments.removeValue(forKey: proofID)
-            composePreview()
+            requestCompose(immediate: true)
             return
         }
         enqueue(option: option, priority: option.id == state?.selectedProof ? .selected : .normal)
-        composePreview()
+        requestCompose(immediate: true)
         pumpQueues()
     }
 
@@ -222,7 +239,6 @@ final class PreviewCoordinator: ObservableObject {
     private func start(_ job: PreviewJob) {
         guard let engine else { return }
         fragments[job.proofID]?.status = .generating
-        composePreview()
 
         let outputDir = fragmentOutputDirectory(for: job)
         try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
@@ -233,11 +249,15 @@ final class PreviewCoordinator: ObservableObject {
         )
 
         let task = Task { [weak self] in
-            let result = await engine.generatePreviewFragment(config: config)
+            let result = await engine.generatePreviewFragment(
+                config: config,
+                timeoutSeconds: job.cost == .wordsiv ? 150 : 60
+            )
+            guard !Task.isCancelled else { return }
             self?.finish(job: job, result: result)
         }
         if job.cost == .wordsiv {
-            runningWordsiv = job.proofID
+            runningWordsiv = (job.proofID, task)
         } else {
             runningFast[job.proofID] = task
         }
@@ -245,7 +265,9 @@ final class PreviewCoordinator: ObservableObject {
 
     private func finish(job: PreviewJob, result: PreviewFragmentResult?) {
         if job.cost == .wordsiv {
-            runningWordsiv = nil
+            if runningWordsiv?.proofID == job.proofID {
+                runningWordsiv = nil
+            }
         } else {
             runningFast.removeValue(forKey: job.proofID)
         }
@@ -277,8 +299,23 @@ final class PreviewCoordinator: ObservableObject {
             )
         }
         fragments[job.proofID] = fragment
-        composePreview()
+        requestCompose()
         pumpQueues()
+    }
+
+    private func requestCompose(immediate: Bool = false) {
+        composeTask?.cancel()
+        if immediate {
+            composeTask = nil
+            composePreview()
+            return
+        }
+
+        composeTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 75_000_000)
+            guard !Task.isCancelled else { return }
+            self?.composePreview()
+        }
     }
 
     private func composePreview() {
@@ -304,6 +341,7 @@ final class PreviewCoordinator: ObservableObject {
         if output.pageCount > 0, output.write(to: url) {
             state.previewPDFPath = url.path
             state.previewSections = sections
+            retainComposedURL(url)
         }
     }
 
@@ -332,17 +370,36 @@ final class PreviewCoordinator: ObservableObject {
     }
 
     private func appendPlaceholder(title: String, message: String, to output: PDFDocument) {
-        let url = placeholderDirectory()
-            .appendingPathComponent("placeholder-\(UUID().uuidString).pdf")
-        writePlaceholderPDF(title: title, message: message, to: url)
+        let dimensions = currentPageDimensions()
+        let key = PlaceholderKey(
+            pageFormat: state?.pageFormat ?? "A4Landscape",
+            title: title,
+            message: message,
+            width: Int(dimensions.width.rounded()),
+            height: Int(dimensions.height.rounded())
+        )
+        let url: URL
+        if let cached = placeholderCache[key],
+           FileManager.default.fileExists(atPath: cached.path) {
+            url = cached
+        } else {
+            let newURL = placeholderDirectory()
+                .appendingPathComponent("placeholder-\(UUID().uuidString).pdf")
+            writePlaceholderPDF(title: title, message: message, dimensions: dimensions, to: newURL)
+            placeholderCache[key] = newURL
+            url = newURL
+        }
         guard let document = PDFDocument(url: url), let page = document.page(at: 0) else { return }
         let pageForOutput = (page.copy() as? PDFPage) ?? page
         output.insert(pageForOutput, at: output.pageCount)
     }
 
-    private func writePlaceholderPDF(title: String, message: String, to url: URL) {
-        let dimensions = pageDimensions[state?.pageFormat ?? "A4Landscape"]
-            ?? PageFormatDimensions(width: 842, height: 595)
+    private func writePlaceholderPDF(
+        title: String,
+        message: String,
+        dimensions: PageFormatDimensions,
+        to url: URL
+    ) {
         var mediaBox = CGRect(x: 0, y: 0, width: dimensions.width, height: dimensions.height)
         let data = NSMutableData()
         guard let consumer = CGDataConsumer(data: data as CFMutableData),
@@ -377,9 +434,29 @@ final class PreviewCoordinator: ObservableObject {
         data.write(to: url, atomically: true)
     }
 
+    private func currentPageDimensions() -> PageFormatDimensions {
+        pageDimensions[state?.pageFormat ?? "A4Landscape"]
+            ?? PageFormatDimensions(width: 842, height: 595)
+    }
+
     private func removeQueuedJobs(for proofID: ProofOption.ID) {
         fastQueue.removeAll { $0.proofID == proofID }
         wordsivQueue.removeAll { $0.proofID == proofID }
+    }
+
+    private func cancelRunning(for proofID: ProofOption.ID) {
+        runningFast.removeValue(forKey: proofID)?.cancel()
+        if runningWordsiv?.proofID == proofID {
+            runningWordsiv?.task.cancel()
+            runningWordsiv = nil
+        }
+    }
+
+    private func cancelAllRunning() {
+        runningFast.values.forEach { $0.cancel() }
+        runningFast.removeAll()
+        runningWordsiv?.task.cancel()
+        runningWordsiv = nil
     }
 
     private func prioritizeQueuedJob(for proofID: ProofOption.ID) {
@@ -415,5 +492,13 @@ final class PreviewCoordinator: ObservableObject {
 
     private func composedDirectory() -> URL {
         sessionDirectory.appendingPathComponent("composed")
+    }
+
+    private func retainComposedURL(_ url: URL) {
+        retainedComposedURLs.append(url)
+        while retainedComposedURLs.count > 2 {
+            let stale = retainedComposedURLs.removeFirst()
+            try? FileManager.default.removeItem(at: stale)
+        }
     }
 }

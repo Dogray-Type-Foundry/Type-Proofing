@@ -203,6 +203,28 @@ def _generate_proof_options(runtime, enabled_options, diagnostics, event_callbac
     psm = runtime["psm"]
     paired_static_styles = runtime["paired_static_styles"]
     sections = []
+    font_analysis_cache = {}
+
+    def get_font_analysis(ind_font):
+        if ind_font not in font_analysis_cache:
+            full_charset = filteredCharset(ind_font)
+            cat = categorize(full_charset)
+            variable_dict = db.listFontVariations(ind_font)
+
+            axes_dict = font_manager.get_axis_values_for_font(ind_font)
+            if axes_dict:
+                axes_product = list(product_dict(**axes_dict))
+            elif not bool(variable_dict):
+                axes_product = ""
+            else:
+                axes_product = variableFont(ind_font)[0]
+
+            font_analysis_cache[ind_font] = {
+                "full_charset": full_charset,
+                "cat": cat,
+                "axes_product": axes_product,
+            }
+        return font_analysis_cache[ind_font]
 
     proof_count = len(enabled_options)
     for proof_index, item in enumerate(enabled_options, 1):
@@ -254,17 +276,10 @@ def _generate_proof_options(runtime, enabled_options, diagnostics, event_callbac
                     "font_count": len(font_manager.fonts),
                 },
             )
-            full_charset = filteredCharset(ind_font)
-            cat = categorize(full_charset)
-            variable_dict = db.listFontVariations(ind_font)
-
-            axes_dict = font_manager.get_axis_values_for_font(ind_font)
-            if axes_dict:
-                axes_product = list(product_dict(**axes_dict))
-            elif not bool(variable_dict):
-                axes_product = ""
-            else:
-                axes_product = variableFont(ind_font)[0]
+            font_analysis = get_font_analysis(ind_font)
+            full_charset = font_analysis["full_charset"]
+            cat = font_analysis["cat"]
+            axes_product = font_analysis["axes_product"]
 
             proof_context = ProofContext(
                 full_character_set=full_charset,

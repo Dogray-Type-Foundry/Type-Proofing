@@ -12,7 +12,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import drawBot as db
-from wordsiv import Vocab, WordSiv
 import config as _cc
 import config
 from config import (
@@ -43,6 +42,12 @@ from settings import make_settings_key, create_unique_proof_key
 from config import get_otf_prefix
 
 # product_dict not used in this module
+
+
+def _get_wordsiv_types():
+    from wordsiv import Vocab, WordSiv
+
+    return Vocab, WordSiv
 
 try:
     from drawBotGrid import (
@@ -898,6 +903,8 @@ def generateTextProofString(
 
 def _generate_wordsiv_text(cat, para, fullCharacterSet, characterSet):
     """Generate text using WordSiv for mixed case scenarios."""
+    _, WordSiv = _get_wordsiv_types()
+
     caplc = []
     for u in cat["uniLuBase"]:
         capAndLower = u + cat["uniLlBase"]
@@ -978,6 +985,8 @@ def _generate_hoefler_style_text(cat, para, fullCharacterSet, characterSet):
     https://www.wordsiv.com/examples/hoefler-style-proof/
     Each letter is tested in flat-to-flat, round-to-round, and mixed contexts.
     """
+    Vocab, WordSiv = _get_wordsiv_types()
+
     glyphs = fullCharacterSet if fullCharacterSet else characterSet
     if not glyphs:
         return ""
@@ -1101,6 +1110,8 @@ def _generate_hoefler_style_text(cat, para, fullCharacterSet, characterSet):
 
 def _generate_uppercase_text(cat, para, fullCharacterSet, characterSet):
     """Generate text for uppercase-only fonts."""
+    _, WordSiv = _get_wordsiv_types()
+
     upperInitials = []
     upperInitialsHelper = (fullCharacterSet or characterSet or "").lower()
 
@@ -1128,6 +1139,8 @@ def _generate_uppercase_text(cat, para, fullCharacterSet, characterSet):
 
 def _generate_lowercase_text(cat, para, fullCharacterSet, characterSet):
     """Generate text for lowercase-only fonts."""
+    _, WordSiv = _get_wordsiv_types()
+
     lowerInitials = []
     lowerHelper = fullCharacterSet or characterSet or ""
 
@@ -1155,6 +1168,8 @@ def _generate_arabic_farsi_text(
     characterSet, para, bigProof, lang, cat, fullCharacterSet
 ):
     """Generate Arabic/Farsi text using WordSiv with contextual forms."""
+    _, WordSiv = _get_wordsiv_types()
+
     textProofString = ""
 
     # Set vocabulary based on language
@@ -1252,6 +1267,8 @@ def _generate_hoefler_style_arabic_text(characterSet, para, lang, cat, fullChara
       - fina × iso   (final form before isolated non-connector)
     All words are joined into one continuous paragraph.
     """
+    _, WordSiv = _get_wordsiv_types()
+
     from config import ARABIC_GLYPH_TO_UNICODE, ARABIC_SHAPE_GROUPS
 
     char_set = set(characterSet)

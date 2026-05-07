@@ -94,15 +94,21 @@ struct PDFSplitContainer: NSViewRepresentable {
 
         if let path = pdfPath {
             let url = URL(fileURLWithPath: path)
-            if let document = PDFDocument(url: url) {
-                let anchor = context.coordinator.currentAnchor()
-                pdfView.document = document
-                context.coordinator.restore(anchor: anchor, in: document, sections: sections)
+            let documentChanged = context.coordinator.lastLoadedPDFPath != path
+            if let document = documentChanged ? PDFDocument(url: url) : pdfView.document {
+                if documentChanged {
+                    let anchor = context.coordinator.currentAnchor()
+                    pdfView.document = document
+                    context.coordinator.lastLoadedPDFPath = path
+                    context.coordinator.restore(anchor: anchor, in: document, sections: sections)
+                }
+                let sectionsChanged = context.coordinator.sections != sections
                 thumbnailSidebar.thumbnailList.update(
                     document: document,
                     sections: sections,
                     pdfView: pdfView,
-                    availableWidth: thumbnailSidebar.thumbnailAvailableWidth
+                    availableWidth: thumbnailSidebar.thumbnailAvailableWidth,
+                    forceRebuild: documentChanged || sectionsChanged
                 )
                 context.coordinator.sections = sections
                 context.coordinator.handleNavigation(
@@ -113,12 +119,14 @@ struct PDFSplitContainer: NSViewRepresentable {
             }
         } else {
             pdfView.document = nil
+            context.coordinator.lastLoadedPDFPath = nil
             context.coordinator.sections = []
             thumbnailSidebar.thumbnailList.update(
                 document: nil,
                 sections: [],
                 pdfView: pdfView,
-                availableWidth: thumbnailSidebar.thumbnailAvailableWidth
+                availableWidth: thumbnailSidebar.thumbnailAvailableWidth,
+                forceRebuild: true
             )
             context.coordinator.lastHandledNavigationRequestID = nil
         }
@@ -132,6 +140,7 @@ struct PDFSplitContainer: NSViewRepresentable {
         var splitView: NSSplitView?
         var pageOverlayProvider: PageNumberOverlayProvider?
         var sections: [ProofSection] = []
+        var lastLoadedPDFPath: String?
         var lastHandledNavigationRequestID: UUID?
 
         struct Anchor {
@@ -390,16 +399,38 @@ final class ThumbnailListView: NSView {
     private var thumbnailViews: [NSView] = []
     private var navigationRectsByPage: [Int: NSRect] = [:]
     private var availableWidth: CGFloat = 160
+    private var lastDocumentURL: URL?
+    private var lastPageCount = 0
+    private var thumbnailCache: [ThumbnailCacheKey: NSImage] = [:]
 
     private let thumbnailSpacing: CGFloat = 4
     private let pageNumberHeight: CGFloat = 16
     private let sectionSpacing: CGFloat = 12
 
-    func update(document: PDFDocument?, sections: [ProofSection], pdfView: PDFView, availableWidth: CGFloat) {
+    func update(
+        document: PDFDocument?,
+        sections: [ProofSection],
+        pdfView: PDFView,
+        availableWidth: CGFloat,
+        forceRebuild: Bool
+    ) {
+        let nextWidth = max(availableWidth, 80)
+        let documentURL = document?.documentURL
+        let pageCount = document?.pageCount ?? 0
+        let needsRebuild = forceRebuild
+            || documentURL != lastDocumentURL
+            || pageCount != lastPageCount
+            || sections != self.sections
+            || abs(nextWidth - self.availableWidth) > 1
+
+        guard needsRebuild else { return }
+
         self.document = document
         self.pdfView = pdfView
         self.sections = sections
-        self.availableWidth = max(availableWidth, 80)
+        self.availableWidth = nextWidth
+        self.lastDocumentURL = documentURL
+        self.lastPageCount = pageCount
         rebuildThumbnails()
     }
 
@@ -461,7 +492,13 @@ final class ThumbnailListView: NSView {
             let thumbView = PageThumbnailButton(
                 page: page,
                 frame: thumbRect,
-                pdfView: pdfView
+                pdfView: pdfView,
+                cachedImage: thumbnailImage(
+                    for: page,
+                    pageIndex: pageIndex,
+                    width: effectiveThumbWidth,
+                    height: thumbHeight
+                )
             )
             addSubview(thumbView)
             thumbnailViews.append(thumbView)
@@ -489,15 +526,43 @@ final class ThumbnailListView: NSView {
     }
 
     override var isFlipped: Bool { true }
+
+    private func thumbnailImage(for page: PDFPage, pageIndex: Int, width: CGFloat, height: CGFloat) -> NSImage {
+        let key = ThumbnailCacheKey(
+            documentPath: document?.documentURL?.path ?? "",
+            pageIndex: pageIndex,
+            width: Int((width * 2).rounded())
+        )
+        if let cached = thumbnailCache[key] {
+            return cached
+        }
+
+        let image = page.thumbnail(
+            of: NSSize(width: width * 2, height: height * 2),
+            for: .mediaBox
+        )
+        thumbnailCache[key] = image
+        if thumbnailCache.count > 500 {
+            thumbnailCache.removeAll(keepingCapacity: true)
+            thumbnailCache[key] = image
+        }
+        return image
+    }
 }
 
 // MARK: - Page Thumbnail Button
+
+private struct ThumbnailCacheKey: Hashable {
+    let documentPath: String
+    let pageIndex: Int
+    let width: Int
+}
 
 final class PageThumbnailButton: NSButton {
     private let page: PDFPage
     private weak var pdfView: PDFView?
 
-    init(page: PDFPage, frame: NSRect, pdfView: PDFView?) {
+    init(page: PDFPage, frame: NSRect, pdfView: PDFView?, cachedImage: NSImage) {
         self.page = page
         self.pdfView = pdfView
         super.init(frame: frame)
@@ -508,8 +573,7 @@ final class PageThumbnailButton: NSButton {
         target = self
         action = #selector(clicked)
 
-        let thumbSize = NSSize(width: frame.width * 2, height: frame.height * 2)
-        image = page.thumbnail(of: thumbSize, for: .mediaBox)
+        image = cachedImage
 
         wantsLayer = true
         layer?.borderWidth = 0.5

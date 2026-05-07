@@ -117,6 +117,53 @@ struct PreviewFragmentResult {
     let errorMessage: String?
 }
 
+private final class ProcessBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var process: Process?
+
+    func set(_ process: Process) {
+        lock.lock()
+        self.process = process
+        lock.unlock()
+    }
+
+    func clear() {
+        lock.lock()
+        process = nil
+        lock.unlock()
+    }
+
+    func terminate() {
+        lock.lock()
+        let process = self.process
+        lock.unlock()
+
+        if process?.isRunning == true {
+            process?.terminate()
+        }
+    }
+}
+
+private final class TaskBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: Task<Void, Never>?
+
+    func set(_ task: Task<Void, Never>) {
+        lock.lock()
+        self.task = task
+        lock.unlock()
+    }
+
+    func cancel() {
+        lock.lock()
+        let task = self.task
+        self.task = nil
+        lock.unlock()
+
+        task?.cancel()
+    }
+}
+
 struct DiagnosticEvent: Identifiable, Equatable {
     let id = UUID()
     let level: String
@@ -654,7 +701,7 @@ final class ProofEngine: ObservableObject {
         }
     }
 
-    func generatePreviewFragment(config: ProofConfig) async -> PreviewFragmentResult? {
+    func generatePreviewFragment(config: ProofConfig, timeoutSeconds: TimeInterval) async -> PreviewFragmentResult? {
         guard let workerURL = resolveWorkerScriptURL(),
               let pythonURL = resolvePythonExecutableURL() else { return nil }
 
@@ -668,6 +715,8 @@ final class ProofEngine: ObservableObject {
         }
 
         let process = Process()
+        let processBox = ProcessBox()
+        processBox.set(process)
         process.executableURL = pythonURL
         process.arguments = [
             workerURL.path,
@@ -681,10 +730,13 @@ final class ProofEngine: ObservableObject {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        return await withCheckedContinuation { continuation in
+        return await withTaskCancellationHandler(operation: {
+            await withCheckedContinuation { continuation in
             final class PreviewWorkerState: @unchecked Sendable {
+                private let maxStderrBytes = 64 * 1024
                 private let lock = NSLock()
                 private var stdoutBuffer = Data()
+                private var stderrBuffer = Data()
                 private var completedResult: PreviewFragmentResult?
                 private var didResume = false
 
@@ -715,16 +767,42 @@ final class ProofEngine: ObservableObject {
                     return complete
                 }
 
-                func snapshot() -> (stdout: Data, result: PreviewFragmentResult?) {
+                func appendStderr(_ data: Data) {
+                    lock.lock()
+                    stderrBuffer.append(data)
+                    if stderrBuffer.count > maxStderrBytes {
+                        stderrBuffer.removeFirst(stderrBuffer.count - maxStderrBytes)
+                    }
+                    lock.unlock()
+                }
+
+                func setTimeoutResult(proofName: String, baseType: String, seconds: TimeInterval) {
+                    lock.lock()
+                    if completedResult == nil {
+                        completedResult = PreviewFragmentResult(
+                            path: "",
+                            pageCount: 0,
+                            sections: [],
+                            proofName: proofName,
+                            baseType: baseType,
+                            errorMessage: "Preview timed out after \(Int(seconds)) seconds."
+                        )
+                    }
+                    lock.unlock()
+                }
+
+                func snapshot() -> (stdout: Data, stderr: String, result: PreviewFragmentResult?) {
                     lock.lock()
                     let stdout = stdoutBuffer
+                    let stderr = String(data: stderrBuffer, encoding: .utf8) ?? ""
                     let result = completedResult
                     lock.unlock()
-                    return (stdout, result)
+                    return (stdout, stderr, result)
                 }
             }
 
             let state = PreviewWorkerState()
+            let timeoutTask = TaskBox()
 
             @Sendable func resumeOnce(_ value: PreviewFragmentResult?) {
                 guard state.tryResume() else { return }
@@ -767,26 +845,68 @@ final class ProofEngine: ObservableObject {
                     consumeStdout(data)
                 }
             }
+            stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                if !data.isEmpty {
+                    state.appendStderr(data)
+                }
+            }
 
             process.terminationHandler = { _ in
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                stderrPipe.fileHandleForReading.readabilityHandler = nil
+                timeoutTask.cancel()
                 let snapshot = state.snapshot()
                 let remainingStdout = snapshot.stdout
-                let result = snapshot.result
+                let stderr = snapshot.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                var result = snapshot.result
                 if !remainingStdout.isEmpty {
                     handleLine(remainingStdout)
+                    result = state.snapshot().result
+                }
+                if result == nil, !stderr.isEmpty {
+                    result = PreviewFragmentResult(
+                        path: "",
+                        pageCount: 0,
+                        sections: [],
+                        proofName: config.targetProofName,
+                        baseType: config.targetProofBaseType,
+                        errorMessage: stderr
+                    )
                 }
                 try? FileManager.default.removeItem(at: configURL)
+                processBox.clear()
                 resumeOnce(result)
             }
 
             do {
+                guard !Task.isCancelled else {
+                    try? FileManager.default.removeItem(at: configURL)
+                    processBox.clear()
+                    resumeOnce(nil)
+                    return
+                }
                 try process.run()
+                timeoutTask.set(Task {
+                    let nanoseconds = UInt64(max(timeoutSeconds, 1) * 1_000_000_000)
+                    try? await Task.sleep(nanoseconds: nanoseconds)
+                    guard !Task.isCancelled else { return }
+                    state.setTimeoutResult(
+                        proofName: config.targetProofName,
+                        baseType: config.targetProofBaseType,
+                        seconds: timeoutSeconds
+                    )
+                    processBox.terminate()
+                })
             } catch {
                 try? FileManager.default.removeItem(at: configURL)
+                processBox.clear()
                 resumeOnce(nil)
             }
         }
+        }, onCancel: {
+            processBox.terminate()
+        })
     }
 
     private func resolveWorkerScriptURL() -> URL? {
