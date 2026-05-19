@@ -176,6 +176,11 @@ struct SidebarView: View {
                     FontsSection()
                 }
                 .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+                FontFileDropHandler.handle(providers, state: state, engine: engine)
+                return true
             }
 
             Divider()

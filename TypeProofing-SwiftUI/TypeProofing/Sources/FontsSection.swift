@@ -79,7 +79,14 @@ struct FontsSection: View {
     }
 
     private func handleFileDrop(_ providers: [NSItemProvider]) {
-        let fontExtensions: Set<String> = ["otf", "ttf", "woff", "woff2"]
+        FontFileDropHandler.handle(providers, state: state, engine: engine)
+    }
+}
+
+enum FontFileDropHandler {
+    static let fontExtensions: Set<String> = ["otf", "ttf", "woff", "woff2"]
+
+    static func handle(_ providers: [NSItemProvider], state: AppState, engine: ProofEngine) {
         for provider in providers {
             provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, _ in
                 guard let data = item as? Data,
@@ -101,8 +108,6 @@ struct FontDropDelegate: DropDelegate {
     let engine: ProofEngine
     let targetIndex: Int
 
-    private static let fontExtensions: Set<String> = ["otf", "ttf", "woff", "woff2"]
-
     func performDrop(info: DropInfo) -> Bool {
         // Check for file URLs first (external drag from Finder)
         if info.hasItemsConforming(to: [.fileURL]) {
@@ -111,17 +116,7 @@ struct FontDropDelegate: DropDelegate {
             if providers.isEmpty || info.hasItemsConforming(to: [.text]) {
                 return handleReorder(info: info)
             }
-            for provider in providers {
-                provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, _ in
-                    guard let data = item as? Data,
-                          let url = URL(dataRepresentation: data, relativeTo: nil),
-                          Self.fontExtensions.contains(url.pathExtension.lowercased())
-                    else { return }
-                    DispatchQueue.main.async {
-                        state.addFonts(urls: [url], engine: engine)
-                    }
-                }
-            }
+            FontFileDropHandler.handle(providers, state: state, engine: engine)
             return true
         }
         return handleReorder(info: info)
