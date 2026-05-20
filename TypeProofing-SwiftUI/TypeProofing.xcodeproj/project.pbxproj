@@ -102,7 +102,7 @@
 		E647C0F98E8D79FEC457A44B /* TypeProofingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TypeProofingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E8FB027921231229D0CEAE7D /* PDFViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFViewerView.swift; sourceTree = "<group>"; };
 		F45325CD2D0F5DE8F5E86AE6 /* DiagnosticEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticEventTests.swift; sourceTree = "<group>"; };
-		FAE140EC7E4A8EC46F447012 /* Python.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Python.framework; path = ../../../../../../Library/Frameworks/Python.framework; sourceTree = "<group>"; };
+		FAE140EC7E4A8EC46F447012 /* Python.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Python.framework; path = PythonRuntime/Python.framework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -425,7 +425,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					/Library/Frameworks,
+					"$(SRCROOT)/PythonRuntime",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -450,12 +450,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					/Library/Frameworks,
-					"\"/Library/Frameworks\"",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					/Library/Frameworks/Python.framework/Versions/3.13/include/python3.13,
+					"$(SRCROOT)/PythonRuntime",
+					"\"PythonRuntime\"",
 				);
 				INFOPLIST_FILE = TypeProofing/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -542,12 +538,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					/Library/Frameworks,
-					"\"/Library/Frameworks\"",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					/Library/Frameworks/Python.framework/Versions/3.13/include/python3.13,
+					"$(SRCROOT)/PythonRuntime",
+					"\"PythonRuntime\"",
 				);
 				INFOPLIST_FILE = TypeProofing/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -607,7 +599,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					/Library/Frameworks,
+					"$(SRCROOT)/PythonRuntime",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (

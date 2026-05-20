@@ -50,6 +50,8 @@ if [ -d "${PACKAGES_DIR}" ]; then
         drawBotGrid
         wordsiv
         fontTools
+        PIL
+        pyclipper
         booleanOperations
         jaraco
         more_itertools

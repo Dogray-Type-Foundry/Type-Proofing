@@ -925,9 +925,9 @@ final class ProofEngine: ObservableObject {
     private func resolvePythonExecutableURL() -> URL? {
         let candidates = [
             Bundle.main.privateFrameworksPath.map {
-                "\($0)/Python.framework/Versions/3.13/bin/python3.13"
+                "\($0)/Python.framework/Versions/3.14/bin/python3.14"
             },
-            "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3.13",
+            "\(FileManager.default.currentDirectoryPath)/TypeProofing-SwiftUI/PythonRuntime/Python.framework/Versions/3.14/bin/python3.14",
             "/usr/bin/python3",
         ].compactMap { $0 }
 
@@ -941,9 +941,9 @@ final class ProofEngine: ObservableObject {
         var env = ProcessInfo.processInfo.environment
         env["PYTHONNOUSERSITE"] = "1"
         if let frameworksPath = Bundle.main.privateFrameworksPath {
-            let pythonHome = "\(frameworksPath)/Python.framework/Versions/3.13"
+            let pythonHome = "\(frameworksPath)/Python.framework/Versions/3.14"
             env["PYTHONHOME"] = pythonHome
-            env["PYTHON_LIBRARY"] = "\(pythonHome)/lib/libpython3.13.dylib"
+            env["PYTHON_LIBRARY"] = "\(pythonHome)/lib/libpython3.14.dylib"
         }
         if let resourcePath = Bundle.main.resourcePath {
             env["PYTHONPATH"] = "\(resourcePath)/python-lib"

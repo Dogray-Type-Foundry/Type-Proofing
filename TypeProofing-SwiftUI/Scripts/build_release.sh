@@ -19,8 +19,9 @@
 #
 # Prerequisites:
 #   1. Run Scripts/bundle_python_packages.sh once to populate python-packages/
-#   2. Xcode 16+ with Swift 5.9+ toolchain
-#   3. xcodegen installed (brew install xcodegen)
+#   2. Run Scripts/build_python_framework.sh once to populate PythonRuntime/Python.framework
+#   3. Xcode 16+ with Swift 5.9+ toolchain
+#   4. xcodegen installed (brew install xcodegen)
 
 set -euo pipefail
 
@@ -32,6 +33,8 @@ DIST_DIR="${REPO_ROOT}/dist"
 APP_NAME="TypeProofing"
 APP="${APP_NAME}.app"
 ENTITLEMENTS="${PROJECT_DIR}/TypeProofing/TypeProofing.entitlements"
+PYTHON_VERSION="3.14"
+PYTHON_RUNTIME_FW="${PROJECT_DIR}/PythonRuntime/Python.framework"
 
 # Use ad-hoc signing if no identity provided
 CODESIGN_ID="${CODESIGN_ID:--}"
@@ -45,6 +48,12 @@ echo ""
 if [ ! -d "${PROJECT_DIR}/python-packages" ]; then
     echo "Error: python-packages/ not found."
     echo "Run: bash TypeProofing-SwiftUI/Scripts/bundle_python_packages.sh"
+    exit 1
+fi
+
+if [ ! -d "${PYTHON_RUNTIME_FW}" ]; then
+    echo "Error: PythonRuntime/Python.framework not found."
+    echo "Run: bash TypeProofing-SwiftUI/Scripts/build_python_framework.sh"
     exit 1
 fi
 
@@ -85,18 +94,31 @@ if [ -f "${REPO_ROOT}/Assets.car" ]; then
     echo "✓ Assets.car copied"
 fi
 
-# ── 4b. Fix Python.framework install names ────────────────────────────
-# The system Python.framework uses an absolute install_name. We must rewrite
-# it to @rpath so the app loads its embedded copy instead of the system one.
-EMBEDDED_PYTHON="${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/3.13/Python"
-OLD_ID="/Library/Frameworks/Python.framework/Versions/3.13/Python"
-NEW_ID="@rpath/Python.framework/Versions/3.13/Python"
+# ── 4b. Verify Python.framework install names ─────────────────────────
+EMBEDDED_PYTHON="${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/${PYTHON_VERSION}/Python"
+EMBEDDED_PYTHON_EXE="${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/${PYTHON_VERSION}/bin/python${PYTHON_VERSION}"
+EMBEDDED_PYTHON_APP_EXE="${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/${PYTHON_VERSION}/Resources/Python.app/Contents/MacOS/Python"
+NEW_ID="@rpath/Python.framework/Versions/${PYTHON_VERSION}/Python"
 if [ -f "${EMBEDDED_PYTHON}" ]; then
-    # Change the dylib's own install_name
     install_name_tool -id "${NEW_ID}" "${EMBEDDED_PYTHON}"
-    # Change the main binary's reference to Python
-    install_name_tool -change "${OLD_ID}" "${NEW_ID}" "${DIST_DIR}/${APP}/Contents/MacOS/${APP_NAME}"
-    echo "✓ Python.framework install_name fixed to @rpath"
+    install_name_tool -change "${PYTHON_RUNTIME_FW}/Versions/${PYTHON_VERSION}/Python" \
+        "${NEW_ID}" "${DIST_DIR}/${APP}/Contents/MacOS/${APP_NAME}" 2>/dev/null || true
+    if [ -f "${EMBEDDED_PYTHON_EXE}" ]; then
+        install_name_tool -change "${PROJECT_DIR}/PythonRuntime/stage/Library/Frameworks/Python.framework/Versions/${PYTHON_VERSION}/Python" \
+            "@executable_path/../Python" "${EMBEDDED_PYTHON_EXE}" 2>/dev/null || true
+        install_name_tool -change "${PYTHON_RUNTIME_FW}/Versions/${PYTHON_VERSION}/Python" \
+            "@executable_path/../Python" "${EMBEDDED_PYTHON_EXE}" 2>/dev/null || true
+    fi
+    if [ -f "${EMBEDDED_PYTHON_APP_EXE}" ]; then
+        install_name_tool -change "${PROJECT_DIR}/PythonRuntime/stage/Library/Frameworks/Python.framework/Versions/${PYTHON_VERSION}/Python" \
+            "@executable_path/../../../../Python" "${EMBEDDED_PYTHON_APP_EXE}" 2>/dev/null || true
+        install_name_tool -change "${PYTHON_RUNTIME_FW}/Versions/${PYTHON_VERSION}/Python" \
+            "@executable_path/../../../../Python" "${EMBEDDED_PYTHON_APP_EXE}" 2>/dev/null || true
+    fi
+    echo "✓ Python.framework install_name verified as @rpath"
+else
+    echo "Error: embedded Python.framework binary not found at ${EMBEDDED_PYTHON}"
+    exit 1
 fi
 
 # ── 5. Code signing (inside out) ──────────────────────────────────────
@@ -109,19 +131,20 @@ find "${DIST_DIR}/${APP}/Contents/Frameworks" -name '*.a' -delete 2>/dev/null ||
 find "${DIST_DIR}/${APP}/Contents/Frameworks" -name '*Config.sh' -delete 2>/dev/null || true
 find "${DIST_DIR}/${APP}/Contents/Frameworks" -name 'pkgconfig' -type d -exec rm -rf {} + 2>/dev/null || true
 
-# 5a2. Clean Python.framework: remove stale versions and dev-only directories
+# 5a2. Clean Python.framework: keep only the active runtime version
 PY_FW_DIR="${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework"
-PY_VER_DIR="${PY_FW_DIR}/Versions/3.13"
+PY_VER_DIR="${PY_FW_DIR}/Versions/${PYTHON_VERSION}"
 # Remove any non-Current framework versions (e.g. 3.10)
 for ver_dir in "${PY_FW_DIR}"/Versions/*/; do
     ver_name="$(basename "$ver_dir")"
-    if [ "$ver_name" != "3.13" ] && [ "$ver_name" != "Current" ]; then
+    if [ "$ver_name" != "${PYTHON_VERSION}" ] && [ "$ver_name" != "Current" ]; then
         rm -rf "$ver_dir"
         echo "  Removed stale framework version: ${ver_name}"
     fi
 done
-# Remove development-only directories from the active version (keep lib — it has the stdlib)
-for dev_dir in bin etc include share; do
+# Remove development-only directories from the active version. Keep bin because
+# worker subprocesses launch the embedded python3.14 executable from there.
+for dev_dir in etc include share; do
     rm -rf "${PY_VER_DIR}/${dev_dir}" 2>/dev/null || true
 done
 
@@ -129,20 +152,27 @@ done
 # significant weight to the embedded framework.
 rm -rf "${PY_VER_DIR}/Resources/English.lproj/Documentation" 2>/dev/null || true
 
-# 5a3. Slim Python.framework — remove large unused components
-# The app loads packages from Resources/python-lib (curated), so the full
-# site-packages inside the framework is dead weight.
-PY_LIB="${PY_VER_DIR}/lib/python3.13"
+# Keep only the interpreter used by worker subprocesses. CPython's installer
+# adds extra launchers that are not needed here. Keep Resources/Python.app:
+# the framework python3.14 launcher spawns that helper internally.
+find "${PY_VER_DIR}/bin" -mindepth 1 \
+    ! -name "python${PYTHON_VERSION}" \
+    -exec rm -rf {} + 2>/dev/null || true
+
+# 5a3. Defensive Python.framework slimming. The source framework is already
+# pruned by build_python_framework.sh; these removals keep release packaging
+# safe if a stale unpruned artifact slips through.
+PY_LIB="${PY_VER_DIR}/lib/python${PYTHON_VERSION}"
 BEFORE_SIZE=$(du -sm "${PY_FW_DIR}" | cut -f1)
 
 # Remove entire site-packages (all needed packages are in Resources/python-lib)
-rm -rf "${PY_LIB}/site-packages"
+rm -rf "${PY_LIB}/site-packages" 2>/dev/null || true
 
 # Remove CPython test suite (~206 MB)
-rm -rf "${PY_LIB}/test"
+rm -rf "${PY_LIB}/test" 2>/dev/null || true
 
 # Remove stdlib modules not needed at runtime
-for mod in idlelib ensurepip tkinter turtledemo turtle.py pydoc_data pydoc.py; do
+for mod in idlelib ensurepip tkinter turtledemo turtle.py sqlite3 ssl.py pydoc_data pydoc.py; do
     rm -rf "${PY_LIB}/${mod}" 2>/dev/null || true
 done
 
@@ -161,7 +191,7 @@ rm -rf "${PY_VER_DIR}/Frameworks/Tcl.framework" "${PY_VER_DIR}/Frameworks/Tk.fra
 rmdir "${PY_VER_DIR}/Frameworks" 2>/dev/null || true
 
 # Remove test and unused C extensions from lib-dynload
-for ext in _test*.so _tkinter*.so _sqlite3*.so _curses*.so _dbm*.so _gdbm*.so; do
+for ext in _test*.so _tkinter*.so _sqlite3*.so _ssl*.so _hashlib*.so _curses*.so _dbm*.so _gdbm*.so; do
     rm -f "${PY_LIB}/lib-dynload/${ext}" 2>/dev/null || true
 done
 
@@ -185,7 +215,7 @@ find "${PYTHON_LIB_DIR}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/nu
 # 5b. Sign all native extensions (.so, .dylib) in python-lib/ and Frameworks/
 echo "  Signing native extensions…"
 find "${DIST_DIR}/${APP}/Contents/Resources/python-lib" \
-    "${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/3.13/lib" \
+    "${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/${PYTHON_VERSION}/lib" \
     \( -name '*.so' -o -name '*.dylib' \) -print0 |
     while IFS= read -r -d '' libfile; do
         codesign "${SIGN_OPTS[@]}" "${libfile}" 2>/dev/null || true
@@ -202,16 +232,31 @@ done
 
 # 5d. Sign Tcl & Tk frameworks inside Python.framework
 echo "  Signing Tcl/Tk frameworks…"
-PY_FRAMEWORKS="${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/3.13/Frameworks"
+PY_FRAMEWORKS="${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/${PYTHON_VERSION}/Frameworks"
 for fw in Tcl Tk; do
     if [ -d "${PY_FRAMEWORKS}/${fw}.framework" ]; then
         codesign "${SIGN_OPTS[@]}" "${PY_FRAMEWORKS}/${fw}.framework" 2>/dev/null || true
     fi
 done
 
+# 5e. Sign the embedded interpreter and its Python.app helper
+echo "  Signing Python interpreter…"
+PYTHON_HELPER_APP="${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/${PYTHON_VERSION}/Resources/Python.app"
+PYTHON_HELPER_EXE="${PYTHON_HELPER_APP}/Contents/MacOS/Python"
+if [ -f "${PYTHON_HELPER_EXE}" ]; then
+    codesign "${SIGN_OPTS[@]}" "${PYTHON_HELPER_EXE}"
+fi
+if [ -d "${PYTHON_HELPER_APP}" ]; then
+    codesign "${SIGN_OPTS[@]}" "${PYTHON_HELPER_APP}"
+fi
+PYTHON_EXE="${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/${PYTHON_VERSION}/bin/python${PYTHON_VERSION}"
+if [ -f "${PYTHON_EXE}" ]; then
+    codesign "${SIGN_OPTS[@]}" "${PYTHON_EXE}"
+fi
+
 # 5f. Sign Python.framework
 echo "  Signing Python.framework…"
-PYTHON_FW="${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/3.13/Python"
+PYTHON_FW="${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework/Versions/${PYTHON_VERSION}/Python"
 if [ -f "${PYTHON_FW}" ]; then
     codesign "${SIGN_OPTS[@]}" --entitlements "${ENTITLEMENTS}" "${PYTHON_FW}"
 fi
@@ -254,19 +299,29 @@ if [ "${NOTARIZE:-0}" = "1" ] && [ "${CODESIGN_ID}" != "-" ]; then
     echo "Submitting for notarization…"
 
     NOTARY_RC=0
+    NOTARY_AUTH=""
+    NOTARY_OUTPUT="$(mktemp "${TMPDIR:-/tmp}/typeproofing-notary.XXXXXX")"
     # Prefer keychain profile; fall back to env-var credentials
     if xcrun notarytool history --keychain-profile "${NOTARY_PROFILE}" >/dev/null 2>&1; then
         echo "  Using keychain profile: ${NOTARY_PROFILE}"
+        NOTARY_AUTH="keychain"
+        set +e
         xcrun notarytool submit "${DMG_PATH}" \
             --keychain-profile "${NOTARY_PROFILE}" \
-            --wait || NOTARY_RC=$?
+            --wait 2>&1 | tee "${NOTARY_OUTPUT}"
+        NOTARY_RC=${PIPESTATUS[0]}
+        set -e
     elif [ -n "${APPLE_ID:-}" ] && [ -n "${TEAM_ID:-}" ] && [ -n "${NOTARIZE_PASSWORD:-}" ]; then
         echo "  Using environment variable credentials"
+        NOTARY_AUTH="env"
+        set +e
         xcrun notarytool submit "${DMG_PATH}" \
             --apple-id "${APPLE_ID}" \
             --team-id "${TEAM_ID}" \
             --password "${NOTARIZE_PASSWORD}" \
-            --wait || NOTARY_RC=$?
+            --wait 2>&1 | tee "${NOTARY_OUTPUT}"
+        NOTARY_RC=${PIPESTATUS[0]}
+        set -e
     else
         echo "Error: No notarization credentials found."
         echo "  Either store a keychain profile:"
@@ -276,11 +331,25 @@ if [ "${NOTARIZE:-0}" = "1" ] && [ "${CODESIGN_ID}" != "-" ]; then
         exit 1
     fi
 
-    if [ "${NOTARY_RC}" -ne 0 ]; then
+    SUBMISSION_ID="$(awk '/^[[:space:]]*id: / { print $2; exit }' "${NOTARY_OUTPUT}")"
+    NOTARY_STATUS="$(awk '/^[[:space:]]*status: / { print $2; exit }' "${NOTARY_OUTPUT}")"
+
+    if [ "${NOTARY_RC}" -ne 0 ] || [ "${NOTARY_STATUS}" != "Accepted" ]; then
         echo ""
-        echo "✗ Notarization failed (exit code ${NOTARY_RC})."
+        echo "✗ Notarization failed."
+        echo "  Exit code: ${NOTARY_RC}"
+        echo "  Status: ${NOTARY_STATUS:-unknown}"
+        if [ -n "${SUBMISSION_ID}" ]; then
+            echo "  Submission ID: ${SUBMISSION_ID}"
+        fi
         echo "  Fetch the detailed log with:"
-        echo "    xcrun notarytool log <submission-id> --keychain-profile \"${NOTARY_PROFILE}\""
+        if [ "${NOTARY_AUTH}" = "keychain" ] && [ -n "${SUBMISSION_ID}" ]; then
+            echo "    xcrun notarytool log ${SUBMISSION_ID} --keychain-profile \"${NOTARY_PROFILE}\""
+        elif [ "${NOTARY_AUTH}" = "env" ] && [ -n "${SUBMISSION_ID}" ]; then
+            echo "    xcrun notarytool log ${SUBMISSION_ID} --apple-id \"\${APPLE_ID}\" --team-id \"\${TEAM_ID}\" --password \"\${NOTARIZE_PASSWORD}\""
+        else
+            echo "    xcrun notarytool log <submission-id> --keychain-profile \"${NOTARY_PROFILE}\""
+        fi
         exit 1
     fi
 
@@ -294,5 +363,17 @@ echo ""
 echo "=== Build complete ==="
 echo "  App: ${DIST_DIR}/${APP}"
 echo "  DMG: ${DMG_PATH}"
-SIZE=$(du -sh "${DIST_DIR}/${APP}" | cut -f1)
-echo "  Size: ${SIZE}"
+if [ -d "${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework" ]; then
+    PY_FW_SIZE=$(du -sh "${DIST_DIR}/${APP}/Contents/Frameworks/Python.framework" | cut -f1)
+    echo "  Python.framework: ${PY_FW_SIZE}"
+fi
+if [ -d "${DIST_DIR}/${APP}/Contents/Resources/python-lib" ]; then
+    PY_LIB_SIZE=$(du -sh "${DIST_DIR}/${APP}/Contents/Resources/python-lib" | cut -f1)
+    echo "  python-lib: ${PY_LIB_SIZE}"
+fi
+APP_SIZE=$(du -sh "${DIST_DIR}/${APP}" | cut -f1)
+echo "  App size: ${APP_SIZE}"
+if [ -f "${DMG_PATH}" ]; then
+    DMG_SIZE=$(du -sh "${DMG_PATH}" | cut -f1)
+    echo "  DMG size: ${DMG_SIZE}"
+fi
