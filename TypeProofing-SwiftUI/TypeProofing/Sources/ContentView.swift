@@ -52,7 +52,7 @@ struct ContentView: View {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.red)
             } else {
-                ProgressView("Initializing Python…")
+                ProgressView("Loading…")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

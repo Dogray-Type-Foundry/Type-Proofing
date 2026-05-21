@@ -7,9 +7,6 @@ options:
   createIntermediateGroups: true
 
 packages:
-  PythonKit:
-    url: https://github.com/pvieito/PythonKit.git
-    branch: master
   CompactSlider:
     url: https://github.com/buh/CompactSlider.git
     from: "2.1.0"
@@ -61,26 +58,20 @@ targets:
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         CODE_SIGN_ENTITLEMENTS: TypeProofing/TypeProofing.entitlements
-        # Framework search paths for the repo-built embedded Python.framework
-        FRAMEWORK_SEARCH_PATHS:
+        # Native Rust library
+        LIBRARY_SEARCH_PATHS:
           - "$(inherited)"
-          - "$(SRCROOT)/PythonRuntime"
-        # Runpath so the app finds the embedded framework at runtime
-        LD_RUNPATH_SEARCH_PATHS:
+          - "$(SRCROOT)/NativeLib"
+        SWIFT_INCLUDE_PATHS:
           - "$(inherited)"
-          - "@executable_path/../Frameworks"
+          - "$(SRCROOT)/NativeLib/include"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-ltpnative"
     dependencies:
-      - package: PythonKit
       - package: CompactSlider
-      - framework: PythonRuntime/Python.framework
-        embed: true
-        # codeSign: true is implied by embed
     preBuildScripts: []
-    postBuildScripts:
-      - name: "Copy Python Sources"
-        script: |
-          bash "${SRCROOT}/Scripts/copy_python_sources.sh"
-        basedOnDependencyAnalysis: false
+    postBuildScripts: []
 
   TypeProofingTests:
     type: bundle.unit-test
@@ -92,13 +83,15 @@ targets:
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         GENERATE_INFOPLIST_FILE: YES
-        FRAMEWORK_SEARCH_PATHS:
+        LIBRARY_SEARCH_PATHS:
           - "$(inherited)"
-          - "$(SRCROOT)/PythonRuntime"
-        LD_RUNPATH_SEARCH_PATHS:
+          - "$(SRCROOT)/NativeLib"
+        SWIFT_INCLUDE_PATHS:
           - "$(inherited)"
-          - "@executable_path/../Frameworks"
-          - "@loader_path/../Frameworks"
+          - "$(SRCROOT)/NativeLib/include"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-ltpnative"
     dependencies:
       - target: TypeProofing
 

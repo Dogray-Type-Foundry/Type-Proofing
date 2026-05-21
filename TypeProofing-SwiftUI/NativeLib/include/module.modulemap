@@ -1,0 +1,5 @@
+module TPNative {
+    header "tpnative.h"
+    link "tpnative"
+    export *
+}

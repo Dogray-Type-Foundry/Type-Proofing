@@ -1,6 +1,5 @@
 import SwiftUI
 import UniformTypeIdentifiers
-import PythonKit
 
 // MARK: - Proof Key Utilities
 
