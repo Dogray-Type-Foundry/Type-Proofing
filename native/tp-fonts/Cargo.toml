@@ -1,0 +1,8 @@
+[package]
+name = "tp-fonts"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+read-fonts = { workspace = true }
+skrifa = { workspace = true }

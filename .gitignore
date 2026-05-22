@@ -39,5 +39,9 @@ build_app_local.sh
 *.pdf
 *.json
 
+# Rust / native build artifacts
+native/target/
+native/lib/
+
 # Other
 .github

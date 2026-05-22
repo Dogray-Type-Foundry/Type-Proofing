@@ -1,0 +1,12 @@
+[package]
+name = "tp-bridge"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "tpbridge"
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+tp-fonts = { path = "../tp-fonts" }
+wordsiv = { git = "https://github.com/Dogray-Type-Foundry/wordsiv-rs.git", default-features = false, features = ["shaping", "semantic"] }

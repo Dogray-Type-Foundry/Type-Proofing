@@ -1,0 +1,7 @@
+[workspace]
+members = ["tp-fonts", "tp-bridge"]
+resolver = "2"
+
+[workspace.dependencies]
+read-fonts = "0.39"
+skrifa = "0.42"
