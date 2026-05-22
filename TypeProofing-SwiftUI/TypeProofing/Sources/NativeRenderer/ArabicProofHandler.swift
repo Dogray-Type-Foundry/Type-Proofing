@@ -9,14 +9,22 @@ struct ArCharacterSetHandler: ProofHandler {
     func generateProof(context: ProofContext, renderer: PDFRenderer) {
         let params = resolveParams(from: context, defaultCols: 1)
         let contextualString = generateArabicContextualForms(cat: context.cat)
-        if contextualString.isEmpty { return }
+        if contextualString.isEmpty {
+            context.diagnostics.warning("Font does not contain Arabic characters",
+                                        fontPath: context.indFont, proofName: proofName)
+            return
+        }
 
         guard let font = FontLoader.makeFont(
             path: context.indFont,
             size: params.fontSize,
             features: params.otFeatures.isEmpty ? nil : params.otFeatures,
             variations: context.axisValues
-        ) else { return }
+        ) else {
+            context.diagnostics.error("Failed to load font",
+                                      fontPath: context.indFont, proofName: proofName)
+            return
+        }
 
         let attrString = TextRenderer.makeAttributedString(
             text: contextualString,

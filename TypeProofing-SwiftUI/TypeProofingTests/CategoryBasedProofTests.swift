@@ -106,7 +106,11 @@ final class CategoryBasedProofTests: XCTestCase {
                 "filtered_character_set_fontSize": 36,
                 "filtered_character_set_cat_accented": true,
             ],
-            showBaselines: false
+            showBaselines: false,
+            allAxisValues: nil,
+            allFontPaths: [fontPath],
+            axisValuesByFont: [:],
+            diagnostics: DiagnosticCollector()
         )
 
         let handler = FilteredCharacterSetHandler(proofName: "Filtered Character Set", proofKey: "filtered_character_set")
@@ -175,7 +179,11 @@ final class CategoryBasedProofTests: XCTestCase {
             proofSettings: [
                 "spacing_proof_fontSize": 12,
             ],
-            showBaselines: false
+            showBaselines: false,
+            allAxisValues: nil,
+            allFontPaths: [fontPath],
+            axisValuesByFont: [:],
+            diagnostics: DiagnosticCollector()
         )
 
         let handler = SpacingProofHandler(proofName: "Spacing Proof", proofKey: "spacing_proof")

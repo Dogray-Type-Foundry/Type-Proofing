@@ -15,7 +15,11 @@ struct StandardTextProofHandler: ProofHandler {
 
     func generateProof(context: ProofContext, renderer: PDFRenderer) {
         let characterSet = context.cat.resolveCharacterSet(forKey: config.characterSetKey)
-        if characterSet.isEmpty && config.language != nil { return }
+        if characterSet.isEmpty && config.language != nil {
+            context.diagnostics.debug("No character set for language '\(config.language!)'",
+                                      fontPath: context.indFont, proofName: proofName)
+            return
+        }
 
         if config.mixedStyles
             && StylePairing.shouldSkipFont(fontPath: context.indFont, allFontPaths: context.allFontPaths) {
@@ -51,7 +55,11 @@ struct StandardTextProofHandler: ProofHandler {
             )
         }
 
-        if textContent.isEmpty { return }
+        if textContent.isEmpty {
+            context.diagnostics.debug("Text generation produced empty content",
+                                      fontPath: context.indFont, proofName: proofName)
+            return
+        }
 
         let attrString: NSAttributedString
         if config.mixedStyles {
@@ -59,7 +67,11 @@ struct StandardTextProofHandler: ProofHandler {
                 fontPath: context.indFont,
                 axisValues: context.axisValues,
                 allFontPaths: context.allFontPaths
-            ) else { return }
+            ) else {
+                context.diagnostics.debug("No style pairing found for mixed-style proof",
+                                          fontPath: context.indFont, proofName: proofName)
+                return
+            }
             attrString = StylePairing.buildMixedStyleAttributedString(
                 text: textContent,
                 fontPath: context.indFont,
@@ -77,7 +89,11 @@ struct StandardTextProofHandler: ProofHandler {
                 size: params.fontSize,
                 features: params.otFeatures.isEmpty ? nil : params.otFeatures,
                 variations: context.axisValues
-            ) else { return }
+            ) else {
+                context.diagnostics.error("Failed to load font",
+                                          fontPath: context.indFont, proofName: proofName)
+                return
+            }
 
             let kernDisabled = params.otFeatures["kern"] == false
             attrString = TextRenderer.makeAttributedString(

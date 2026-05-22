@@ -317,7 +317,7 @@ final class ProofEngine: ObservableObject {
         var config = config
         config.debugMode = debugMode
 
-        let result: NativeProofOrchestrator.Result? = await Task.detached(priority: .userInitiated) {
+        let output = await Task.detached(priority: .userInitiated) {
             NativeProofOrchestrator.generate(
                 config: config,
                 progress: { progress in
@@ -327,9 +327,12 @@ final class ProofEngine: ObservableObject {
             )
         }.value
 
-        guard let result else {
+        diagnostics.append(contentsOf: output.diagnostics)
+
+        guard let result = output.result else {
             if !Task.isCancelled {
-                errorMessage = "Proof generation produced no output"
+                errorMessage = output.diagnostics.first(where: { $0.level == "error" })?.message
+                    ?? "Proof generation produced no output"
             }
             return nil
         }
@@ -393,8 +396,8 @@ final class ProofEngine: ObservableObject {
         )
     }
 
-    func generatePreviewFragment(config: ProofConfig, timeoutSeconds: TimeInterval) async -> PreviewFragmentResult? {
-        let result: PreviewFragmentResult? = await withTaskCancellationHandler(operation: {
+    func generatePreviewFragment(config: ProofConfig, timeoutSeconds: TimeInterval) async -> (fragment: PreviewFragmentResult?, diagnostics: [DiagnosticEvent]) {
+        let output = await withTaskCancellationHandler(operation: {
             await Task.detached(priority: .userInitiated) {
                 NativeProofOrchestrator.generateFragment(
                     config: config,
@@ -403,7 +406,7 @@ final class ProofEngine: ObservableObject {
             }.value
         }, onCancel: { })
 
-        return result
+        return (output.fragment, output.diagnostics)
     }
 
     // MARK: - Font Queries

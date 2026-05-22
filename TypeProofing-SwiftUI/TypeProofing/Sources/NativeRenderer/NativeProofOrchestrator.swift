@@ -13,10 +13,21 @@ struct NativeProofOrchestrator {
         config: ProofConfig,
         progress: @Sendable (GenerationProgress) -> Void,
         isCancelled: @Sendable () -> Bool
-    ) -> Result? {
+    ) -> (result: Result?, diagnostics: [DiagnosticEvent]) {
+        let collector = DiagnosticCollector()
+        collector.debugMode = config.debugMode
         MultiStyleComparisonHandler.resetGenerated()
+        CustomTextProofHandler.resetGenerated()
         let enabledProofs = config.proofOptions.filter(\.enabled)
-        guard !config.fontPaths.isEmpty, !enabledProofs.isEmpty else { return nil }
+        guard !config.fontPaths.isEmpty, !enabledProofs.isEmpty else {
+            if config.fontPaths.isEmpty {
+                collector.warning("No fonts loaded")
+            }
+            if enabledProofs.isEmpty {
+                collector.warning("No proofs enabled")
+            }
+            return (nil, collector.collected)
+        }
 
         let outputDir = config.outputDir.isEmpty
             ? FileManager.default.temporaryDirectory.path
@@ -79,7 +90,8 @@ struct NativeProofOrchestrator {
                         showBaselines: config.showBaselines,
                         allAxisValues: config.axisValuesByFont[fontPath],
                         allFontPaths: config.fontPaths,
-                        axisValuesByFont: config.axisValuesByFont
+                        axisValuesByFont: config.axisValuesByFont,
+                        diagnostics: collector
                     )
 
                     let pagesBefore = renderer.pageCount
@@ -97,19 +109,25 @@ struct NativeProofOrchestrator {
 
         if renderer.pageCount == 0 {
             try? FileManager.default.removeItem(atPath: pdfPath)
-            return nil
+            return (nil, collector.collected)
         }
 
-        return Result(path: pdfPath, sections: sections)
+        return (Result(path: pdfPath, sections: sections), collector.collected)
     }
 
     static func generateFragment(
         config: ProofConfig,
         isCancelled: @Sendable () -> Bool
-    ) -> PreviewFragmentResult? {
-        guard !config.fontPaths.isEmpty else { return nil }
+    ) -> (fragment: PreviewFragmentResult?, diagnostics: [DiagnosticEvent]) {
+        let collector = DiagnosticCollector()
+        collector.debugMode = config.debugMode
+        guard !config.fontPaths.isEmpty else {
+            collector.error("No fonts loaded", proofName: config.targetProofName)
+            return (nil, collector.collected)
+        }
 
         MultiStyleComparisonHandler.resetGenerated()
+        CustomTextProofHandler.resetGenerated()
 
         let outputDir = config.fragmentOutputDir.isEmpty
             ? FileManager.default.temporaryDirectory.path
@@ -126,12 +144,20 @@ struct NativeProofOrchestrator {
         let perProofFeatures = extractOTFeatures(proofKey: proofKey, settings: config.proofSettings)
         let otFeatures = perProofFeatures.isEmpty ? globalFeatures : perProofFeatures
 
+        collector.debug("Generating fragment for '\(config.targetProofName)' (\(config.targetProofBaseType))",
+                        proofName: config.targetProofName,
+                        details: ["fonts": "\(config.fontPaths.count)", "proofKey": proofKey])
+
         var sections: [ProofSection] = []
 
         for fontPath in config.fontPaths {
             if isCancelled() { break }
 
-            guard let fontData = try? Data(contentsOf: URL(fileURLWithPath: fontPath)) else { continue }
+            guard let fontData = try? Data(contentsOf: URL(fileURLWithPath: fontPath)) else {
+                collector.error("Failed to read font file",
+                               fontPath: fontPath, proofName: config.targetProofName)
+                continue
+            }
             let charset = fontData.withUnsafeBytes { buffer -> String in
                 guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return "" }
                 guard let charsetPtr = tp_get_charset(ptr, UInt(buffer.count)) else { return "" }
@@ -156,7 +182,8 @@ struct NativeProofOrchestrator {
                     showBaselines: config.showBaselines,
                     allAxisValues: config.axisValuesByFont[fontPath],
                     allFontPaths: config.fontPaths,
-                    axisValuesByFont: config.axisValuesByFont
+                    axisValuesByFont: config.axisValuesByFont,
+                    diagnostics: collector
                 )
 
                 let pagesBefore = renderer.pageCount
@@ -173,18 +200,19 @@ struct NativeProofOrchestrator {
 
         if renderer.pageCount == 0 {
             try? FileManager.default.removeItem(atPath: pdfPath)
-            return PreviewFragmentResult(
+            let errorMsg = collector.firstError ?? "No content generated"
+            return (PreviewFragmentResult(
                 path: "", pageCount: 0, sections: [],
                 proofName: config.targetProofName, baseType: config.targetProofBaseType,
-                errorMessage: nil
-            )
+                errorMessage: errorMsg
+            ), collector.collected)
         }
 
-        return PreviewFragmentResult(
+        return (PreviewFragmentResult(
             path: pdfPath, pageCount: renderer.pageCount, sections: sections,
             proofName: config.targetProofName, baseType: config.targetProofBaseType,
             errorMessage: nil
-        )
+        ), collector.collected)
     }
 
     // MARK: - Handler Factory

@@ -34,7 +34,11 @@ final class StandardTextProofHandlerTests: XCTestCase {
                 "basic_paragraph_small_fontSize": fontSize,
                 "basic_paragraph_small_cols": 2,
             ],
-            showBaselines: false
+            showBaselines: false,
+            allAxisValues: nil,
+            allFontPaths: [fontPath],
+            axisValuesByFont: [:],
+            diagnostics: DiagnosticCollector()
         )
     }
 
@@ -82,7 +86,11 @@ final class StandardTextProofHandlerTests: XCTestCase {
             cat: context.cat,
             pageFormat: context.pageFormat,
             proofSettings: settings,
-            showBaselines: false
+            showBaselines: false,
+            allAxisValues: nil,
+            allFontPaths: [fontPath],
+            axisValuesByFont: [:],
+            diagnostics: DiagnosticCollector()
         )
 
         handler.generateProof(context: context, renderer: renderer)

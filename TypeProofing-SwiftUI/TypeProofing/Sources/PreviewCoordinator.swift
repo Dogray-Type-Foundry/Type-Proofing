@@ -145,6 +145,7 @@ final class PreviewCoordinator: ObservableObject {
     private func invalidateAll() {
         guard let state else { return }
         state.refreshCurrentConfigFingerprint()
+        engine?.diagnostics.removeAll()
 
         cancelAllRunning()
         fastQueue.removeAll()
@@ -242,19 +243,20 @@ final class PreviewCoordinator: ObservableObject {
 
         let outputDir = fragmentOutputDirectory(for: job)
         try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
-        let config = job.fullConfig.previewFragmentConfig(
+        var config = job.fullConfig.previewFragmentConfig(
             proofName: job.proofName,
             baseType: job.baseType,
             outputDir: outputDir.path
         )
+        config.debugMode = engine.debugMode
 
         let task = Task { [weak self] in
-            let result = await engine.generatePreviewFragment(
+            let output = await engine.generatePreviewFragment(
                 config: config,
                 timeoutSeconds: job.cost == .wordsiv ? 150 : 60
             )
             guard !Task.isCancelled else { return }
-            self?.finish(job: job, result: result)
+            self?.finish(job: job, result: output.fragment, diagnosticEvents: output.diagnostics)
         }
         if job.cost == .wordsiv {
             runningWordsiv = (job.proofID, task)
@@ -263,13 +265,17 @@ final class PreviewCoordinator: ObservableObject {
         }
     }
 
-    private func finish(job: PreviewJob, result: PreviewFragmentResult?) {
+    private func finish(job: PreviewJob, result: PreviewFragmentResult?, diagnosticEvents: [DiagnosticEvent]) {
         if job.cost == .wordsiv {
             if runningWordsiv?.proofID == job.proofID {
                 runningWordsiv = nil
             }
         } else {
             runningFast.removeValue(forKey: job.proofID)
+        }
+
+        if !diagnosticEvents.isEmpty {
+            engine?.diagnostics.append(contentsOf: diagnosticEvents)
         }
 
         guard var fragment = fragments[job.proofID],

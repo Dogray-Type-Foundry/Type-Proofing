@@ -41,6 +41,58 @@ struct CharacterCategories {
     }
 }
 
+final class DiagnosticCollector: @unchecked Sendable {
+    private var events: [DiagnosticEvent] = []
+    var debugMode: Bool = false
+
+    func emit(level: String, category: String, message: String,
+              fontPath: String? = nil, proofName: String? = nil,
+              details: [String: String] = [:]) {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withTime, .withColonSeparatorInTime]
+        events.append(DiagnosticEvent(
+            level: level, category: category, message: message,
+            fontPath: fontPath, proofName: proofName,
+            details: details, timestamp: formatter.string(from: Date())
+        ))
+    }
+
+    func error(_ message: String, category: String = "generation",
+               fontPath: String? = nil, proofName: String? = nil,
+               details: [String: String] = [:]) {
+        emit(level: "error", category: category, message: message,
+             fontPath: fontPath, proofName: proofName, details: details)
+    }
+
+    func warning(_ message: String, category: String = "generation",
+                 fontPath: String? = nil, proofName: String? = nil,
+                 details: [String: String] = [:]) {
+        emit(level: "warning", category: category, message: message,
+             fontPath: fontPath, proofName: proofName, details: details)
+    }
+
+    func debug(_ message: String, category: String = "generation",
+               fontPath: String? = nil, proofName: String? = nil,
+               details: [String: String] = [:]) {
+        guard debugMode else { return }
+        emit(level: "debug", category: category, message: message,
+             fontPath: fontPath, proofName: proofName, details: details)
+    }
+
+    func info(_ message: String, category: String = "generation",
+              fontPath: String? = nil, proofName: String? = nil,
+              details: [String: String] = [:]) {
+        emit(level: "info", category: category, message: message,
+             fontPath: fontPath, proofName: proofName, details: details)
+    }
+
+    var collected: [DiagnosticEvent] { events }
+
+    var firstError: String? {
+        events.first(where: { $0.level == "error" })?.message
+    }
+}
+
 struct ProofContext {
     let fullCharacterSet: String
     let indFont: String
@@ -53,6 +105,7 @@ struct ProofContext {
     let allAxisValues: [String: [Double]]?
     let allFontPaths: [String]
     let axisValuesByFont: [String: [String: [Double]]]
+    let diagnostics: DiagnosticCollector
 }
 
 struct ProofParams {

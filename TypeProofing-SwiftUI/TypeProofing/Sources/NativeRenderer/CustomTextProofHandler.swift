@@ -6,10 +6,40 @@ struct CustomTextProofHandler: ProofHandler {
     let proofName: String
     let proofKey: String
 
+    private static var generatedInstances: Set<String> = []
+
+    static func resetGenerated() {
+        generatedInstances = []
+    }
+
     func generateProof(context: ProofContext, renderer: PDFRenderer) {
         let customTextKey = makeSettingsKey("customText")
         guard let customText = context.proofSettings[customTextKey] as? String,
-              !customText.isEmpty else { return }
+              !customText.isEmpty else {
+            context.diagnostics.error("No custom text provided", proofName: proofName)
+            return
+        }
+
+        let generateOnceKey = makeSettingsKey("generateOnce")
+        let generateOnce = context.proofSettings[generateOnceKey] as? Bool ?? false
+
+        if generateOnce {
+            if CustomTextProofHandler.generatedInstances.contains(proofName) {
+                return
+            }
+            CustomTextProofHandler.generatedInstances.insert(proofName)
+        }
+
+        let defaultFontPath: String
+        let defaultAxisValues: [String: Double]?
+        if generateOnce {
+            let path = context.proofSettings[makeSettingsKey("defaultFontPath")] as? String ?? ""
+            defaultFontPath = path.isEmpty ? context.indFont : path
+            defaultAxisValues = context.proofSettings[makeSettingsKey("defaultFontAxisDict")] as? [String: Double]
+        } else {
+            defaultFontPath = context.indFont
+            defaultAxisValues = context.axisValues
+        }
 
         let params = resolveParams(from: context, defaultCols: 1)
         let markupKey = makeSettingsKey("markupEnabled")
@@ -20,23 +50,28 @@ struct CustomTextProofHandler: ProofHandler {
         if markupEnabled {
             let tokens = MarkupParser.tokenize(customText)
             let config = MarkupRenderer.RenderConfig(
-                fontPath: context.indFont,
+                fontPath: defaultFontPath,
                 fontSize: params.fontSize,
                 alignment: params.alignment,
                 tracking: params.tracking,
                 lineHeight: params.lineHeight,
                 otFeatures: params.otFeatures.isEmpty ? nil : params.otFeatures,
-                variations: context.axisValues
+                variations: defaultAxisValues,
+                allFontPaths: context.allFontPaths
             )
             let pageSegments = MarkupRenderer.buildPages(tokens: tokens, config: config)
             drawMarkupPages(pageSegments, sectionName: sectionName, params: params, context: context, renderer: renderer)
         } else {
             guard let font = FontLoader.makeFont(
-                path: context.indFont,
+                path: defaultFontPath,
                 size: params.fontSize,
                 features: params.otFeatures.isEmpty ? nil : params.otFeatures,
-                variations: context.axisValues
-            ) else { return }
+                variations: defaultAxisValues
+            ) else {
+                context.diagnostics.error("Failed to load font",
+                                          fontPath: defaultFontPath, proofName: proofName)
+                return
+            }
 
             let kernDisabled = params.otFeatures["kern"] == false
             let attrString = TextRenderer.makeAttributedString(

@@ -61,6 +61,8 @@ struct ProofSettings: Codable {
     var enabledStyleIndices: [String: Bool] = [:]
     // Auto-size: fit category on one page (charset) or fit longest line (multi-style)
     var autoSize: Bool = false
+    // Multi-style: show fallback glyphs for missing characters
+    var showFallback: Bool = false
 
     init() {}
 
@@ -81,6 +83,7 @@ struct ProofSettings: Codable {
         case defaultFontAxisDict
         case enabledStyleIndices
         case autoSize
+        case showFallback
     }
 
     init(from decoder: Decoder) throws {
@@ -101,6 +104,7 @@ struct ProofSettings: Codable {
         defaultFontAxisDict = try container.decodeIfPresent([String: Double].self, forKey: .defaultFontAxisDict)
         enabledStyleIndices = try container.decodeIfPresent([String: Bool].self, forKey: .enabledStyleIndices) ?? [:]
         autoSize = try container.decodeIfPresent(Bool.self, forKey: .autoSize) ?? false
+        showFallback = try container.decodeIfPresent(Bool.self, forKey: .showFallback) ?? false
     }
 }
 
@@ -730,6 +734,11 @@ final class AppState: ObservableObject {
             // Auto-size (charset: fit category in one page; multi-style: fit in one line)
             if option.baseType == "filtered_character_set" || entry.isMultiStyle {
                 flat["\(settingsKey)_autoSize"] = settings.autoSize
+            }
+
+            // Multi-style: show/hide fallback glyphs for missing characters
+            if entry.isMultiStyle {
+                flat["\(settingsKey)_showFallback"] = settings.showFallback
             }
 
             // OpenType features

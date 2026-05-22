@@ -192,6 +192,8 @@ struct SettingsPanelView: View {
                         MultiStyleFontList(
                             enabledStyleIndices: state.selectedProofSettings.enabledStyleIndices
                         )
+                        Toggle("Show fallback glyphs for missing characters", isOn: state.selectedProofSettings.showFallback)
+                            .toggleStyle(.checkbox)
                         Divider()
                     }
 

@@ -35,7 +35,11 @@ struct FilteredCharacterSetHandler: ProofHandler {
                 size: fontSize,
                 features: params.otFeatures.isEmpty ? nil : params.otFeatures,
                 variations: context.axisValues
-            ) else { continue }
+            ) else {
+                context.diagnostics.error("Failed to load font",
+                                          fontPath: context.indFont, proofName: proofName)
+                continue
+            }
 
             let attrString = TextRenderer.makeAttributedString(
                 text: charset,
@@ -116,7 +120,11 @@ struct SpacingProofHandler: ProofHandler {
                 size: params.fontSize,
                 features: features,
                 variations: context.axisValues
-            ) else { continue }
+            ) else {
+                context.diagnostics.error("Failed to load font",
+                                          fontPath: context.indFont, proofName: proofName)
+                continue
+            }
 
             let kernDisabled = features["kern"] == false
             let attrString = TextRenderer.makeAttributedString(

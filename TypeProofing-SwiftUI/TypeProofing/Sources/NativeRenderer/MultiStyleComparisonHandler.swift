@@ -14,7 +14,11 @@ struct MultiStyleComparisonHandler: ProofHandler {
     }
 
     func generateProof(context: ProofContext, renderer: PDFRenderer) {
-        if MultiStyleComparisonHandler.generatedInstances.contains(proofName) { return }
+        if MultiStyleComparisonHandler.generatedInstances.contains(proofName) {
+            context.diagnostics.debug("Already generated, skipping duplicate",
+                                      proofName: proofName)
+            return
+        }
         MultiStyleComparisonHandler.generatedInstances.insert(proofName)
 
         let params = resolveParams(from: context, defaultCols: 1)
@@ -37,12 +41,25 @@ struct MultiStyleComparisonHandler: ProofHandler {
                 textGroups.append((label, line))
             }
         }
-        if textGroups.isEmpty { return }
+        if textGroups.isEmpty {
+            context.diagnostics.error(
+                "No text categories enabled and no custom text provided",
+                proofName: proofName)
+            return
+        }
 
         let styles = collectStyles(allFonts: allFonts, context: context)
-        if styles.count < 2 { return }
+        if styles.count < 2 {
+            let reason = allFonts.count == 1
+                ? "Requires at least 2 styles — load a variable font or multiple fonts"
+                : "Requires at least 2 enabled styles"
+            context.diagnostics.error(reason, proofName: proofName,
+                                      details: ["stylesFound": "\(styles.count)", "fontsLoaded": "\(allFonts.count)"])
+            return
+        }
 
         let fontSize = params.fontSize
+        let showFallback = settingsValue(makeSettingsKey("showFallback"), default: false, from: context.proofSettings) as Bool
 
         for (groupLabel, groupText) in textGroups {
             let attrString = buildMultiStyleString(
@@ -52,7 +69,8 @@ struct MultiStyleComparisonHandler: ProofHandler {
                 tracking: params.tracking,
                 alignment: params.alignment,
                 lineHeight: params.lineHeight,
-                otFeatures: params.otFeatures
+                otFeatures: params.otFeatures,
+                showFallback: showFallback
             )
 
             let sectionName = "\(proofName) - \(groupLabel) - \(Int(fontSize))pt"
@@ -77,7 +95,8 @@ struct MultiStyleComparisonHandler: ProofHandler {
         tracking: CGFloat,
         alignment: CTTextAlignment,
         lineHeight: CGFloat?,
-        otFeatures: [String: Bool]
+        otFeatures: [String: Bool],
+        showFallback: Bool
     ) -> NSAttributedString {
         let result = NSMutableAttributedString()
 
@@ -89,8 +108,17 @@ struct MultiStyleComparisonHandler: ProofHandler {
                 variations: style.variations
             ) else { continue }
 
+            let renderedText: String
+            if showFallback {
+                renderedText = text
+            } else {
+                renderedText = Self.filterSupportedCharacters(text, font: font)
+            }
+
+            if renderedText.isEmpty { continue }
+
             let line = TextRenderer.makeAttributedString(
-                text: text,
+                text: renderedText,
                 font: font,
                 fontSize: fontSize,
                 alignment: alignment,
@@ -108,6 +136,15 @@ struct MultiStyleComparisonHandler: ProofHandler {
         }
 
         return result
+    }
+
+    private static func filterSupportedCharacters(_ text: String, font: CTFont) -> String {
+        String(text.filter { char in
+            let s = String(char)
+            let utf16 = Array(s.utf16)
+            var glyphs = [CGGlyph](repeating: 0, count: utf16.count)
+            return CTFontGetGlyphsForCharacters(font, utf16, &glyphs, utf16.count)
+        })
     }
 
     private struct StyleEntry {

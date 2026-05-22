@@ -58,7 +58,11 @@ struct SubstitutionOverviewHandler: ProofHandler {
 
     func generateProof(context: ProofContext, renderer: PDFRenderer) {
         let features = SubstitutionBridge.getSubstitutions(fontPath: context.indFont)
-        if features.isEmpty { return }
+        if features.isEmpty {
+            context.diagnostics.warning("Font has no GSUB substitutions",
+                                        fontPath: context.indFont, proofName: proofName)
+            return
+        }
 
         let params = resolveParams(from: context, defaultCols: 2)
         let pageSize = PageLayout.pageDimensions[context.pageFormat]
@@ -88,7 +92,11 @@ struct SubstitutionOverviewHandler: ProofHandler {
             size: fontSize,
             features: nil,
             variations: context.axisValues
-        ) else { return }
+        ) else {
+            context.diagnostics.error("Failed to load font",
+                                      fontPath: context.indFont, proofName: proofName)
+            return
+        }
 
         let headerFont = CTFontCreateWithName("Courier" as CFString, labelSize, nil)
         let annotFont = CTFontCreateWithName("Courier" as CFString, annotationSize, nil)
