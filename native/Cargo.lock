@@ -591,13 +591,14 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 [[package]]
 name = "wordsiv"
 version = "0.3.1"
-source = "git+https://github.com/Dogray-Type-Foundry/wordsiv-rs.git#e06d01bbb413b4aeaf0d19d39043a365ce5dacc1"
+source = "git+https://github.com/Dogray-Type-Foundry/wordsiv-rs.git?branch=bitmask#5f40e339793df80b1921ff62546fdfa522244520"
 dependencies = [
  "dirs",
  "harfrust",
  "memmap2",
  "rand",
  "rand_chacha",
+ "read-fonts 0.37.0",
  "regex",
  "serde",
  "serde_json",

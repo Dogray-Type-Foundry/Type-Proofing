@@ -384,4 +384,72 @@ mod tests {
             wsv_free_string(result);
         }
     }
+
+    #[test]
+    fn bench_wordsiv_speed() {
+        use std::time::Instant;
+        const ITERS: u32 = 200;
+
+        let wsv = wsv_create(42);
+        unsafe {
+            let latin = CString::new("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,;:!?-'\"()").unwrap();
+            let small = CString::new("abcdefghn").unwrap();
+            let sep = CString::new("\n").unwrap();
+            let en = CString::new("en").unwrap();
+            let cap = CString::new("cap").unwrap();
+
+            // Warm up
+            let r = wsv_text(wsv, latin.as_ptr(), 1, 0.0, 0.0, sep.as_ptr(), en.as_ptr());
+            wsv_free_string(r);
+
+            // Bench: text generation (full charset)
+            let t0 = Instant::now();
+            for _ in 0..ITERS {
+                let r = wsv_text(wsv, latin.as_ptr(), 3, 0.1, 0.05, sep.as_ptr(), en.as_ptr());
+                wsv_free_string(r);
+            }
+            let text_full = t0.elapsed();
+
+            // Bench: text generation (restricted charset)
+            let t0 = Instant::now();
+            for _ in 0..ITERS {
+                let r = wsv_text(wsv, small.as_ptr(), 3, 0.0, 0.0, sep.as_ptr(), en.as_ptr());
+                wsv_free_string(r);
+            }
+            let text_small = t0.elapsed();
+
+            // Bench: word filtering
+            let t0 = Instant::now();
+            for _ in 0..ITERS {
+                let r = wsv_words(wsv, latin.as_ptr(), cap.as_ptr(), ptr::null(), 10, 4, 12, en.as_ptr(), ptr::null(), ptr::null(), ptr::null());
+                wsv_free_string(r);
+            }
+            let words_full = t0.elapsed();
+
+            // Bench: word filtering (restricted charset)
+            let t0 = Instant::now();
+            for _ in 0..ITERS {
+                let r = wsv_words(wsv, small.as_ptr(), ptr::null(), ptr::null(), 10, 3, 8, en.as_ptr(), ptr::null(), ptr::null(), ptr::null());
+                wsv_free_string(r);
+            }
+            let words_small = t0.elapsed();
+
+            // Bench: top_word
+            let t0 = Instant::now();
+            for _ in 0..ITERS {
+                let r = wsv_top_word(wsv, latin.as_ptr(), cap.as_ptr(), ptr::null(), 0, 4, en.as_ptr());
+                wsv_free_string(r);
+            }
+            let top_full = t0.elapsed();
+
+            wsv_free(wsv);
+
+            eprintln!("\n=== wordsiv bitmask benchmark ({} iterations) ===", ITERS);
+            eprintln!("text (full charset):      {:>8.2?} total, {:>8.2?}/call", text_full, text_full / ITERS);
+            eprintln!("text (small charset):     {:>8.2?} total, {:>8.2?}/call", text_small, text_small / ITERS);
+            eprintln!("words (full charset):     {:>8.2?} total, {:>8.2?}/call", words_full, words_full / ITERS);
+            eprintln!("words (small charset):    {:>8.2?} total, {:>8.2?}/call", words_small, words_small / ITERS);
+            eprintln!("top_word (full charset):  {:>8.2?} total, {:>8.2?}/call", top_full, top_full / ITERS);
+        }
+    }
 }
