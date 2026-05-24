@@ -229,22 +229,29 @@ extension ProofHandler {
                 lineHeight: footerLineHeight
             )
 
-            if context.showBaselines, attrString.length > 0, let first = attrString.attribute(.font, at: 0, effectiveRange: nil) {
-                let ctFont = first as! CTFont
-                let ascent = CTFontGetAscent(ctFont)
-                let naturalHeight = ascent + CTFontGetDescent(ctFont) + CTFontGetLeading(ctFont)
+            if context.showBaselines, let remaining = overflow {
+                let actualBaselines = TextRenderer.baselineOrigins(for: remaining, in: colRects[0])
+                let pageRect = CGRect(origin: .zero, size: pageSize)
 
-                var lineHeight = naturalHeight
-                if let paraStyle = attrString.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle,
-                   paraStyle.minimumLineHeight > 0 {
-                    lineHeight = paraStyle.minimumLineHeight
-                }
+                if !actualBaselines.isEmpty {
+                    var lineHeight: CGFloat = 0
+                    if let paraStyle = remaining.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle,
+                       paraStyle.minimumLineHeight > 0 {
+                        lineHeight = paraStyle.minimumLineHeight
+                    } else if actualBaselines.count >= 2 {
+                        lineHeight = actualBaselines[0] - actualBaselines[1]
+                    }
 
-                if lineHeight > 0 {
-                    for col in colRects {
-                        BaselineGrid.draw(in: col, ascent: ascent, lineHeight: lineHeight, context: renderer.context)
+                    if lineHeight > 2 {
+                        let positions = BaselineGrid.extendPositions(
+                            from: actualBaselines, lineHeight: lineHeight, toBottom: contentRect.minY)
+                        BaselineGrid.drawBaselines(in: pageRect, positions: positions, context: renderer.context)
+                    } else {
+                        BaselineGrid.drawBaselines(in: pageRect, positions: actualBaselines, context: renderer.context)
                     }
                 }
+
+                BaselineGrid.drawColumns(rects: colRects, context: renderer.context)
             }
 
             for col in colRects {

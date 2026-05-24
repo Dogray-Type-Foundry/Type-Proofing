@@ -1,22 +1,82 @@
+import AppKit
 import CoreGraphics
+import CoreText
 import Foundation
 
 struct BaselineGrid {
 
-    static func draw(in rect: CGRect, ascent: CGFloat, lineHeight: CGFloat, context: CGContext) {
-        guard lineHeight > 2 else { return }
+    private static let baselineColor = CGColor(red: 0, green: 1, blue: 1, alpha: 1)
+    private static let columnColor = CGColor(red: 1, green: 0, blue: 1, alpha: 1)
+    private static let strokeWidth: CGFloat = 0.5
+    private static let indexFontSize: CGFloat = 5
+
+    static func drawBaselines(
+        in rect: CGRect,
+        positions: [CGFloat],
+        context: CGContext
+    ) {
+        guard !positions.isEmpty else { return }
 
         context.saveGState()
-        context.setStrokeColor(CGColor(red: 0.8, green: 0.85, blue: 1.0, alpha: 0.5))
-        context.setLineWidth(0.5)
+        context.setStrokeColor(baselineColor)
+        context.setLineWidth(strokeWidth)
 
-        var y = rect.maxY - ascent
-        while y >= rect.minY {
+        for y in positions {
             context.move(to: CGPoint(x: rect.minX, y: y))
             context.addLine(to: CGPoint(x: rect.maxX, y: y))
-            y -= lineHeight
         }
         context.strokePath()
+
+        let font = CTFontCreateWithName("Helvetica" as CFString, indexFontSize, nil)
+        for (i, y) in positions.enumerated() {
+            let label = NSAttributedString(
+                string: "\(i)",
+                attributes: [.font: font, .foregroundColor: baselineColor]
+            )
+            let line = CTLineCreateWithAttributedString(label)
+            context.textPosition = CGPoint(x: rect.minX + 2, y: y + 2)
+            CTLineDraw(line, context)
+        }
+
         context.restoreGState()
+    }
+
+    static func drawColumns(rects: [CGRect], context: CGContext) {
+        context.saveGState()
+        context.setStrokeColor(columnColor)
+        context.setLineWidth(strokeWidth)
+
+        for rect in rects {
+            context.stroke(rect)
+        }
+
+        let font = CTFontCreateWithName("Helvetica" as CFString, indexFontSize, nil)
+        for (i, rect) in rects.enumerated() {
+            let label = NSAttributedString(
+                string: "\(i)",
+                attributes: [.font: font, .foregroundColor: columnColor]
+            )
+            let line = CTLineCreateWithAttributedString(label)
+            context.textPosition = CGPoint(x: rect.minX + 2, y: rect.minY + 2)
+            CTLineDraw(line, context)
+        }
+
+        context.restoreGState()
+    }
+
+    static func extendPositions(
+        from baselines: [CGFloat],
+        lineHeight: CGFloat,
+        toBottom bottomY: CGFloat
+    ) -> [CGFloat] {
+        guard let first = baselines.first, lineHeight > 2 else { return baselines }
+
+        var positions: [CGFloat] = []
+        var y = first
+        while y >= bottomY {
+            positions.append(y)
+            y -= lineHeight
+        }
+        return positions
     }
 }

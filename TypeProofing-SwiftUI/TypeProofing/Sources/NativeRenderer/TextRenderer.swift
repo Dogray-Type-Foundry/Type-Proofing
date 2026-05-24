@@ -107,6 +107,19 @@ struct TextRenderer {
         }
     }
 
+    static func baselineOrigins(for attrString: NSAttributedString, in rect: CGRect) -> [CGFloat] {
+        let framesetter = makeFramesetter(for: attrString)
+        let path = CGMutablePath()
+        path.addRect(rect)
+        let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), path, nil)
+        let lines = CTFrameGetLines(frame)
+        let count = CFArrayGetCount(lines)
+        guard count > 0 else { return [] }
+        var origins = [CGPoint](repeating: .zero, count: count)
+        CTFrameGetLineOrigins(frame, CFRange(location: 0, length: count), &origins)
+        return origins.map { rect.origin.y + $0.y }
+    }
+
     private static func makeFramesetter(for attrString: NSAttributedString) -> CTFramesetter {
         if attrString.length > 2000 {
             let typesetter = CTTypesetterCreateWithAttributedStringAndOptions(
