@@ -258,10 +258,7 @@ struct SettingsPanelView: View {
                             if entry?.hasCategories ?? false {
                                 CategoryCheckboxes(categories: state.selectedProofSettings.categories)
                             }
-                            if option.baseType == "filtered_character_set" ||
-                                option.baseType == "spacing_proof" ||
-                                option.baseType == "multi_style_comparison" ||
-                                option.baseType == "substitution_overview" {
+                            if option.baseType == "substitution_overview" {
                                 SubstitutionCheckboxes(features: state.selectedProofSettings.substitutionFeatures)
                             }
                             Divider()
@@ -301,7 +298,8 @@ struct SettingsPanelView: View {
                         if option.baseType != "substitution_overview" {
                             OTFeaturesSection(
                                 features: state.selectedProofSettings.otFeatures,
-                                isSpacingProof: option.baseType == "spacing_proof"
+                                isSpacingProof: option.baseType == "spacing_proof",
+                                fontPath: state.enabledFontPaths.first
                             )
                         }
                     }
@@ -315,6 +313,7 @@ struct SettingsPanelView: View {
                 }
             }
         }
+        .scrollEdgeEffectStyle(.soft, for: .all)
     }
 }
 
@@ -369,6 +368,7 @@ private struct DiagnosticsPanelView: View {
                     }
                     .padding(.vertical, 4)
                 }
+                .scrollEdgeEffectStyle(.soft, for: .all)
             }
         }
         .padding()
@@ -554,14 +554,16 @@ struct NumericSetting: View {
                             }
                             let multiplier: Double
                             if NSEvent.modifierFlags.contains(.shift) {
-                                multiplier = 10.0
+                                multiplier = 3.0
                             } else if NSEvent.modifierFlags.contains(.option) {
-                                multiplier = 0.1
+                                multiplier = 0.05
                             } else {
-                                multiplier = 1.0
+                                multiplier = 0.3
                             }
                             let delta = Double(gesture.translation.width) * step * multiplier
-                            value = min(max(dragStartValue + delta, range.lowerBound), range.upperBound)
+                            let raw = min(max(dragStartValue + delta, range.lowerBound), range.upperBound)
+                            let snap = step >= 1 ? (raw * 10).rounded() / 10 : (raw / step).rounded() * step
+                            value = snap
                         }
                         .onEnded { _ in
                             isDragging = false
@@ -569,25 +571,53 @@ struct NumericSetting: View {
                         }
                 )
             Spacer()
-            HStack(spacing: 0) {
-                TextField("", value: $value, format: .number)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.plain)
-                    .frame(width: 50)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                if let unit {
-                    Text(unit)
-                        .font(.system(size: 10.5, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 8)
+            HStack(spacing: 4) {
+                HStack(spacing: 0) {
+                    TextField("", value: $value, format: .number)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.plain)
+                        .frame(width: 50)
+                        .padding(.horizontal, 9)
                         .padding(.vertical, 5)
-                        .background(Color.primary.opacity(0.03))
+                    if let unit {
+                        Text(unit)
+                            .font(.system(size: 10.5, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(Color.primary.opacity(0.03))
+                    }
                 }
+                .background(Color.white.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+                .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
+
+                VStack(spacing: 0) {
+                    Button {
+                        value = min(value + step, range.upperBound)
+                    } label: {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 8, weight: .bold))
+                            .frame(width: 18, height: 14)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Divider().frame(width: 12)
+                    Button {
+                        value = max(value - step, range.lowerBound)
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .frame(width: 18, height: 14)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .foregroundStyle(.secondary)
+                .background(Color.white.opacity(0.35))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+                .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
             }
-            .background(Color.white.opacity(0.55))
-            .clipShape(RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
         }
     }
 }
@@ -927,8 +957,136 @@ private struct MarkupHelpPopover: View {
 struct OTFeaturesSection: View {
     @Binding var features: [OTFeature]
     var isSpacingProof: Bool = false
+    var fontPath: String?
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+
+    private var defaultVariations: [String: Double]? {
+        guard let path = fontPath else { return nil }
+        guard let ctFont = FontLoader.makeFont(path: path, size: 13, features: nil, variations: nil) else { return nil }
+        guard let axes = CTFontCopyVariationAxes(ctFont) as? [[String: Any]] else { return nil }
+        var defaults: [String: Double] = [:]
+        for axis in axes {
+            guard let identifier = axis[kCTFontVariationAxisIdentifierKey as String] as? Int,
+                  let defaultValue = axis[kCTFontVariationAxisDefaultValueKey as String] as? Double else { continue }
+            let tag = FontLoader.axisIDToTag(identifier)
+            defaults[tag] = defaultValue
+        }
+        return defaults.isEmpty ? nil : defaults
+    }
+
+    private var featureSamples: [String: String] {
+        guard let path = fontPath else { return [:] }
+        let subs = SubstitutionBridge.getSubstitutions(fontPath: path)
+        let baseFont = FontLoader.makeFont(path: path, size: 13, features: nil, variations: defaultVariations)
+
+        var samples: [String: String] = [:]
+        for feature in subs {
+            let tag = feature.tag
+            switch tag {
+            case "calt":
+                samples[tag] = pickCaltSample(feature.entries)
+            case "ordn", "sinf", "subs", "sups", "numr", "dnom":
+                if let entry = feature.entries.first, !entry.inputText.isEmpty {
+                    samples[tag] = "x" + String(entry.inputText.prefix(3))
+                }
+            case "case":
+                samples[tag] = pickCaseSample(feature.entries)
+            case "frac":
+                samples[tag] = "1/2"
+            case "tnum", "pnum", "onum", "lnum":
+                break
+            default:
+                if let entry = feature.entries.first, !entry.inputText.isEmpty {
+                    samples[tag] = String(entry.inputText.prefix(4))
+                }
+            }
+        }
+
+        if let font = baseFont {
+            if samples["mark"] == nil {
+                let mark = findCombiningMark(in: font)
+                if let m = mark { samples["mark"] = "a\(m)" }
+            }
+            if samples["mkmk"] == nil {
+                let marks = findTwoCombiningMarks(in: font)
+                if marks.count == 2 { samples["mkmk"] = "a\(marks[0])\(marks[1])" }
+            }
+        }
+
+        return samples
+    }
+
+    private func pickCaltSample(_ entries: [SubstitutionBridge.Entry]) -> String? {
+        let viable = entries.filter { !$0.inputText.isEmpty }
+        if viable.isEmpty { return nil }
+
+        func buildSample(_ e: SubstitutionBridge.Entry) -> String {
+            var s = ""
+            if !e.backtrackText.isEmpty { s += String(e.backtrackText.suffix(2)) }
+            s += String(e.inputText.prefix(3))
+            if !e.lookaheadText.isEmpty { s += String(e.lookaheadText.prefix(2)) }
+            return s
+        }
+
+        let alphabetic = viable.filter { $0.inputText.first?.isLetter == true }
+        let pool = alphabetic.isEmpty ? viable : alphabetic
+
+        let lowercaseWithLowercaseCtx = pool.first { e in
+            guard let first = e.inputText.first, first.isLowercase else { return false }
+            let ctx = e.backtrackText + e.lookaheadText
+            return !ctx.isEmpty && ctx.contains(where: { $0.isLowercase })
+        }
+        if let e = lowercaseWithLowercaseCtx { return buildSample(e) }
+
+        let uppercaseWithUppercaseCtx = pool.first { e in
+            guard let first = e.inputText.first, first.isUppercase else { return false }
+            let ctx = e.backtrackText + e.lookaheadText
+            return !ctx.isEmpty && ctx.contains(where: { $0.isUppercase })
+        }
+        if let e = uppercaseWithUppercaseCtx { return buildSample(e) }
+
+        if let e = pool.first(where: { !($0.backtrackText + $0.lookaheadText).isEmpty }) {
+            return buildSample(e)
+        }
+        return buildSample(pool[0])
+    }
+
+    private func pickCaseSample(_ entries: [SubstitutionBridge.Entry]) -> String? {
+        let viable = entries.filter { !$0.inputText.isEmpty }
+        if viable.isEmpty { return nil }
+
+        let preferredContexts: [Character] = ["\u{00BF}", "[", "-"]
+        let inputTexts = Set(viable.map { String($0.inputText.prefix(1)) })
+
+        for ctx in preferredContexts {
+            if inputTexts.contains(String(ctx)) {
+                return String(ctx) + "H"
+            }
+        }
+        return String(viable[0].inputText.prefix(2)) + "H"
+    }
+
+    private static let combiningMarks: [Character] = [
+        "\u{0301}", "\u{0300}", "\u{0302}", "\u{030C}",
+        "\u{0308}", "\u{0303}", "\u{0307}", "\u{0327}",
+        "\u{0306}", "\u{030A}", "\u{0304}", "\u{030B}",
+    ]
+
+    private func findCombiningMark(in font: CTFont) -> Character? {
+        Self.combiningMarks.first { FontLoader.fontContains(font, characters: String($0)) }
+    }
+
+    private func findTwoCombiningMarks(in font: CTFont) -> [Character] {
+        var found: [Character] = []
+        for mark in Self.combiningMarks {
+            if FontLoader.fontContains(font, characters: String(mark)) {
+                found.append(mark)
+                if found.count == 2 { break }
+            }
+        }
+        return found
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -945,7 +1103,10 @@ struct OTFeaturesSection: View {
                     ForEach($features) { $feature in
                         OTFeaturePill(
                             feature: $feature,
-                            forceOff: isSpacingProof && feature.tag == "kern"
+                            forceOff: isSpacingProof && feature.tag == "kern",
+                            fontPath: fontPath,
+                            defaultVariations: defaultVariations,
+                            featureSample: featureSamples[feature.tag]
                         )
                     }
                 }
@@ -959,8 +1120,21 @@ struct OTFeaturesSection: View {
 private struct OTFeaturePill: View {
     @Binding var feature: OTFeature
     var forceOff: Bool = false
+    var fontPath: String?
+    var defaultVariations: [String: Double]?
+    var featureSample: String?
 
     private var isActive: Bool { !forceOff && feature.enabled }
+
+    private var featureFont: Font? {
+        guard let path = fontPath else { return nil }
+        guard let ctFont = FontLoader.makeFont(
+            path: path, size: 13,
+            features: [feature.tag: true],
+            variations: defaultVariations
+        ) else { return nil }
+        return Font(ctFont as NSFont)
+    }
 
     var body: some View {
         Button {
@@ -968,46 +1142,62 @@ private struct OTFeaturePill: View {
         } label: {
             HStack(spacing: 6) {
                 Circle()
-                    .fill(isActive ? Color.accentColor : Color.primary.opacity(0.15))
+                    .fill(isActive ? Color.dograyPurple : Color.primary.opacity(0.15))
                     .frame(width: 5, height: 5)
                 Text(forceOff ? "\(feature.tag) (off)" : feature.tag)
                     .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                 Spacer()
-                Text(previewText(for: feature.tag))
-                    .font(.system(size: 13))
-                    .foregroundStyle(isActive ? Color.primary.opacity(0.85) : Color.secondary)
+                Text(featureSample ?? fallbackSampleText(for: feature.tag))
+                    .font(featureFont ?? .system(size: 13))
+                    .foregroundStyle(isActive ? .white.opacity(0.9) : Color.secondary)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(isActive ? Color.primary : Color.white.opacity(0.55))
+            .background(isActive ? Color.dograyPurple : Color.secondary.opacity(0.08))
             .foregroundStyle(isActive ? Color.white : Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 7))
             .overlay(RoundedRectangle(cornerRadius: 7)
-                .stroke(Color.primary.opacity(isActive ? 0 : 0.12), lineWidth: 0.5))
+                .stroke(isActive ? Color.clear : Color.primary.opacity(0.1), lineWidth: 0.5))
         }
         .buttonStyle(.plain)
         .disabled(forceOff)
     }
 
-    private func previewText(for tag: String) -> String {
+    private func fallbackSampleText(for tag: String) -> String {
         switch tag {
         case "kern": return "AV"
-        case "liga", "calt": return "fi"
+        case "liga": return "fi"
+        case "calt": return "e.g"
         case "dlig": return "st"
-        case "ccmp": return "ï"
-        case "mark": return "á"
-        case "mkmk": return "ấ"
-        case "tnum": return "123"
-        case "onum": return "123"
-        case "frac": return "½"
-        case "sups": return "x²"
-        case "subs": return "H₂"
+        case "ccmp": return "a\u{0308}"
+        case "mark": return "a\u{0301}"
+        case "mkmk": return "a\u{0302}\u{0301}"
+        case "tnum", "pnum": return "123"
+        case "onum", "lnum": return "123"
+        case "frac": return "1/2"
+        case "numr": return "x123"
+        case "dnom": return "x123"
+        case "sinf": return "x1"
+        case "sups": return "x1"
+        case "subs": return "x1"
+        case "ordn": return "x1a"
         case "smcp": return "Abc"
         case "c2sc": return "ABC"
         case "swsh": return "Q"
+        case "locl": return "Abc"
+        case "rlig": return "\u{0644}\u{0627}"
+        case "rclt": return "Abc"
+        case "aalt": return "Aa"
+        case "zero": return "0"
+        case "case": return "H()"
+        case "cpsp": return "AB"
+        case "salt": return "a"
+        case "titl": return "Abc"
+        case "cswh": return "e"
         default:
             if tag.hasPrefix("ss") { return "a" }
-            return tag
+            if tag.hasPrefix("cv") { return "a" }
+            return "Aa"
         }
     }
 }

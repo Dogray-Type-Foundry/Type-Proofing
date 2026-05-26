@@ -88,13 +88,22 @@ enum FontFileDropHandler {
 
     static func handle(_ providers: [NSItemProvider], state: AppState, engine: ProofEngine) {
         for provider in providers {
-            provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, _ in
-                guard let data = item as? Data,
-                      let url = URL(dataRepresentation: data, relativeTo: nil),
-                      fontExtensions.contains(url.pathExtension.lowercased())
-                else { return }
-                DispatchQueue.main.async {
-                    state.addFonts(urls: [url], engine: engine)
+            if provider.canLoadObject(ofClass: URL.self) {
+                provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url, fontExtensions.contains(url.pathExtension.lowercased()) else { return }
+                    DispatchQueue.main.async {
+                        state.addFonts(urls: [url], engine: engine)
+                    }
+                }
+            } else {
+                provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, _ in
+                    guard let data = item as? Data,
+                          let url = URL(dataRepresentation: data, relativeTo: nil),
+                          fontExtensions.contains(url.pathExtension.lowercased())
+                    else { return }
+                    DispatchQueue.main.async {
+                        state.addFonts(urls: [url], engine: engine)
+                    }
                 }
             }
         }

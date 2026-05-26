@@ -6,12 +6,65 @@ import PDFKit
 /// Shared coordinator that bridges the PDFView and ThumbnailSidebarView,
 /// now that they live in separate NSViewRepresentable wrappers.
 class PDFViewCoordinator: ObservableObject {
-    weak var pdfView: PDFView?
+    weak var pdfView: PDFView? {
+        didSet { observeScaleChanges() }
+    }
     weak var thumbnailSidebar: ThumbnailSidebarView?
+
+    @Published var zoomPercent: Int = 100
 
     var sections: [ProofSection] = []
     var lastLoadedPDFPath: String?
     var lastHandledNavigationRequestID: UUID?
+    private var scaleObservers: [NSObjectProtocol] = []
+
+    private func observeScaleChanges() {
+        for obs in scaleObservers { NotificationCenter.default.removeObserver(obs) }
+        scaleObservers.removeAll()
+        guard let pdfView else { return }
+        syncZoomPercent()
+
+        let update: @Sendable (Notification) -> Void = { [weak self] _ in
+            DispatchQueue.main.async { self?.syncZoomPercent() }
+        }
+
+        scaleObservers.append(NotificationCenter.default.addObserver(
+            forName: .PDFViewScaleChanged, object: pdfView, queue: .main
+        ) { [weak self] _ in self?.syncZoomPercent() })
+
+        if let scrollView = pdfView.documentView?.enclosingScrollView {
+            scrollView.contentView.postsBoundsChangedNotifications = true
+            scaleObservers.append(NotificationCenter.default.addObserver(
+                forName: NSScrollView.didEndLiveMagnifyNotification, object: scrollView, queue: .main
+            ) { [weak self] _ in self?.syncZoomPercent() })
+            scaleObservers.append(NotificationCenter.default.addObserver(
+                forName: NSView.boundsDidChangeNotification, object: scrollView.contentView, queue: .main
+            ) { [weak self] _ in self?.syncZoomPercent() })
+        }
+    }
+
+    func syncZoomPercent() {
+        guard let pdfView else { return }
+        let pct = Int((pdfView.scaleFactor * 100).rounded())
+        if pct != zoomPercent { zoomPercent = pct }
+    }
+
+    func lateBindScrollObservers() {
+        guard let pdfView, let scrollView = pdfView.documentView?.enclosingScrollView else { return }
+        let alreadyBound = scaleObservers.count > 1
+        if alreadyBound { return }
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        scaleObservers.append(NotificationCenter.default.addObserver(
+            forName: NSScrollView.didEndLiveMagnifyNotification, object: scrollView, queue: .main
+        ) { [weak self] _ in self?.syncZoomPercent() })
+        scaleObservers.append(NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification, object: scrollView.contentView, queue: .main
+        ) { [weak self] _ in self?.syncZoomPercent() })
+    }
+
+    deinit {
+        for obs in scaleObservers { NotificationCenter.default.removeObserver(obs) }
+    }
 
     struct Anchor {
         let sectionName: String?
@@ -96,10 +149,12 @@ struct PDFCanvasView: NSViewRepresentable {
         pdfView.displaysPageBreaks = true
         pdfView.displayMode = .singlePageContinuous
         pdfCoordinator.pdfView = pdfView
+        pdfCoordinator.lastLoadedPDFPath = nil
         return pdfView
     }
 
     func updateNSView(_ pdfView: PDFView, context: Context) {
+        pdfCoordinator.lateBindScrollObservers()
         if let path = pdfPath {
             let url = URL(fileURLWithPath: path)
             let documentChanged = pdfCoordinator.lastLoadedPDFPath != path
@@ -221,6 +276,7 @@ struct GridViewCanvas: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .onAppear { loadDocument() }
         .onChange(of: pdfPath) { _ in loadDocument() }
     }
@@ -266,80 +322,224 @@ private struct GridThumbnailView: View {
 struct CompareViewCanvas: View {
     let pdfPath: String
     let pdfCoordinator: PDFViewCoordinator
+    let vertical: Bool
 
-    @State private var document: PDFDocument?
+    @State private var pageCount: Int = 0
     @State private var leftPageIndex: Int = 0
     @State private var rightPageIndex: Int = 1
 
     var body: some View {
-        HStack(spacing: 1) {
-            compareSide(pageIndex: $leftPageIndex)
-            Divider()
-            compareSide(pageIndex: $rightPageIndex)
-        }
-        .onAppear { loadDocument() }
-        .onChange(of: pdfPath) { _ in loadDocument() }
-    }
-
-    private func loadDocument() {
-        let url = URL(fileURLWithPath: pdfPath)
-        document = PDFDocument(url: url)
-        rightPageIndex = min(1, (document?.pageCount ?? 1) - 1)
-    }
-
-    private func compareSide(pageIndex: Binding<Int>) -> some View {
         VStack(spacing: 0) {
-            HStack {
-                Button {
-                    if pageIndex.wrappedValue > 0 { pageIndex.wrappedValue -= 1 }
-                } label: {
-                    Image(systemName: "chevron.left")
-                }
-                .disabled(pageIndex.wrappedValue <= 0)
-
-                Text("Page \(pageIndex.wrappedValue + 1) of \(document?.pageCount ?? 0)")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-
-                Button {
-                    let max = (document?.pageCount ?? 1) - 1
-                    if pageIndex.wrappedValue < max { pageIndex.wrappedValue += 1 }
-                } label: {
-                    Image(systemName: "chevron.right")
-                }
-                .disabled(pageIndex.wrappedValue >= (document?.pageCount ?? 1) - 1)
+            HStack(spacing: 0) {
+                pageControls(index: $leftPageIndex)
+                Divider().frame(height: 20)
+                pageControls(index: $rightPageIndex)
             }
             .padding(.vertical, 6)
 
-            if let document, let page = document.page(at: pageIndex.wrappedValue) {
-                ComparePDFPageView(page: page, scaleFactor: pdfCoordinator.pdfView?.scaleFactor ?? 1.0)
-            } else {
-                Color.clear
+            SyncedCompareNSView(
+                pdfPath: pdfPath,
+                leftPageIndex: leftPageIndex,
+                rightPageIndex: rightPageIndex,
+                vertical: vertical,
+                onPageCount: { pageCount = $0 }
+            )
+        }
+        .onChange(of: pdfPath) { _ in
+            leftPageIndex = 0
+            rightPageIndex = min(1, max(pageCount - 1, 0))
+        }
+    }
+
+    private func pageControls(index: Binding<Int>) -> some View {
+        HStack {
+            Spacer()
+            Button { if index.wrappedValue > 0 { index.wrappedValue -= 1 } } label: {
+                Image(systemName: "chevron.left")
             }
+            .disabled(index.wrappedValue <= 0)
+
+            Text("Page \(index.wrappedValue + 1) of \(pageCount)")
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+
+            Button {
+                if index.wrappedValue < pageCount - 1 { index.wrappedValue += 1 }
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .disabled(index.wrappedValue >= pageCount - 1)
+            Spacer()
         }
     }
 }
 
-private struct ComparePDFPageView: NSViewRepresentable {
-    let page: PDFPage
-    let scaleFactor: CGFloat
+// Single NSViewRepresentable that owns both PDFViews and syncs them in AppKit.
+private struct SyncedCompareNSView: NSViewRepresentable {
+    let pdfPath: String
+    let leftPageIndex: Int
+    let rightPageIndex: Int
+    let vertical: Bool
+    var onPageCount: (Int) -> Void
 
-    func makeNSView(context: Context) -> PDFView {
-        let pdfView = PDFView()
-        pdfView.autoScales = true
-        pdfView.displaysPageBreaks = false
-        pdfView.displayMode = .singlePage
-        let doc = PDFDocument()
-        doc.insert(page, at: 0)
-        pdfView.document = doc
-        return pdfView
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> SyncedCompareContainer {
+        SyncedCompareContainer()
     }
 
-    func updateNSView(_ pdfView: PDFView, context: Context) {
-        let doc = PDFDocument()
-        doc.insert(page, at: 0)
-        pdfView.document = doc
-        pdfView.scaleFactor = scaleFactor
+    func updateNSView(_ container: SyncedCompareContainer, context: Context) {
+        let count = container.loadIfNeeded(path: pdfPath)
+        if count != context.coordinator.lastPageCount {
+            context.coordinator.lastPageCount = count
+            DispatchQueue.main.async { onPageCount(count) }
+        }
+        container.vertical = vertical
+        container.needsLayout = true
+        container.showPage(leftPageIndex, on: .left)
+        container.showPage(rightPageIndex, on: .right)
+    }
+
+    class Coordinator {
+        var lastPageCount = 0
+    }
+}
+
+private enum Side { case left, right }
+
+private final class SyncedCompareContainer: NSView {
+    let leftPDF = PDFView()
+    let rightPDF = PDFView()
+    private let dividerView = NSView()
+    private var document: PDFDocument?
+    private var loadedPath: String?
+    private var leftShownPage = -1
+    private var rightShownPage = -1
+    var vertical = false
+    private var observers: [NSObjectProtocol] = []
+    private var syncing = false
+    private var didSetupSync = false
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        for pdfView in [leftPDF, rightPDF] {
+            pdfView.autoScales = true
+            pdfView.displaysPageBreaks = false
+            pdfView.displayMode = .singlePage
+            addSubview(pdfView)
+        }
+        dividerView.wantsLayer = true
+        dividerView.layer?.backgroundColor = NSColor.separatorColor.withAlphaComponent(0.5).cgColor
+        addSubview(dividerView)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override var isFlipped: Bool { true }
+
+    override func layout() {
+        super.layout()
+        let w = bounds.width
+        let h = bounds.height
+        let d: CGFloat = 2
+        if vertical {
+            let half = floor((h - d) / 2)
+            leftPDF.frame = NSRect(x: 0, y: 0, width: w, height: half)
+            dividerView.frame = NSRect(x: 0, y: half, width: w, height: d)
+            rightPDF.frame = NSRect(x: 0, y: half + d, width: w, height: h - half - d)
+        } else {
+            let half = floor((w - d) / 2)
+            leftPDF.frame = NSRect(x: 0, y: 0, width: half, height: h)
+            dividerView.frame = NSRect(x: half, y: 0, width: d, height: h)
+            rightPDF.frame = NSRect(x: half + d, y: 0, width: w - half - d, height: h)
+        }
+    }
+
+    func loadIfNeeded(path: String) -> Int {
+        guard path != loadedPath else { return document?.pageCount ?? 0 }
+        loadedPath = path
+        leftShownPage = -1
+        rightShownPage = -1
+        didSetupSync = false
+        let url = URL(fileURLWithPath: path)
+        document = PDFDocument(url: url)
+        return document?.pageCount ?? 0
+    }
+
+    func showPage(_ index: Int, on side: Side) {
+        guard let document, index >= 0, index < document.pageCount else { return }
+        let pdfView = side == .left ? leftPDF : rightPDF
+        let shown = side == .left ? leftShownPage : rightShownPage
+        guard index != shown else { return }
+
+        let singleDoc = PDFDocument()
+        if let page = document.page(at: index) {
+            singleDoc.insert(page, at: 0)
+        }
+
+        syncing = true
+        let otherView = side == .left ? rightPDF : leftPDF
+        let otherHasDoc = otherView.document != nil && (otherView.document?.pageCount ?? 0) > 0
+        pdfView.document = singleDoc
+        if otherHasDoc {
+            pdfView.autoScales = false
+            pdfView.scaleFactor = otherView.scaleFactor
+        }
+        syncing = false
+
+        switch side {
+        case .left: leftShownPage = index
+        case .right: rightShownPage = index
+        }
+
+        if !didSetupSync { setupSync() }
+    }
+
+    private func setupSync() {
+        for obs in observers { NotificationCenter.default.removeObserver(obs) }
+        observers.removeAll()
+        didSetupSync = true
+
+        for (pdfView, side) in [(leftPDF, Side.left), (rightPDF, Side.right)] {
+            let scaleObs = NotificationCenter.default.addObserver(
+                forName: .PDFViewScaleChanged, object: pdfView, queue: .main
+            ) { [weak self] _ in self?.handleSync(from: side) }
+            observers.append(scaleObs)
+
+            if let scrollView = pdfView.documentView?.enclosingScrollView {
+                scrollView.contentView.postsBoundsChangedNotifications = true
+                let boundsObs = NotificationCenter.default.addObserver(
+                    forName: NSView.boundsDidChangeNotification,
+                    object: scrollView.contentView, queue: .main
+                ) { [weak self] _ in self?.handleSync(from: side) }
+                observers.append(boundsObs)
+            }
+        }
+    }
+
+    private func handleSync(from source: Side) {
+        guard !syncing else { return }
+        syncing = true
+        defer { syncing = false }
+
+        let (src, dst) = source == .left ? (leftPDF, rightPDF) : (rightPDF, leftPDF)
+
+        if abs(dst.scaleFactor - src.scaleFactor) > 0.001 {
+            dst.scaleFactor = src.scaleFactor
+        }
+
+        guard let srcScroll = src.documentView?.enclosingScrollView,
+              let dstScroll = dst.documentView?.enclosingScrollView else { return }
+        let srcOrigin = srcScroll.contentView.bounds.origin
+        let dstOrigin = dstScroll.contentView.bounds.origin
+        if abs(srcOrigin.x - dstOrigin.x) > 0.5 || abs(srcOrigin.y - dstOrigin.y) > 0.5 {
+            dstScroll.contentView.scroll(to: srcOrigin)
+            dstScroll.reflectScrolledClipView(dstScroll.contentView)
+        }
+    }
+
+    deinit {
+        for obs in observers { NotificationCenter.default.removeObserver(obs) }
     }
 }
 

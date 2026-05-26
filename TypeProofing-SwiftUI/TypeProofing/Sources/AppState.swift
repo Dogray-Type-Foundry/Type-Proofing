@@ -182,6 +182,7 @@ final class AppState: ObservableObject {
     @Published var pageFormats: [String] = []
     @Published var showBaselines: Bool = false
     @Published var viewMode: ViewMode = .page
+    @Published var compareVertical: Bool = false
 
     // Output
     @Published var outputDirectory: String = ""
@@ -203,6 +204,15 @@ final class AppState: ObservableObject {
     @Published var showFontPicker = false
     @Published var showAddProofSheet = false
     @Published var showSettingsImporter = false
+    @Published var showSidebar = true
+    @Published var showThumbnailStrip = true
+    @Published var showInspector = true
+    @Published var fontsSectionExpanded = true
+    @Published var proofsSectionExpanded = true
+    @Published var outputSectionExpanded = true
+    @Published var sidebarWidth: CGFloat = 240
+    @Published var thumbnailStripWidth: CGFloat = 140
+    @Published var inspectorWidth: CGFloat = 300
 
     // Available OT features from loaded fonts (minus hidden)
     private(set) var availableOTFeatures: [String] = []
@@ -444,15 +454,17 @@ final class AppState: ObservableObject {
             availableSubstitutionFeatures = engine.getAvailableSubstitutionFeatures(path: firstPath)
             anyFontSupportsOpbd = fontPaths.contains { FontLoader.fontSupportsOpbd(path: $0) }
 
-            // Apply to all proofs that don't have features yet
-            for (name, settings) in proofSettingsByProof where settings.otFeatures.isEmpty {
-                proofSettingsByProof[name]?.otFeatures = buildDefaultOTFeatures(
-                    for: proofOptions.first(where: { $0.name == name })?.baseType
-                )
-            }
-            for (name, settings) in proofSettingsByProof where settings.substitutionFeatures.isEmpty {
+            // Sync OT features with what the font actually has, preserving enabled states
+            for (name, _) in proofSettingsByProof {
                 let baseType = proofOptions.first(where: { $0.name == name })?.baseType
-                proofSettingsByProof[name]?.substitutionFeatures = buildDefaultSubstitutionFeatures(for: baseType)
+                proofSettingsByProof[name]?.otFeatures = syncOTFeatures(
+                    existing: proofSettingsByProof[name]?.otFeatures ?? [],
+                    available: availableOTFeatures,
+                    baseType: baseType
+                )
+                if proofSettingsByProof[name]?.substitutionFeatures.isEmpty ?? true {
+                    proofSettingsByProof[name]?.substitutionFeatures = buildDefaultSubstitutionFeatures(for: baseType)
+                }
             }
         }
 
@@ -469,10 +481,18 @@ final class AppState: ObservableObject {
     private func buildDefaultOTFeatures(for baseType: String?) -> [OTFeature] {
         availableOTFeatures.map { tag in
             var enabled = DEFAULT_ON_FEATURES.contains(tag)
-            // Spacing proof: kern always off
             if baseType == "spacing_proof" && tag == "kern" {
                 enabled = false
             }
+            return OTFeature(id: tag, tag: tag, enabled: enabled)
+        }
+    }
+
+    private func syncOTFeatures(existing: [OTFeature], available: [String], baseType: String?) -> [OTFeature] {
+        if existing.isEmpty { return buildDefaultOTFeatures(for: baseType) }
+        let existingByTag = Dictionary(existing.map { ($0.tag, $0.enabled) }, uniquingKeysWith: { first, _ in first })
+        return available.map { tag in
+            let enabled = existingByTag[tag] ?? DEFAULT_ON_FEATURES.contains(tag)
             return OTFeature(id: tag, tag: tag, enabled: enabled)
         }
     }

@@ -1,15 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-private extension View {
-    @ViewBuilder
-    func optionalGlassCapsule() -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(.regular, in: .capsule)
-        } else {
-            self
-        }
-    }
+extension Color {
+    static let dograyPurple = Color(red: 0.380, green: 0, blue: 0.878)
 }
 
 struct ContentView: View {
@@ -27,6 +20,7 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 600)
+        .tint(.dograyPurple)
         .onReceive(engine.$isReady) { ready in
             if ready {
                 state.loadFromEngine(engine)
@@ -53,6 +47,26 @@ struct ContentView: View {
                 importSettings(from: url)
             }
         }
+        .fileImporter(
+            isPresented: $state.showFontPicker,
+            allowedContentTypes: [
+                UTType(filenameExtension: "otf") ?? .data,
+                UTType(filenameExtension: "ttf") ?? .data,
+                UTType(filenameExtension: "woff") ?? .data,
+                UTType(filenameExtension: "woff2") ?? .data,
+            ],
+            allowsMultipleSelection: true
+        ) { result in
+            if case .success(let urls) = result {
+                for url in urls { _ = url.startAccessingSecurityScopedResource() }
+                state.addFonts(urls: urls, engine: engine)
+                for url in urls { url.stopAccessingSecurityScopedResource() }
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            FontFileDropHandler.handle(providers, state: state, engine: engine)
+            return true
+        }
     }
 
     // MARK: - Loading
@@ -72,15 +86,31 @@ struct ContentView: View {
     // MARK: - Main Layout
 
     private var mainLayout: some View {
-        HSplitView {
-            SidebarView()
-                .frame(minWidth: 180, idealWidth: 220, maxWidth: 350)
-            ThumbnailStripView(
-                pdfPath: state.previewPDFPath,
-                sections: state.previewSections,
-                pdfCoordinator: pdfCoordinator
-            )
-            .frame(minWidth: 100, idealWidth: 160, maxWidth: 300)
+        HStack(spacing: 0) {
+            if state.showSidebar {
+                SidebarView()
+                    .frame(width: state.sidebarWidth)
+                    .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 12))
+                    .transition(.move(edge: .leading))
+                PanelDragHandle(
+                    width: $state.sidebarWidth,
+                    minWidth: 180, maxWidth: 400
+                )
+            }
+            if state.showThumbnailStrip {
+                ThumbnailStripView(
+                    pdfPath: state.previewPDFPath,
+                    sections: state.previewSections,
+                    pdfCoordinator: pdfCoordinator
+                )
+                .frame(width: state.thumbnailStripWidth)
+                .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 12))
+                .transition(.move(edge: .leading))
+                PanelDragHandle(
+                    width: $state.thumbnailStripWidth,
+                    minWidth: 100, maxWidth: 260
+                )
+            }
             ZStack(alignment: .top) {
                 if let pdfPath = state.previewPDFPath {
                     switch state.viewMode {
@@ -100,7 +130,8 @@ struct ContentView: View {
                     case .compare:
                         CompareViewCanvas(
                             pdfPath: pdfPath,
-                            pdfCoordinator: pdfCoordinator
+                            pdfCoordinator: pdfCoordinator,
+                            vertical: state.compareVertical
                         )
                     }
                 } else {
@@ -113,10 +144,23 @@ struct ContentView: View {
                 }
             }
             .frame(minWidth: 400)
-            SettingsPanelView()
-                .frame(minWidth: 250, idealWidth: 280, maxWidth: 350)
+            if state.showInspector {
+                PanelDragHandle(
+                    width: $state.inspectorWidth,
+                    minWidth: 240, maxWidth: 500,
+                    inverted: true
+                )
+                SettingsPanelView()
+                    .frame(width: state.inspectorWidth)
+                    .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 12))
+                    .transition(.move(edge: .trailing))
+            }
         }
-        .background(Color("Paper"))
+        .padding(6)
+        .background(.background)
+        .animation(.easeInOut(duration: 0.25), value: state.showSidebar)
+        .animation(.easeInOut(duration: 0.25), value: state.showThumbnailStrip)
+        .animation(.easeInOut(duration: 0.25), value: state.showInspector)
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
                 HStack(spacing: 2) {
@@ -140,7 +184,7 @@ struct ContentView: View {
                     .help("Version history (coming soon)")
                     .disabled(true)
                 }
-                .optionalGlassCapsule()
+                .glassEffect(.regular, in: .capsule)
             }
         }
     }
@@ -200,10 +244,26 @@ struct ContentView: View {
 
 struct FloatingToolbar: View {
     @EnvironmentObject var state: AppState
-    let pdfCoordinator: PDFViewCoordinator
+    @ObservedObject var pdfCoordinator: PDFViewCoordinator
 
     var body: some View {
         HStack(spacing: 12) {
+            // Panel toggles
+            HStack(spacing: 2) {
+                toolbarButton("sidebar.leading", active: state.showSidebar, help: "Toggle sidebar") {
+                    state.showSidebar.toggle()
+                }
+                toolbarButton("rectangle.split.3x1", active: state.showThumbnailStrip, help: "Toggle thumbnails") {
+                    state.showThumbnailStrip.toggle()
+                }
+                toolbarButton("sidebar.trailing", active: state.showInspector, help: "Toggle inspector") {
+                    state.showInspector.toggle()
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .glassEffect(.regular, in: .capsule)
+
             // View modes + grid toggles
             HStack(spacing: 2) {
                 toolbarButton("doc.richtext", active: state.viewMode == .page, help: "Page view") {
@@ -216,51 +276,83 @@ struct FloatingToolbar: View {
                     state.viewMode = .compare
                 }
 
+                if state.viewMode == .compare {
+                    Divider()
+                        .frame(height: 16)
+                        .padding(.horizontal, 4)
+                    toolbarButton(
+                        state.compareVertical ? "rectangle.split.1x2" : "rectangle.split.2x1",
+                        active: false,
+                        help: state.compareVertical ? "Side by side" : "Stacked"
+                    ) {
+                        state.compareVertical.toggle()
+                    }
+                }
+
                 Divider()
                     .frame(height: 16)
                     .padding(.horizontal, 4)
 
-                toolbarButton("rectangle.split.3x1", active: false, help: "Column grid") {}
-                    .disabled(true)
                 toolbarButton("line.3.horizontal", active: state.showBaselines, help: "Baseline grid") {
                     state.showBaselines.toggle()
                 }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .optionalGlassCapsule()
+            .glassEffect(.regular, in: .capsule)
 
             // Zoom controls
             HStack(spacing: 2) {
                 Button { zoom(by: -0.1) } label: {
                     Image(systemName: "minus")
-                        .frame(width: 24, height: 24)
+                        .frame(width: 32, height: 28)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Zoom out")
 
-                Text(zoomLabel)
+                TextField("", text: Binding(
+                    get: { "\(pdfCoordinator.zoomPercent)" },
+                    set: { newValue in
+                        if let pct = Int(newValue), pct >= 10, pct <= 500 {
+                            pdfCoordinator.pdfView?.scaleFactor = CGFloat(pct) / 100.0
+                        }
+                    }
+                ))
+                .font(.system(size: 11, design: .monospaced))
+                .textFieldStyle(.plain)
+                .frame(width: 34)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .onSubmit {
+                    let text = "\(pdfCoordinator.zoomPercent)"
+                    if let pct = Int(text), pct >= 10, pct <= 500 {
+                        pdfCoordinator.pdfView?.scaleFactor = CGFloat(pct) / 100.0
+                    }
+                }
+                Text("%")
                     .font(.system(size: 11, design: .monospaced))
-                    .frame(width: 42)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
 
                 Button { zoom(by: 0.1) } label: {
                     Image(systemName: "plus")
-                        .frame(width: 24, height: 24)
+                        .frame(width: 32, height: 28)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Zoom in")
 
                 Button { fitToWindow() } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .frame(width: 24, height: 24)
+                        .frame(width: 32, height: 28)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Fit to window")
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .optionalGlassCapsule()
+            .glassEffect(.regular, in: .capsule)
         }
         .padding(.top, 10)
     }
@@ -273,12 +365,6 @@ struct FloatingToolbar: View {
         }
         .buttonStyle(.plain)
         .help(help)
-    }
-
-    private var zoomLabel: String {
-        guard let pdfView = pdfCoordinator.pdfView else { return "—" }
-        let pct = Int((pdfView.scaleFactor * 100).rounded())
-        return "\(pct)%"
     }
 
     private func zoom(by delta: CGFloat) {
@@ -452,5 +538,39 @@ private struct AddProofRow: View {
         case "fa_generative_paragraph_small": return "Farsi all combinations"
         default: return ""
         }
+    }
+}
+
+// MARK: - Panel Drag Handle
+
+struct PanelDragHandle: View {
+    @Binding var width: CGFloat
+    var minWidth: CGFloat = 140
+    var maxWidth: CGFloat = 500
+    var inverted: Bool = false
+    @State private var startWidth: CGFloat?
+
+    var body: some View {
+        Color.clear
+            .frame(width: 6)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(coordinateSpace: .global)
+                    .onChanged { value in
+                        if startWidth == nil { startWidth = width }
+                        let delta = inverted ? -value.translation.width : value.translation.width
+                        width = max(minWidth, min(startWidth! + delta, maxWidth))
+                    }
+                    .onEnded { _ in
+                        startWidth = nil
+                    }
+            )
     }
 }

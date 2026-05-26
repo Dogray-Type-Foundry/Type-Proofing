@@ -178,9 +178,19 @@ struct FontLoader {
         }
     }
 
-    private static func axisTagToID(_ tag: String) -> Int {
+    static func axisTagToID(_ tag: String) -> Int {
         let bytes = Array(tag.utf8)
         guard bytes.count >= 4 else { return 0 }
         return Int(bytes[0]) << 24 | Int(bytes[1]) << 16 | Int(bytes[2]) << 8 | Int(bytes[3])
+    }
+
+    static func axisIDToTag(_ id: Int) -> String {
+        let bytes: [UInt8] = [
+            UInt8((id >> 24) & 0xFF),
+            UInt8((id >> 16) & 0xFF),
+            UInt8((id >> 8) & 0xFF),
+            UInt8(id & 0xFF),
+        ]
+        return String(bytes.map { Character(UnicodeScalar($0)) })
     }
 }

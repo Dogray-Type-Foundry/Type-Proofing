@@ -11,7 +11,7 @@
 		06E133A552895E1560263B62 /* TextGeneration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFE39EB2F60EB64E5190D0E /* TextGeneration.swift */; };
 		0E9398AE32C814E4C7DEF9CB /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = E493E6A783430EC1B5DCD13C /* README.md */; };
 		124D5468383A95000BA16898 /* TextRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05376B8902F7416C8F3FFD22 /* TextRenderer.swift */; };
-		21C09CBC972E6F495E0A7326 /* Assets.car in Resources */ = {isa = PBXBuildFile; fileRef = 97840A987134E3D7752BC503 /* Assets.car */; };
+		1C526D7B9502C2A495842C43 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 65794A061E53E1ACC420FDF0 /* Assets.xcassets */; };
 		27E33FE39DA57A7C34AF4460 /* SubstitutionOverviewHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E79E8F173A51D991F7E11D0 /* SubstitutionOverviewHandler.swift */; };
 		2D1FC97C23A2CF0042055394 /* HoverComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9149A97ACE7210EC141D56B7 /* HoverComponents.swift */; };
 		2E1F606AC843602F4C5E60CA /* TypeProofingApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01C9B31020CDF64BC53338BE /* TypeProofingApp.swift */; };
@@ -103,6 +103,7 @@
 		484CD527A6DEB09611556AC5 /* StylePairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylePairing.swift; sourceTree = "<group>"; };
 		48C400F557AD777FB0D600E6 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		637D42E4A5FDEB7E3048C469 /* MarkupParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupParser.swift; sourceTree = "<group>"; };
+		65794A061E53E1ACC420FDF0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6D94825326F627660F1F94DA /* CharacterCategorizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterCategorizer.swift; sourceTree = "<group>"; };
 		7B4B0E69F25CBAFA4C0B8F6E /* SettingsPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanelView.swift; sourceTree = "<group>"; };
 		7D7FCB2FD81DBACB3AF8E10E /* TypeProofing.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TypeProofing.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -114,7 +115,6 @@
 		9149A97ACE7210EC141D56B7 /* HoverComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverComponents.swift; sourceTree = "<group>"; };
 		952879886E2B5AED1734715E /* FontSortCriterion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontSortCriterion.swift; sourceTree = "<group>"; };
 		9769F1DB175821D894C4A9FC /* SidebarFontsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFontsUITests.swift; sourceTree = "<group>"; };
-		97840A987134E3D7752BC503 /* Assets.car */ = {isa = PBXFileReference; path = Assets.car; sourceTree = "<group>"; };
 		9A01C3B5A3DAC3CC151E4C5F /* NativeProofOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeProofOrchestrator.swift; sourceTree = "<group>"; };
 		9CA3DEF34F455645E68CFC17 /* ProofKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofKeyTests.swift; sourceTree = "<group>"; };
 		9DFE39EB2F60EB64E5190D0E /* TextGeneration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextGeneration.swift; sourceTree = "<group>"; };
@@ -268,7 +268,7 @@
 			isa = PBXGroup;
 			children = (
 				ECF1B375578774D615ECE8FB /* accented_dictionary.json */,
-				97840A987134E3D7752BC503 /* Assets.car */,
+				65794A061E53E1ACC420FDF0 /* Assets.xcassets */,
 				3D33E010FA40B61EFD0077A8 /* TypeProofing.icns */,
 				C4D7DBC1455476D39F561233 /* TypeProofing.icon */,
 			);
@@ -386,7 +386,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				21C09CBC972E6F495E0A7326 /* Assets.car in Resources */,
+				1C526D7B9502C2A495842C43 /* Assets.xcassets in Resources */,
 				38B4777F7E10599BBCAF4709 /* TypeProofing.icns in Resources */,
 				715D052D7C5F69805DE3672A /* TypeProofing.icon in Resources */,
 				DD978AF718BE379A244EEB07 /* accented_dictionary.json in Resources */,
@@ -498,7 +498,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/NativeLib",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ltpnative",
@@ -530,7 +530,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/NativeLib",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2.0.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -597,7 +597,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -625,7 +625,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/NativeLib",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2.0.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -652,7 +652,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dograytype.TypeProofingUITests;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
@@ -671,7 +671,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dograytype.TypeProofingUITests;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
@@ -694,7 +694,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/NativeLib",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ltpnative",
@@ -755,7 +755,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

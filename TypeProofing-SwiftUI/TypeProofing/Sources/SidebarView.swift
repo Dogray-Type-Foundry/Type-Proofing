@@ -7,18 +7,19 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            fontsSection
+            ScrollView {
+                VStack(spacing: 0) {
+                    fontsSection
+                    Divider().padding(.horizontal, 12)
+                    proofsSection
+                }
+                .padding(.horizontal, 4)
+            }
+            .scrollEdgeEffectStyle(.soft, for: .all)
 
             Divider()
-
-            proofsSection
-
-            Divider()
-
             outputSection
-
             Divider()
-
             generateSection
         }
     }
@@ -27,49 +28,28 @@ struct SidebarView: View {
 
     private var fontsSection: some View {
         VStack(spacing: 0) {
-            sectionHeader("FONTS", detail: "\(state.loadedFonts.count) loaded")
+            collapsibleHeader(
+                "FONTS",
+                detail: "\(state.loadedFonts.count) loaded",
+                expanded: $state.fontsSectionExpanded
+            )
 
-            ScrollView {
+            if state.fontsSectionExpanded {
                 VStack(alignment: .leading, spacing: 4) {
                     FontsSection()
                 }
                 .padding(.vertical, 4)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-            }
-            .frame(maxHeight: 220)
-            .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-                FontFileDropHandler.handle(providers, state: state, engine: engine)
-                return true
-            }
 
-            HStack {
-                HoverButton("Add Fonts", systemImage: "plus") {
-                    state.showFontPicker = true
-                }
-                .accessibilityIdentifier("add-fonts-button")
-                Spacer()
-            }
-            .padding(8)
-            .fileImporter(
-                isPresented: $state.showFontPicker,
-                allowedContentTypes: [
-                    UTType(filenameExtension: "otf") ?? .data,
-                    UTType(filenameExtension: "ttf") ?? .data,
-                    UTType(filenameExtension: "woff") ?? .data,
-                    UTType(filenameExtension: "woff2") ?? .data,
-                ],
-                allowsMultipleSelection: true
-            ) { result in
-                switch result {
-                case .success(let urls):
-                    let accessed = urls.filter { $0.startAccessingSecurityScopedResource() }
-                    state.addFonts(urls: accessed, engine: engine)
-                    for url in accessed {
-                        url.stopAccessingSecurityScopedResource()
+                HStack {
+                    HoverButton("Add Fonts", systemImage: "plus") {
+                        state.showFontPicker = true
                     }
-                case .failure(let error):
-                    print("Font import error: \(error)")
+                    .accessibilityIdentifier("add-fonts-button")
+                    Spacer()
                 }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
             }
         }
     }
@@ -85,9 +65,13 @@ struct SidebarView: View {
 
     private var proofsSection: some View {
         VStack(spacing: 0) {
-            sectionHeader("PROOFS", detail: "\(state.proofOptions.filter(\.enabled).count) of \(visibleProofs.count)")
+            collapsibleHeader(
+                "PROOFS",
+                detail: "\(state.proofOptions.filter(\.enabled).count) of \(visibleProofs.count)",
+                expanded: $state.proofsSectionExpanded
+            )
 
-            ScrollView {
+            if state.proofsSectionExpanded {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(visibleProofs) { option in
                         if let index = state.proofOptions.firstIndex(where: { $0.id == option.id }) {
@@ -126,53 +110,55 @@ struct SidebarView: View {
                     }
                 }
                 .padding(.vertical, 4)
-            }
 
-            HStack {
-                HoverButton("Add Proof", systemImage: "plus") {
-                    state.showAddProofSheet = true
+                HStack {
+                    HoverButton("Add Proof", systemImage: "plus") {
+                        state.showAddProofSheet = true
+                    }
+                    .accessibilityIdentifier("add-proof-button")
+                    .popover(isPresented: $state.showAddProofSheet, arrowEdge: .top) {
+                        AddProofPopover()
+                    }
+                    Spacer()
                 }
-                .accessibilityIdentifier("add-proof-button")
-                .popover(isPresented: $state.showAddProofSheet, arrowEdge: .top) {
-                    AddProofPopover()
-                }
-                Spacer()
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
             }
-            .padding(8)
         }
-        .layoutPriority(1)
     }
 
     // MARK: - Output Section
 
     private var outputSection: some View {
         VStack(spacing: 0) {
-            sectionHeader("OUTPUT", detail: nil)
+            collapsibleHeader("OUTPUT", detail: nil, expanded: $state.outputSectionExpanded)
 
-            VStack(spacing: 8) {
-                PDFOutputSection()
+            if state.outputSectionExpanded {
+                VStack(spacing: 8) {
+                    PDFOutputSection()
 
-                HStack(spacing: 8) {
-                    Picker("", selection: $state.pageFormat) {
-                        ForEach(state.pageFormats, id: \.self) { format in
-                            Text(format).tag(format)
+                    HStack(spacing: 8) {
+                        Picker("", selection: $state.pageFormat) {
+                            ForEach(state.pageFormats, id: \.self) { format in
+                                Text(format).tag(format)
+                            }
                         }
-                    }
-                    .labelsHidden()
-                    .fixedSize()
+                        .labelsHidden()
+                        .fixedSize()
 
-                    Spacer()
+                        Spacer()
 
-                    Toggle(isOn: $state.showBaselines) {
-                        Label("Grid", systemImage: "grid")
-                            .font(.caption)
+                        Toggle(isOn: $state.showBaselines) {
+                            Label("Grid", systemImage: "grid")
+                                .font(.caption)
+                        }
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
                     }
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
                 }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
             }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
         }
     }
 
@@ -198,8 +184,8 @@ struct SidebarView: View {
                 .frame(maxWidth: .infinity)
             }
             .controlSize(.large)
-            .buttonStyle(.borderedProminent)
-            .tint(state.isFinalPDFStale ? .orange : .accentColor)
+            .buttonStyle(.glassProminent)
+            .tint(state.isFinalPDFStale ? .orange : .dograyPurple)
             .help(state.isFinalPDFStale ? "Final PDF is out of sync with current settings" : "Generate Final PDF")
             .disabled(engine.isGenerating || state.enabledFontPaths.isEmpty)
 
@@ -215,23 +201,35 @@ struct SidebarView: View {
         .padding(.vertical, 10)
     }
 
-    // MARK: - Section Header
+    // MARK: - Collapsible Section Header
 
-    private func sectionHeader(_ title: String, detail: String?) -> some View {
-        HStack {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .tracking(0.88)
-                .foregroundStyle(.secondary)
-            Spacer()
-            if let detail {
-                Text(detail)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+    private func collapsibleHeader(_ title: String, detail: String?, expanded: Binding<Bool>) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                expanded.wrappedValue.toggle()
             }
+        } label: {
+            HStack {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.quaternary)
+                    .rotationEffect(expanded.wrappedValue ? .degrees(90) : .zero)
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(0.88)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if let detail {
+                    Text(detail)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .buttonStyle(.plain)
     }
 
     // MARK: - Generate
@@ -242,10 +240,8 @@ struct SidebarView: View {
         let config = state.buildProofConfig()
         let capturedFingerprint = config.fingerprint()
         engine.refreshRunSummary(config: config)
-        // Clear previous results before generating
         state.finalPDFPath = nil
         state.finalSections = []
-        // Yield so the UI can show the cleared state before blocking on Python
         await Task.yield()
         if let result = await engine.generateProof(config: config) {
             state.finalPDFPath = result.path

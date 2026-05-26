@@ -11,6 +11,8 @@ struct SubstitutionBridge {
         let outputGlyphIDs: [UInt16]
         let inputText: String
         let outputNames: [String]
+        let backtrackText: String
+        let lookaheadText: String
     }
 
     struct Feature {
@@ -40,9 +42,12 @@ struct SubstitutionBridge {
                     let outputIDs = (eDict["output"] as? [Any])?.compactMap { ($0 as? NSNumber)?.uint16Value } ?? []
                     let inputText = eDict["input_text"] as? String ?? ""
                     let outputNames = eDict["output_names"] as? [String] ?? []
+                    let backtrackText = eDict["backtrack_text"] as? String ?? ""
+                    let lookaheadText = eDict["lookahead_text"] as? String ?? ""
                     if inputIDs.isEmpty && outputIDs.isEmpty { return nil }
                     return Entry(kind: kind, inputGlyphIDs: inputIDs, outputGlyphIDs: outputIDs,
-                                 inputText: inputText, outputNames: outputNames)
+                                 inputText: inputText, outputNames: outputNames,
+                                 backtrackText: backtrackText, lookaheadText: lookaheadText)
                 }
 
                 if entries.isEmpty && glyphs.isEmpty { return nil }
