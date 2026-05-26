@@ -239,12 +239,14 @@ pub unsafe extern "C" fn tp_get_substitutions_json(data: *const u8, len: usize) 
                 .map(|n| format!("\"{}\"", n.replace('\\', "\\\\").replace('"', "\\\"")))
                 .collect();
             format!(
-                "{{\"kind\":\"{}\",\"input\":[{}],\"output\":[{}],\"input_text\":\"{}\",\"output_names\":[{}]}}",
+                "{{\"kind\":\"{}\",\"input\":[{}],\"output\":[{}],\"input_text\":\"{}\",\"output_names\":[{}],\"backtrack_text\":\"{}\",\"lookahead_text\":\"{}\"}}",
                 e.kind,
                 input.join(","),
                 output.join(","),
                 e.input_text.replace('\\', "\\\\").replace('"', "\\\""),
                 out_names.join(","),
+                e.backtrack_text.replace('\\', "\\\\").replace('"', "\\\""),
+                e.lookahead_text.replace('\\', "\\\\").replace('"', "\\\""),
             )
         }).collect();
         let out_glyphs: Vec<String> = f.output_glyphs.iter()

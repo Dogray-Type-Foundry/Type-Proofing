@@ -15,6 +15,8 @@ pub struct SubstitutionEntry {
     pub output_glyphs: Vec<u16>,
     pub input_text: String,
     pub output_glyph_names: Vec<String>,
+    pub backtrack_text: String,
+    pub lookahead_text: String,
 }
 
 #[derive(Debug, Clone)]
@@ -148,6 +150,10 @@ fn extract_lookup_entries(
     entries
 }
 
+fn glyphs_to_text(gids: &[u16], glyph_to_char: &HashMap<u16, char>) -> String {
+    gids.iter().filter_map(|gid| glyph_to_char.get(gid)).collect()
+}
+
 fn extract_chain_context(
     chain: &read_fonts::tables::layout::ChainedSequenceContext,
     tag: &str,
@@ -165,10 +171,74 @@ fn extract_chain_context(
         }
         ChainedSequenceContext::Format2(_) => {}
         ChainedSequenceContext::Format3(f) => {
-            collect_nested_entries(
+            let mut bt_cov_gids: Vec<Vec<u16>> = f.backtrack_coverages().iter()
+                .filter_map(|cov| cov.ok())
+                .map(|cov| cov.iter().map(|g| g.to_u32() as u16).collect())
+                .collect();
+            bt_cov_gids.reverse();
+            let la_cov_gids: Vec<Vec<u16>> = f.lookahead_coverages().iter()
+                .filter_map(|cov| cov.ok())
+                .map(|cov| cov.iter().map(|g| g.to_u32() as u16).collect())
+                .collect();
+            collect_nested_entries_fmt3(
                 f.seq_lookup_records(), tag, lookup_list, source_index,
-                glyph_to_char, glyph_to_name, entries,
+                glyph_to_char, glyph_to_name,
+                &bt_cov_gids, &la_cov_gids, entries,
             );
+        }
+    }
+}
+
+fn pick_gid_for_case(gids: &[u16], lower: bool, glyph_to_char: &HashMap<u16, char>) -> Option<u16> {
+    let preferred = gids.iter().copied().find(|gid| {
+        glyph_to_char.get(gid).map(|c| if lower { c.is_lowercase() } else { c.is_uppercase() }).unwrap_or(false)
+    });
+    preferred.or_else(|| gids.first().copied())
+}
+
+fn pick_context_text(
+    cov_gids: &[Vec<u16>],
+    lower: bool,
+    glyph_to_char: &HashMap<u16, char>,
+) -> String {
+    cov_gids.iter()
+        .filter_map(|gids| {
+            pick_gid_for_case(gids, lower, glyph_to_char)
+                .and_then(|gid| glyph_to_char.get(&gid).copied())
+        })
+        .collect()
+}
+
+fn collect_nested_entries_fmt3(
+    records: &[read_fonts::tables::layout::SequenceLookupRecord],
+    tag: &str,
+    lookup_list: &read_fonts::tables::gsub::SubstitutionLookupList,
+    source_index: usize,
+    glyph_to_char: &HashMap<u16, char>,
+    glyph_to_name: &HashMap<u16, String>,
+    bt_cov_gids: &[Vec<u16>],
+    la_cov_gids: &[Vec<u16>],
+    entries: &mut Vec<SubstitutionEntry>,
+) {
+    for record in records {
+        let nested_idx = record.lookup_list_index() as usize;
+        if nested_idx == source_index { continue; }
+        if let Ok(nested_lookup) = lookup_list.lookups().get(nested_idx) {
+            let nested = extract_lookup_entries(
+                &nested_lookup, tag, lookup_list, nested_idx,
+                glyph_to_char, glyph_to_name,
+            );
+            for mut e in nested {
+                e.kind = match e.kind {
+                    "single" => "contextual_single",
+                    "ligature" => "contextual_ligature",
+                    other => other,
+                };
+                let prefer_lower = e.input_text.chars().next().map(|c| c.is_lowercase()).unwrap_or(true);
+                e.backtrack_text = pick_context_text(bt_cov_gids, prefer_lower, glyph_to_char);
+                e.lookahead_text = pick_context_text(la_cov_gids, prefer_lower, glyph_to_char);
+                entries.push(e);
+            }
         }
     }
 }
@@ -180,6 +250,8 @@ fn collect_nested_entries(
     source_index: usize,
     glyph_to_char: &HashMap<u16, char>,
     glyph_to_name: &HashMap<u16, String>,
+    backtrack_text: &str,
+    lookahead_text: &str,
     entries: &mut Vec<SubstitutionEntry>,
 ) {
     for record in records {
@@ -198,6 +270,8 @@ fn collect_nested_entries(
                     "ligature" => "contextual_ligature",
                     other => other,
                 };
+                e.backtrack_text = backtrack_text.to_string();
+                e.lookahead_text = lookahead_text.to_string();
                 entries.push(e);
             }
         }
@@ -213,19 +287,39 @@ fn extract_chain_format1_records(
     glyph_to_name: &HashMap<u16, String>,
     entries: &mut Vec<SubstitutionEntry>,
 ) {
-    for rule_set_opt in f1.chained_seq_rule_sets().iter() {
+    let coverage_gids: Vec<u16> = match f1.coverage() {
+        Ok(cov) => cov.iter().map(|g| g.to_u32() as u16).collect(),
+        Err(_) => return,
+    };
+
+    for (set_idx, rule_set_opt) in f1.chained_seq_rule_sets().iter().enumerate() {
         let rule_set = match rule_set_opt {
             Some(Ok(rs)) => rs,
             _ => continue,
         };
+        let first_gid = coverage_gids.get(set_idx).copied().unwrap_or(0);
         for rule_result in rule_set.chained_seq_rules().iter() {
             let rule: read_fonts::tables::layout::ChainedSequenceRule = match rule_result {
                 Ok(r) => r,
                 Err(_) => continue,
             };
+            let mut backtrack_gids: Vec<u16> = rule.backtrack_sequence()
+                .iter().map(|g| g.get().to_u32() as u16).collect();
+            backtrack_gids.reverse();
+            let lookahead_gids: Vec<u16> = rule.lookahead_sequence()
+                .iter().map(|g| g.get().to_u32() as u16).collect();
+
+            let mut bt = glyphs_to_text(&backtrack_gids, glyph_to_char);
+            if bt.is_empty() {
+                if let Some(ch) = glyph_to_char.get(&first_gid) {
+                    bt.push(*ch);
+                }
+            }
+            let la = glyphs_to_text(&lookahead_gids, glyph_to_char);
+
             collect_nested_entries(
                 rule.seq_lookup_records(), tag, lookup_list, source_index,
-                glyph_to_char, glyph_to_name, entries,
+                glyph_to_char, glyph_to_name, &bt, &la, entries,
             );
         }
     }
@@ -341,6 +435,8 @@ fn make_entry(
         output_glyphs,
         input_text,
         output_glyph_names,
+        backtrack_text: String::new(),
+        lookahead_text: String::new(),
     }
 }
 
