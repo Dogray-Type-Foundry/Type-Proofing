@@ -137,24 +137,13 @@ struct SidebarView: View {
                 VStack(spacing: 8) {
                     PDFOutputSection()
 
-                    HStack(spacing: 8) {
-                        Picker("", selection: $state.pageFormat) {
-                            ForEach(state.pageFormats, id: \.self) { format in
-                                Text(format).tag(format)
-                            }
+                    Picker("", selection: $state.pageFormat) {
+                        ForEach(state.pageFormats, id: \.self) { format in
+                            Text(format).tag(format)
                         }
-                        .labelsHidden()
-                        .fixedSize()
-
-                        Spacer()
-
-                        Toggle(isOn: $state.showBaselines) {
-                            Label("Grid", systemImage: "grid")
-                                .font(.caption)
-                        }
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
                     }
+                    .labelsHidden()
+                    .fixedSize()
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)

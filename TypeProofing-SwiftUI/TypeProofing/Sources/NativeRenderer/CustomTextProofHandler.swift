@@ -86,7 +86,8 @@ struct CustomTextProofHandler: ProofHandler {
                 kernDisabled: kernDisabled,
                 paragraphIndent: params.paragraphIndent,
                 paragraphSpace: params.paragraphSpace,
-                hyphenation: params.hyphenation
+                hyphenation: params.hyphenation,
+                language: "en"
             )
 
             let direction: TextDirection

@@ -79,6 +79,16 @@ struct ProofRegistryEntry {
     var supportsLineHeight: Bool {
         !Self.noLineHeightKeys.contains(key)
     }
+
+    private static let hyphenationKeys: Set<String> = [
+        "basic_paragraph_large", "basic_paragraph_small",
+        "paired_styles_paragraph_small", "misc_paragraph_small",
+        "generative_text_small"
+    ]
+
+    var supportsHyphenation: Bool {
+        Self.hyphenationKeys.contains(key)
+    }
 }
 
 // MARK: - Constants

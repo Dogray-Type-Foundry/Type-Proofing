@@ -108,7 +108,8 @@ struct StandardTextProofHandler: ProofHandler {
                 kernDisabled: kernDisabled,
                 paragraphIndent: params.paragraphIndent,
                 paragraphSpace: params.paragraphSpace,
-                hyphenation: params.hyphenation
+                hyphenation: params.hyphenation,
+                language: config.language ?? "en"
             )
         }
 

@@ -205,6 +205,16 @@ struct SettingsPanelView: View {
                             if entry?.supportsFormatting ?? false {
                                 AlignmentPicker(alignment: state.selectedProofSettings.alignment)
                                 DirectionPicker(direction: state.selectedProofSettings.direction)
+                                if entry?.supportsHyphenation ?? false {
+                                    Toggle("Hyphenation", isOn: state.selectedProofSettings.hyphenation)
+                                        .toggleStyle(.switch)
+                                        .controlSize(.small)
+                                }
+                                if state.anyFontSupportsOpbd {
+                                    Toggle("Hanging Punctuation", isOn: state.selectedProofSettings.hangingPunctuation)
+                                        .toggleStyle(.switch)
+                                        .controlSize(.small)
+                                }
                             }
                         }
                     }
@@ -237,14 +247,6 @@ struct SettingsPanelView: View {
                                     step: 0.1,
                                     unit: "em"
                                 )
-                                Toggle("Hyphenation", isOn: state.selectedProofSettings.hyphenation)
-                                    .toggleStyle(.switch)
-                                    .controlSize(.small)
-                                if state.anyFontSupportsOpbd {
-                                    Toggle("Hanging Punctuation", isOn: state.selectedProofSettings.hangingPunctuation)
-                                        .toggleStyle(.switch)
-                                        .controlSize(.small)
-                                }
                             }
                         }
                     }
