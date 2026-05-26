@@ -28,7 +28,7 @@ struct FontsSection: View {
                         }
                     ),
                     isLast: font.id == state.loadedFonts.last?.id,
-                    badge: font.isVariable ? "Variable" : nil,
+                    badge: font.isVariable ? "VF" : nil,
                     onRemove: {
                         if let idx = state.loadedFonts.firstIndex(where: { $0.id == font.id }) {
                             state.removeFont(at: IndexSet(integer: idx), engine: engine)

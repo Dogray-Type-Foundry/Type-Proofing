@@ -146,7 +146,8 @@ struct SpacingProofHandler: ProofHandler {
                 otFeatures: features,
                 tracking: params.tracking,
                 context: context,
-                renderer: renderer
+                renderer: renderer,
+                columnGap: params.columnGap
             )
         }
     }

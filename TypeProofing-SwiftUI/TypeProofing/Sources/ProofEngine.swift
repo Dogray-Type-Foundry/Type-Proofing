@@ -563,6 +563,12 @@ final class ProofEngine: ObservableObject {
         ProofRegistry.defaultProofOrder(includeArabic: includeArabic)
     }
 
+    func generateWordomat(fontPath: String, paragraphs: Int = 3) -> String {
+        guard let (_, charset, _) = loadFontData(path: fontPath) else { return "" }
+        let bridge = WordSivBridge(seed: UInt64.random(in: 0..<UInt64.max))
+        return bridge.text(glyphs: charset, paragraphs: paragraphs)
+    }
+
     func getFontStyles(paths: [String]) -> [FontStyleEntry] {
         var entries: [FontStyleEntry] = []
         var globalIndex = 0

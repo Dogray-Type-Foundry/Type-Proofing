@@ -88,7 +88,8 @@ struct StandardTextProofHandler: ProofHandler {
                 path: context.indFont,
                 size: params.fontSize,
                 features: params.otFeatures.isEmpty ? nil : params.otFeatures,
-                variations: context.axisValues
+                variations: context.axisValues,
+                hangingPunctuation: params.hangingPunctuation
             ) else {
                 context.diagnostics.error("Failed to load font",
                                           fontPath: context.indFont, proofName: proofName)
@@ -104,11 +105,19 @@ struct StandardTextProofHandler: ProofHandler {
                 tracking: params.tracking,
                 lineHeight: params.lineHeight,
                 foregroundColor: CGColor(gray: 0, alpha: 1),
-                kernDisabled: kernDisabled
+                kernDisabled: kernDisabled,
+                paragraphIndent: params.paragraphIndent,
+                paragraphSpace: params.paragraphSpace,
+                hyphenation: params.hyphenation
             )
         }
 
-        let direction: TextDirection = (config.language == "ar" || config.language == "fa") ? .rtl : .ltr
+        let direction: TextDirection
+        switch params.direction {
+        case "ltr": direction = .ltr
+        case "rtl": direction = .rtl
+        default: direction = (config.language == "ar" || config.language == "fa") ? .rtl : .ltr
+        }
         let sectionName = "\(proofName) - \(Int(params.fontSize))pt"
 
         drawContent(
@@ -120,7 +129,8 @@ struct StandardTextProofHandler: ProofHandler {
             tracking: params.tracking,
             context: context,
             renderer: renderer,
-            lineHeight: params.lineHeight
+            lineHeight: params.lineHeight,
+            columnGap: params.columnGap
         )
     }
 

@@ -66,7 +66,8 @@ struct CustomTextProofHandler: ProofHandler {
                 path: defaultFontPath,
                 size: params.fontSize,
                 features: params.otFeatures.isEmpty ? nil : params.otFeatures,
-                variations: defaultAxisValues
+                variations: defaultAxisValues,
+                hangingPunctuation: params.hangingPunctuation
             ) else {
                 context.diagnostics.error("Failed to load font",
                                           fontPath: defaultFontPath, proofName: proofName)
@@ -82,18 +83,29 @@ struct CustomTextProofHandler: ProofHandler {
                 tracking: params.tracking,
                 lineHeight: params.lineHeight,
                 foregroundColor: CGColor(gray: 0, alpha: 1),
-                kernDisabled: kernDisabled
+                kernDisabled: kernDisabled,
+                paragraphIndent: params.paragraphIndent,
+                paragraphSpace: params.paragraphSpace,
+                hyphenation: params.hyphenation
             )
+
+            let direction: TextDirection
+            switch params.direction {
+            case "ltr": direction = .ltr
+            case "rtl": direction = .rtl
+            default: direction = .ltr
+            }
 
             drawContent(
                 attrString,
                 sectionName: sectionName,
                 columns: params.columns,
-                direction: .ltr,
+                direction: direction,
                 otFeatures: params.otFeatures,
                 tracking: params.tracking,
                 context: context,
-                renderer: renderer
+                renderer: renderer,
+                columnGap: params.columnGap
             )
         }
     }

@@ -116,6 +116,12 @@ struct ProofParams {
     let alignment: CTTextAlignment
     let lineHeight: CGFloat?
     let otFeatures: [String: Bool]
+    let columnGap: CGFloat
+    let direction: String
+    let paragraphIndent: CGFloat
+    let paragraphSpace: CGFloat
+    let hyphenation: Bool
+    let hangingPunctuation: Bool
 }
 
 protocol ProofHandler {
@@ -155,6 +161,13 @@ extension ProofHandler {
 
         let lineHeight: CGFloat? = lineHeightRatio > 0 ? CGFloat(lineHeightRatio) * CGFloat(fontSize) : nil
 
+        let columnGap = settingsValue(makeSettingsKey("columnGap"), default: 20.0, from: settings) as Double
+        let directionStr = settingsValue(makeSettingsKey("direction"), default: "auto", from: settings) as String
+        let paragraphIndent = settingsValue(makeSettingsKey("paragraphIndent"), default: 0.0, from: settings) as Double
+        let paragraphSpace = settingsValue(makeSettingsKey("paragraphSpace"), default: 0.0, from: settings) as Double
+        let hyphenation = settingsValue(makeSettingsKey("hyphenation"), default: false, from: settings) as Bool
+        let hangingPunctuation = settingsValue(makeSettingsKey("hangingPunctuation"), default: false, from: settings) as Bool
+
         let prefix = "otf_\(proofKey)_"
         var features: [String: Bool] = [:]
         for (key, value) in settings {
@@ -174,7 +187,13 @@ extension ProofHandler {
             tracking: CGFloat(tracking),
             alignment: resolveAlignment(alignStr),
             lineHeight: lineHeight,
-            otFeatures: features
+            otFeatures: features,
+            columnGap: CGFloat(columnGap),
+            direction: directionStr,
+            paragraphIndent: CGFloat(paragraphIndent),
+            paragraphSpace: CGFloat(paragraphSpace),
+            hyphenation: hyphenation,
+            hangingPunctuation: hangingPunctuation
         )
     }
 
@@ -201,12 +220,14 @@ extension ProofHandler {
         tracking: CGFloat,
         context: ProofContext,
         renderer: PDFRenderer,
-        lineHeight footerLineHeight: CGFloat? = nil
+        lineHeight footerLineHeight: CGFloat? = nil,
+        columnGap: CGFloat? = nil
     ) {
         let pageSize = PageLayout.pageDimensions[context.pageFormat]
             ?? PageLayout.pageDimensions["A4Landscape"]!
         let contentRect = PageLayout.contentRect(pageFormat: context.pageFormat)
-        let colRects = PageLayout.columnRects(contentRect: contentRect, columns: columns, direction: direction)
+        let gutter = columnGap ?? PageLayout.defaultGutter
+        let colRects = PageLayout.columnRects(contentRect: contentRect, columns: columns, gutter: gutter, direction: direction)
         let fontName = URL(fileURLWithPath: context.indFont).deletingPathExtension().lastPathComponent
             .components(separatedBy: "-").first ?? "Unknown"
 

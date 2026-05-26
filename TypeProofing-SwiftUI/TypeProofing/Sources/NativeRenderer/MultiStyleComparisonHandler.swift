@@ -83,7 +83,8 @@ struct MultiStyleComparisonHandler: ProofHandler {
                 tracking: params.tracking,
                 context: context,
                 renderer: renderer,
-                lineHeight: params.lineHeight
+                lineHeight: params.lineHeight,
+                columnGap: params.columnGap
             )
         }
     }

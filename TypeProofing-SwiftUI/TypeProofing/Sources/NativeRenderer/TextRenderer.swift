@@ -13,15 +13,24 @@ struct TextRenderer {
         tracking: CGFloat,
         lineHeight: CGFloat?,
         foregroundColor: CGColor,
-        kernDisabled: Bool = false
+        kernDisabled: Bool = false,
+        paragraphIndent: CGFloat? = nil,
+        paragraphSpace: CGFloat? = nil,
+        hyphenation: Bool = false
     ) -> NSMutableAttributedString {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.setParagraphStyle(.default)
         paragraphStyle.alignment = alignment.nsTextAlignment
-        paragraphStyle.hyphenationFactor = 0
+        paragraphStyle.hyphenationFactor = hyphenation ? 1.0 : 0
         if let lh = lineHeight {
             paragraphStyle.minimumLineHeight = lh
             paragraphStyle.maximumLineHeight = lh
+        }
+        if let indent = paragraphIndent, indent > 0 {
+            paragraphStyle.firstLineHeadIndent = indent * fontSize
+        }
+        if let space = paragraphSpace, space > 0 {
+            paragraphStyle.paragraphSpacing = space * fontSize
         }
 
         var attrs: [NSAttributedString.Key: Any] = [
@@ -50,7 +59,10 @@ struct TextRenderer {
         tracking: CGFloat,
         lineHeight: CGFloat?,
         foregroundColor: CGColor,
-        kernDisabled: Bool = false
+        kernDisabled: Bool = false,
+        paragraphIndent: CGFloat? = nil,
+        paragraphSpace: CGFloat? = nil,
+        hyphenation: Bool = false
     ) {
         let additional = makeAttributedString(
             text: text,
@@ -60,7 +72,10 @@ struct TextRenderer {
             tracking: tracking,
             lineHeight: lineHeight,
             foregroundColor: foregroundColor,
-            kernDisabled: kernDisabled
+            kernDisabled: kernDisabled,
+            paragraphIndent: paragraphIndent,
+            paragraphSpace: paragraphSpace,
+            hyphenation: hyphenation
         )
         attrString.append(additional)
     }

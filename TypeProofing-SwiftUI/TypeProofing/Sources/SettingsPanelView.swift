@@ -46,6 +46,58 @@ struct PlainTextEditor: NSViewRepresentable {
     }
 }
 
+// MARK: - InspectorGroup
+
+struct InspectorGroup<Content: View>: View {
+    let icon: String
+    let title: String
+    let onReset: (() -> Void)?
+    @State private var isExpanded = true
+    @ViewBuilder let content: () -> Content
+
+    init(icon: String, title: String, onReset: (() -> Void)? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.icon = icon
+        self.title = title
+        self.onReset = onReset
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() } }) {
+                HStack(spacing: 8) {
+                    Image(systemName: icon)
+                    Text(title)
+                        .font(.system(size: 11, weight: .medium))
+                        .textCase(.uppercase)
+                        .tracking(0.88)
+                    Spacer()
+                    if let onReset {
+                        Button("reset", action: onReset)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.quaternary)
+                    }
+                    Image(systemName: "chevron.down")
+                        .rotationEffect(isExpanded ? .zero : .degrees(-90))
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 6) {
+                    content()
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+            }
+        }
+    }
+}
+
 // MARK: - SettingsPanelView
 
 struct SettingsPanelView: View {
@@ -78,131 +130,183 @@ struct SettingsPanelView: View {
 
     private var settingsContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 0) {
                 if let option = state.selectedProofOption {
                     let entry = state.selectedRegistryEntry
 
                     Text(option.name)
                         .font(.headline)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
 
-                    // Font size — always shown
-                    NumericSetting(
-                        label: "Size",
-                        value: state.selectedProofSettings.fontSize,
-                        range: 4...200,
-                        step: 1,
-                        unit: "pt"
-                    )
+                    // MARK: Typography Group (always shown)
 
-                    // Auto-size for charset (fit category in one page) or multi-style (fit in one line)
-                    if option.baseType == "filtered_character_set" {
-                        Toggle("Auto-size (fit category in one page)", isOn: state.selectedProofSettings.autoSize)
-                            .toggleStyle(.checkbox)
-                            .font(.caption)
-                    } else if entry?.isMultiStyle ?? false {
-                        Toggle("Auto-size (fit longest line)", isOn: state.selectedProofSettings.autoSize)
-                            .toggleStyle(.checkbox)
-                            .font(.caption)
-                    }
-
-                    // Line height — for proofs that support it (not charset/spacing)
-                    if entry?.supportsLineHeight ?? false {
+                    InspectorGroup(icon: "textformat.size", title: "Typography") {
                         NumericSetting(
-                            label: "Line Height",
-                            value: state.selectedProofSettings.lineHeight,
-                            range: 0.5...5.0,
-                            step: 0.05,
-                            unit: "em"
+                            label: "Size",
+                            value: state.selectedProofSettings.fontSize,
+                            range: 4...200,
+                            step: 1,
+                            unit: "pt"
                         )
+
+                        if option.baseType == "filtered_character_set" {
+                            Toggle("Auto-size (fit category in one page)", isOn: state.selectedProofSettings.autoSize)
+                                .toggleStyle(.checkbox)
+                                .font(.caption)
+                        } else if entry?.isMultiStyle ?? false {
+                            Toggle("Auto-size (fit longest line)", isOn: state.selectedProofSettings.autoSize)
+                                .toggleStyle(.checkbox)
+                                .font(.caption)
+                        }
+
+                        if entry?.supportsLineHeight ?? false {
+                            NumericSetting(
+                                label: "Line Height",
+                                value: state.selectedProofSettings.lineHeight,
+                                range: 0.5...5.0,
+                                step: 0.05,
+                                unit: "em"
+                            )
+                        }
+
+                        if entry?.supportsFormatting ?? false {
+                            NumericSetting(
+                                label: "Tracking",
+                                value: state.selectedProofSettings.tracking,
+                                range: -20...100,
+                                step: 0.1
+                            )
+                        }
                     }
 
-                    // Columns — for proofs that support it (incl. spacing)
-                    if entry?.supportsCols ?? false {
-                        NumericSetting(
-                            label: "Columns",
-                            value: state.selectedProofSettings.columns,
-                            range: 1...6,
-                            step: 1
-                        )
+                    // MARK: Layout Group
+
+                    if (entry?.supportsCols ?? false) || (entry?.supportsFormatting ?? false) {
+                        Divider()
+
+                        InspectorGroup(icon: "rectangle.split.3x1", title: "Layout") {
+                            if entry?.supportsCols ?? false {
+                                NumericSetting(
+                                    label: "Columns",
+                                    value: state.selectedProofSettings.columns,
+                                    range: 1...6,
+                                    step: 1
+                                )
+                                NumericSetting(
+                                    label: "Column Gap",
+                                    value: state.selectedProofSettings.columnGap,
+                                    range: 0...100,
+                                    step: 1,
+                                    unit: "pt"
+                                )
+                            }
+
+                            if entry?.supportsFormatting ?? false {
+                                AlignmentPicker(alignment: state.selectedProofSettings.alignment)
+                                DirectionPicker(direction: state.selectedProofSettings.direction)
+                            }
+                        }
                     }
 
-                    // Tracking — only for proofs that support formatting
-                    if entry?.supportsFormatting ?? false {
-                        NumericSetting(
-                            label: "Tracking",
-                            value: state.selectedProofSettings.tracking,
-                            range: -20...100,
-                            step: 0.1
-                        )
-                    }
+                    // MARK: Paragraph Group
 
-                    // Paragraphs — only for proofs that have them
-                    if entry?.hasParagraphs ?? false {
-                        NumericSetting(
-                            label: "Paragraphs",
-                            value: state.selectedProofSettings.paragraphs,
-                            range: 1...20,
-                            step: 1
-                        )
-                    }
+                    if (entry?.hasParagraphs ?? false) {
+                        Divider()
 
-                    // Alignment — only for proofs that support formatting
-                    if entry?.supportsFormatting ?? false {
-                        AlignmentPicker(alignment: state.selectedProofSettings.alignment)
+                        InspectorGroup(icon: "text.alignleft", title: "Paragraph") {
+                            NumericSetting(
+                                label: "Paragraphs",
+                                value: state.selectedProofSettings.paragraphs,
+                                range: 1...20,
+                                step: 1
+                            )
+
+                            if entry?.supportsFormatting ?? false {
+                                NumericSetting(
+                                    label: "Indent",
+                                    value: state.selectedProofSettings.paragraphIndent,
+                                    range: 0...10,
+                                    step: 0.5,
+                                    unit: "em"
+                                )
+                                NumericSetting(
+                                    label: "Spacing",
+                                    value: state.selectedProofSettings.paragraphSpace,
+                                    range: 0...5,
+                                    step: 0.1,
+                                    unit: "em"
+                                )
+                                Toggle("Hyphenation", isOn: state.selectedProofSettings.hyphenation)
+                                    .toggleStyle(.switch)
+                                    .controlSize(.small)
+                                if state.anyFontSupportsOpbd {
+                                    Toggle("Hanging Punctuation", isOn: state.selectedProofSettings.hangingPunctuation)
+                                        .toggleStyle(.switch)
+                                        .controlSize(.small)
+                                }
+                            }
+                        }
                     }
 
                     Divider()
 
-                    // Character categories (if applicable)
-                    if (entry?.hasCategories ?? false) || option.baseType == "substitution_overview" {
-                        if entry?.hasCategories ?? false {
-                            CategoryCheckboxes(categories: state.selectedProofSettings.categories)
-                        }
-                        if option.baseType == "filtered_character_set" ||
-                            option.baseType == "spacing_proof" ||
-                            option.baseType == "multi_style_comparison" ||
-                            option.baseType == "substitution_overview" {
-                            SubstitutionCheckboxes(features: state.selectedProofSettings.substitutionFeatures)
-                        }
-                        Divider()
-                    }
+                    // MARK: Remaining Sections (unchanged)
 
-                    // Custom text (if applicable)
-                    if entry?.hasCustomText ?? false {
-                        CustomTextSection(
-                            text: state.selectedProofSettings.customText,
-                            markupEnabled: state.selectedProofSettings.markupEnabled,
-                            generateOnce: state.selectedProofSettings.generateOnce,
-                            showGenerateOnce: !(entry?.isMultiStyle ?? false)
-                        )
+                    VStack(alignment: .leading, spacing: 10) {
+                        if (entry?.hasCategories ?? false) || option.baseType == "substitution_overview" {
+                            if entry?.hasCategories ?? false {
+                                CategoryCheckboxes(categories: state.selectedProofSettings.categories)
+                            }
+                            if option.baseType == "filtered_character_set" ||
+                                option.baseType == "spacing_proof" ||
+                                option.baseType == "multi_style_comparison" ||
+                                option.baseType == "substitution_overview" {
+                                SubstitutionCheckboxes(features: state.selectedProofSettings.substitutionFeatures)
+                            }
+                            Divider()
+                        }
 
-                        // Default font picker for Custom Text (non-multi-style) when generateOnce
-                        if !(entry?.isMultiStyle ?? false) && state.selectedProofSettings.generateOnce.wrappedValue {
-                            DefaultFontPicker(
-                                defaultFontPath: state.selectedProofSettings.defaultFontPath,
-                                defaultFontAxisDict: state.selectedProofSettings.defaultFontAxisDict
+                        if entry?.hasCustomText ?? false {
+                            if option.baseType == "custom_text" {
+                                TextPresetsSection(customText: state.selectedProofSettings.customText)
+                            }
+
+                            CustomTextSection(
+                                text: state.selectedProofSettings.customText,
+                                markupEnabled: state.selectedProofSettings.markupEnabled,
+                                generateOnce: state.selectedProofSettings.generateOnce,
+                                showGenerateOnce: !(entry?.isMultiStyle ?? false)
+                            )
+
+                            if !(entry?.isMultiStyle ?? false) && state.selectedProofSettings.generateOnce.wrappedValue {
+                                DefaultFontPicker(
+                                    defaultFontPath: state.selectedProofSettings.defaultFontPath,
+                                    defaultFontAxisDict: state.selectedProofSettings.defaultFontAxisDict
+                                )
+                            }
+
+                            Divider()
+                        }
+
+                        if entry?.isMultiStyle ?? false {
+                            MultiStyleFontList(
+                                enabledStyleIndices: state.selectedProofSettings.enabledStyleIndices
+                            )
+                            Toggle("Show fallback glyphs for missing characters", isOn: state.selectedProofSettings.showFallback)
+                                .toggleStyle(.checkbox)
+                            Divider()
+                        }
+
+                        if option.baseType != "substitution_overview" {
+                            OTFeaturesSection(
+                                features: state.selectedProofSettings.otFeatures,
+                                isSpacingProof: option.baseType == "spacing_proof"
                             )
                         }
-
-                        Divider()
                     }
-
-                    // Multi-style font/style selection
-                    if entry?.isMultiStyle ?? false {
-                        MultiStyleFontList(
-                            enabledStyleIndices: state.selectedProofSettings.enabledStyleIndices
-                        )
-                        Toggle("Show fallback glyphs for missing characters", isOn: state.selectedProofSettings.showFallback)
-                            .toggleStyle(.checkbox)
-                        Divider()
-                    }
-
-                    if option.baseType != "substitution_overview" {
-                        OTFeaturesSection(
-                            features: state.selectedProofSettings.otFeatures,
-                            isSpacingProof: option.baseType == "spacing_proof"
-                        )
-                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
 
                 } else {
                     Text("Select a proof to see settings")
@@ -210,7 +314,6 @@ struct SettingsPanelView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .padding()
         }
     }
 }
@@ -406,6 +509,9 @@ struct NumericSetting: View {
     let step: Double
     let unit: String?
 
+    @State private var isDragging = false
+    @State private var dragStartValue: Double = 0
+
     init(label: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double = 1, unit: String? = nil) {
         self.label = label
         self._value = value
@@ -431,18 +537,57 @@ struct NumericSetting: View {
             Text(label)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .onHover { hovering in
+                    if hovering {
+                        NSCursor.resizeLeftRight.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                .gesture(
+                    DragGesture(minimumDistance: 3)
+                        .onChanged { gesture in
+                            if !isDragging {
+                                isDragging = true
+                                dragStartValue = value
+                                NSCursor.hide()
+                            }
+                            let multiplier: Double
+                            if NSEvent.modifierFlags.contains(.shift) {
+                                multiplier = 10.0
+                            } else if NSEvent.modifierFlags.contains(.option) {
+                                multiplier = 0.1
+                            } else {
+                                multiplier = 1.0
+                            }
+                            let delta = Double(gesture.translation.width) * step * multiplier
+                            value = min(max(dragStartValue + delta, range.lowerBound), range.upperBound)
+                        }
+                        .onEnded { _ in
+                            isDragging = false
+                            NSCursor.unhide()
+                        }
+                )
             Spacer()
-            TextField("", value: $value, format: .number)
-                .frame(width: 60)
-                .textFieldStyle(.roundedBorder)
-            if let unit {
-                Text(unit)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 18, alignment: .leading)
+            HStack(spacing: 0) {
+                TextField("", value: $value, format: .number)
+                    .font(.system(.body, design: .monospaced))
+                    .textFieldStyle(.plain)
+                    .frame(width: 50)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                if let unit {
+                    Text(unit)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.primary.opacity(0.03))
+                }
             }
-            Stepper("", value: $value, in: range, step: step)
-                .labelsHidden()
+            .background(Color.white.opacity(0.55))
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
         }
     }
 }
@@ -465,6 +610,137 @@ struct AlignmentPicker: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Picker("", selection: $alignment) {
+                ForEach(options, id: \.value) { option in
+                    Image(systemName: option.icon)
+                        .help(option.label)
+                        .tag(option.value)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+    }
+}
+
+// MARK: - TextPresetsSection
+
+struct TextPresetsSection: View {
+    @Binding var customText: String
+    @EnvironmentObject var engine: ProofEngine
+    @EnvironmentObject var state: AppState
+
+    private static let pangrams = """
+    The quick brown fox jumps over the lazy dog.
+    Pack my box with five dozen liquor jugs.
+    How vexingly quick daft zebras jump.
+    Waltz, nymph, for quick jigs vex Bud.
+    Sphinx of black quartz, judge my vow.
+    Crazy Fredericka bought many very exquisite opal jewels.
+    Grumpy wizards make toxic brew for the evil queen and jack.
+    Jackdaws love my big sphinx of quartz.
+    """
+
+    private static let diacritics = """
+    Ångström Böhm Çelik Dürr Ëlde Frühling Gödel Hölderlin Île José Kühn Löwe Müller Nürnberg Ökologie Pärnu Québec Röntgen Schröder Töpfer Über Västerås Wörther Xérès Yvré Zürich
+    àbcèfghìjklmnòpqrstùvwxyz
+    áéíóúàèìòù äëïöü âêîôû ãñõ åø çšž ðþ ŀ ñ
+    Ąą Ćć Ęę Łł Ńń Óó Śś Źź Żż
+    Ăă Ââ Îî Șș Țț
+    Āā Ēē Ģģ Ķķ Ļļ Ņņ
+    """
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Sample Text")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            FlowLayout(spacing: 4) {
+                presetButton("Pangrams") { customText = Self.pangrams }
+                presetButton("Punctuation") { customText = PremadeTexts.additionalSmallText }
+                presetButton("Diacritics") { customText = Self.diacritics }
+                presetButton("Word-o-mat") {
+                    guard let path = state.enabledFontPaths.first else { return }
+                    customText = engine.generateWordomat(fontPath: path)
+                }
+                presetButton("Clipboard") {
+                    if let str = NSPasteboard.general.string(forType: .string) {
+                        customText = str
+                    }
+                }
+            }
+        }
+    }
+
+    private func presetButton(_ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 10.5))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+        .background(Color.white.opacity(0.55))
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
+    }
+}
+
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 4
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > width && x > 0 {
+                y += rowHeight + spacing
+                x = 0
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: width, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x: CGFloat = bounds.minX
+        var y: CGFloat = bounds.minY
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX && x > bounds.minX {
+                y += rowHeight + spacing
+                x = bounds.minX
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
+// MARK: - DirectionPicker
+
+struct DirectionPicker: View {
+    @Binding var direction: String
+
+    private let options: [(value: String, icon: String, label: String)] = [
+        ("ltr", "arrow.right", "Left to Right"),
+        ("auto", "arrow.left.and.right", "Auto (follow script)"),
+        ("rtl", "arrow.left", "Right to Left"),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Direction")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Picker("", selection: $direction) {
                 ForEach(options, id: \.value) { option in
                     Image(systemName: option.icon)
                         .help(option.label)
@@ -665,19 +941,73 @@ struct OTFeaturesSection: View {
                     .foregroundStyle(.tertiary)
                     .font(.caption)
             } else {
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 4) {
+                LazyVGrid(columns: columns, spacing: 5) {
                     ForEach($features) { $feature in
-                        if isSpacingProof && feature.tag == "kern" {
-                            Toggle("kern (always off)", isOn: .constant(false))
-                                .toggleStyle(.checkbox)
-                                .disabled(true)
-                        } else {
-                            Toggle(feature.tag, isOn: $feature.enabled)
-                                .toggleStyle(.checkbox)
-                        }
+                        OTFeaturePill(
+                            feature: $feature,
+                            forceOff: isSpacingProof && feature.tag == "kern"
+                        )
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - OTFeaturePill
+
+private struct OTFeaturePill: View {
+    @Binding var feature: OTFeature
+    var forceOff: Bool = false
+
+    private var isActive: Bool { !forceOff && feature.enabled }
+
+    var body: some View {
+        Button {
+            if !forceOff { feature.enabled.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(isActive ? Color.accentColor : Color.primary.opacity(0.15))
+                    .frame(width: 5, height: 5)
+                Text(forceOff ? "\(feature.tag) (off)" : feature.tag)
+                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                Spacer()
+                Text(previewText(for: feature.tag))
+                    .font(.system(size: 13))
+                    .foregroundStyle(isActive ? Color.primary.opacity(0.85) : Color.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(isActive ? Color.primary : Color.white.opacity(0.55))
+            .foregroundStyle(isActive ? Color.white : Color.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7)
+                .stroke(Color.primary.opacity(isActive ? 0 : 0.12), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .disabled(forceOff)
+    }
+
+    private func previewText(for tag: String) -> String {
+        switch tag {
+        case "kern": return "AV"
+        case "liga", "calt": return "fi"
+        case "dlig": return "st"
+        case "ccmp": return "ï"
+        case "mark": return "á"
+        case "mkmk": return "ấ"
+        case "tnum": return "123"
+        case "onum": return "123"
+        case "frac": return "½"
+        case "sups": return "x²"
+        case "subs": return "H₂"
+        case "smcp": return "Abc"
+        case "c2sc": return "ABC"
+        case "swsh": return "Q"
+        default:
+            if tag.hasPrefix("ss") { return "a" }
+            return tag
         }
     }
 }

@@ -78,8 +78,12 @@ struct SidebarListRow<Detail: View>: View {
 
                     if let badge {
                         Text(badge)
-                            .font(.caption2)
-                            .foregroundStyle(.blue)
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.accentColor.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
                     }
 
                     Spacer()

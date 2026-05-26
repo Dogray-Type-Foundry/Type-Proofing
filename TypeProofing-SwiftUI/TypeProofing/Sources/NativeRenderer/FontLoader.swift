@@ -17,7 +17,8 @@ struct FontLoader {
         path: String,
         size: CGFloat,
         features: [String: Bool]?,
-        variations: [String: Double]?
+        variations: [String: Double]?,
+        hangingPunctuation: Bool = false
     ) -> CTFont? {
         let url = URL(fileURLWithPath: path) as CFURL
         guard let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor],
@@ -27,17 +28,30 @@ struct FontLoader {
 
         let baseFont = CTFontCreateWithFontDescriptor(baseDesc, size, nil)
 
-        if features == nil && variations == nil {
+        if features == nil && variations == nil && !hangingPunctuation {
             return baseFont
         }
 
         var attrs: [String: Any] = [:]
 
         if let features = features, !features.isEmpty {
-            let featureSettings: [[String: Any]] = features.map { tag, enabled in
+            var featureSettings: [[String: Any]] = features.map { tag, enabled in
                 [kCTFontOpenTypeFeatureTag as String: tag,
                  kCTFontOpenTypeFeatureValue as String: enabled]
             }
+            if hangingPunctuation {
+                // AAT feature type 22 (kTextSpacingType), selector 1 (kOpticalBoundsSelector)
+                featureSettings.append([
+                    kCTFontFeatureTypeIdentifierKey as String: 22,
+                    kCTFontFeatureSelectorIdentifierKey as String: 1,
+                ])
+            }
+            attrs[kCTFontFeatureSettingsAttribute as String] = featureSettings
+        } else if hangingPunctuation {
+            let featureSettings: [[String: Any]] = [[
+                kCTFontFeatureTypeIdentifierKey as String: 22,
+                kCTFontFeatureSelectorIdentifierKey as String: 1,
+            ]]
             attrs[kCTFontFeatureSettingsAttribute as String] = featureSettings
         }
 
@@ -151,6 +165,17 @@ struct FontLoader {
             }
         }
         return nil
+    }
+
+    static func fontSupportsOpbd(path: String) -> Bool {
+        let url = URL(fileURLWithPath: path) as CFURL
+        guard let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor],
+              let desc = descriptors.first else { return false }
+        let font = CTFontCreateWithFontDescriptor(desc, 12, nil)
+        guard let features = CTFontCopyFeatures(font) as? [[String: Any]] else { return false }
+        return features.contains { dict in
+            (dict[kCTFontFeatureTypeIdentifierKey as String] as? Int) == 22
+        }
     }
 
     private static func axisTagToID(_ tag: String) -> Int {

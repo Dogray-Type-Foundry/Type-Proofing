@@ -1,105 +1,81 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum SidebarTab: String, CaseIterable {
-    case fonts = "Fonts"
-    case proofs = "Proofs"
-}
-
 struct SidebarView: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var engine: ProofEngine
-    @State private var selectedTab: SidebarTab = .fonts
 
     var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Controls (always visible)
-
-            VStack(spacing: 10) {
-                // Generate button — full width
-                Button {
-                    Task { await generateProof() }
-                } label: {
-                    HStack(spacing: 6) {
-                        if engine.isGenerating {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else if state.isFinalPDFStale {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.yellow)
-                        } else {
-                            Image(systemName: "wand.and.rays")
-                        }
-                        Text("Generate Final PDF")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .controlSize(.large)
-                .buttonStyle(.borderedProminent)
-                .tint(state.isFinalPDFStale ? .orange : nil)
-                .help(state.isFinalPDFStale ? "Final PDF is out of sync with current settings" : "Generate Final PDF")
-                .disabled(engine.isGenerating || state.enabledFontPaths.isEmpty)
-
-                if engine.isGenerating {
-                    GenerationProgressView(progress: engine.generationProgress) {
-                        engine.cancelGeneration()
-                    }
-                } else {
-                    ProofRunSummaryCompact(summary: state.makeRunSummary())
-                }
-
-                // Page format + Grid on one line
-                HStack(spacing: 8) {
-                    Picker("", selection: $state.pageFormat) {
-                        ForEach(state.pageFormats, id: \.self) { format in
-                            Text(format).tag(format)
-                        }
-                    }
-                    .labelsHidden()
-                    .fixedSize()
-
-                    Spacer()
-
-                    Toggle(isOn: $state.showBaselines) {
-                        Label("Grid", systemImage: "grid")
-                            .font(.caption)
-                    }
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            fontsSection
 
             Divider()
 
-            // MARK: - Tab Picker
+            proofsSection
 
-            Picker("", selection: $selectedTab) {
-                ForEach(SidebarTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
+            Divider()
+
+            outputSection
+
+            Divider()
+
+            generateSection
+        }
+    }
+
+    // MARK: - Fonts Section
+
+    private var fontsSection: some View {
+        VStack(spacing: 0) {
+            sectionHeader("FONTS", detail: "\(state.loadedFonts.count) loaded")
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    FontsSection()
                 }
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .accessibilityIdentifier("sidebar-tabs")
+            .frame(maxHeight: 220)
+            .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+                FontFileDropHandler.handle(providers, state: state, engine: engine)
+                return true
+            }
 
-            // MARK: - Tab Content
-
-            switch selectedTab {
-            case .proofs:
-                proofsTab
-            case .fonts:
-                fontsTab
+            HStack {
+                HoverButton("Add Fonts", systemImage: "plus") {
+                    state.showFontPicker = true
+                }
+                .accessibilityIdentifier("add-fonts-button")
+                Spacer()
+            }
+            .padding(8)
+            .fileImporter(
+                isPresented: $state.showFontPicker,
+                allowedContentTypes: [
+                    UTType(filenameExtension: "otf") ?? .data,
+                    UTType(filenameExtension: "ttf") ?? .data,
+                    UTType(filenameExtension: "woff") ?? .data,
+                    UTType(filenameExtension: "woff2") ?? .data,
+                ],
+                allowsMultipleSelection: true
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    let accessed = urls.filter { $0.startAccessingSecurityScopedResource() }
+                    state.addFonts(urls: accessed, engine: engine)
+                    for url in accessed {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                case .failure(let error):
+                    print("Font import error: \(error)")
+                }
             }
         }
     }
 
-    // MARK: - Proofs Tab
+    // MARK: - Proofs Section
 
-    /// Proof options filtered by script support.
     private var visibleProofs: [ProofOption] {
         if state.anyFontSupportsArabic { return state.proofOptions }
         return state.proofOptions.filter { option in
@@ -107,8 +83,10 @@ struct SidebarView: View {
         }
     }
 
-    private var proofsTab: some View {
+    private var proofsSection: some View {
         VStack(spacing: 0) {
+            sectionHeader("PROOFS", detail: "\(state.proofOptions.filter(\.enabled).count) of \(visibleProofs.count)")
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(visibleProofs) { option in
@@ -150,8 +128,6 @@ struct SidebarView: View {
                 .padding(.vertical, 4)
             }
 
-            Divider()
-
             HStack {
                 HoverButton("Add Proof", systemImage: "plus") {
                     state.showAddProofSheet = true
@@ -160,67 +136,102 @@ struct SidebarView: View {
                 .popover(isPresented: $state.showAddProofSheet, arrowEdge: .top) {
                     AddProofPopover()
                 }
-
                 Spacer()
             }
             .padding(8)
+        }
+        .layoutPriority(1)
+    }
+
+    // MARK: - Output Section
+
+    private var outputSection: some View {
+        VStack(spacing: 0) {
+            sectionHeader("OUTPUT", detail: nil)
+
+            VStack(spacing: 8) {
+                PDFOutputSection()
+
+                HStack(spacing: 8) {
+                    Picker("", selection: $state.pageFormat) {
+                        ForEach(state.pageFormats, id: \.self) { format in
+                            Text(format).tag(format)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+
+                    Spacer()
+
+                    Toggle(isOn: $state.showBaselines) {
+                        Label("Grid", systemImage: "grid")
+                            .font(.caption)
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
         }
     }
 
-    // MARK: - Fonts Tab
+    // MARK: - Generate Section
 
-    private var fontsTab: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    FontsSection()
-                }
-                .padding(.vertical, 4)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-            }
-            .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-                FontFileDropHandler.handle(providers, state: state, engine: engine)
-                return true
-            }
-
-            Divider()
-
-            PDFOutputSection()
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-
-            Divider()
-
-            HStack {
-                HoverButton("Add Fonts", systemImage: "plus") {
-                    state.showFontPicker = true
-                }
-                .accessibilityIdentifier("add-fonts-button")
-                Spacer()
-            }
-            .padding(8)
-            .fileImporter(
-                isPresented: $state.showFontPicker,
-                allowedContentTypes: [
-                    UTType(filenameExtension: "otf") ?? .data,
-                    UTType(filenameExtension: "ttf") ?? .data,
-                    UTType(filenameExtension: "woff") ?? .data,
-                    UTType(filenameExtension: "woff2") ?? .data,
-                ],
-                allowsMultipleSelection: true
-            ) { result in
-                switch result {
-                case .success(let urls):
-                    let accessed = urls.filter { $0.startAccessingSecurityScopedResource() }
-                    state.addFonts(urls: accessed, engine: engine)
-                    for url in accessed {
-                        url.stopAccessingSecurityScopedResource()
+    private var generateSection: some View {
+        VStack(spacing: 10) {
+            Button {
+                Task { await generateProof() }
+            } label: {
+                HStack(spacing: 6) {
+                    if engine.isGenerating {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else if state.isFinalPDFStale {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.yellow)
+                    } else {
+                        Image(systemName: "wand.and.rays")
                     }
-                case .failure(let error):
-                    print("Font import error: \(error)")
+                    Text("Generate Final PDF")
                 }
+                .frame(maxWidth: .infinity)
+            }
+            .controlSize(.large)
+            .buttonStyle(.borderedProminent)
+            .tint(state.isFinalPDFStale ? .orange : .accentColor)
+            .help(state.isFinalPDFStale ? "Final PDF is out of sync with current settings" : "Generate Final PDF")
+            .disabled(engine.isGenerating || state.enabledFontPaths.isEmpty)
+
+            if engine.isGenerating {
+                GenerationProgressView(progress: engine.generationProgress) {
+                    engine.cancelGeneration()
+                }
+            } else {
+                ProofRunSummaryCompact(summary: state.makeRunSummary())
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+
+    // MARK: - Section Header
+
+    private func sectionHeader(_ title: String, detail: String?) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .tracking(0.88)
+                .foregroundStyle(.secondary)
+            Spacer()
+            if let detail {
+                Text(detail)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Generate

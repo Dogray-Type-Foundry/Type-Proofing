@@ -1,6 +1,14 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+// MARK: - View Mode
+
+enum ViewMode: String, CaseIterable {
+    case page
+    case grid
+    case compare
+}
+
 // MARK: - Proof Key Utilities
 
 /// Mirror Python's `create_unique_proof_key()` so Swift and Python
@@ -63,6 +71,13 @@ struct ProofSettings: Codable {
     var autoSize: Bool = false
     // Multi-style: show fallback glyphs for missing characters
     var showFallback: Bool = false
+    // WS-3E: New typesetting controls
+    var columnGap: Double = 20
+    var direction: String = "auto"
+    var paragraphIndent: Double = 0
+    var paragraphSpace: Double = 0
+    var hyphenation: Bool = false
+    var hangingPunctuation: Bool = false
 
     init() {}
 
@@ -84,6 +99,12 @@ struct ProofSettings: Codable {
         case enabledStyleIndices
         case autoSize
         case showFallback
+        case columnGap
+        case direction
+        case paragraphIndent
+        case paragraphSpace
+        case hyphenation
+        case hangingPunctuation
     }
 
     init(from decoder: Decoder) throws {
@@ -105,6 +126,12 @@ struct ProofSettings: Codable {
         enabledStyleIndices = try container.decodeIfPresent([String: Bool].self, forKey: .enabledStyleIndices) ?? [:]
         autoSize = try container.decodeIfPresent(Bool.self, forKey: .autoSize) ?? false
         showFallback = try container.decodeIfPresent(Bool.self, forKey: .showFallback) ?? false
+        columnGap = try container.decodeIfPresent(Double.self, forKey: .columnGap) ?? 20
+        direction = try container.decodeIfPresent(String.self, forKey: .direction) ?? "auto"
+        paragraphIndent = try container.decodeIfPresent(Double.self, forKey: .paragraphIndent) ?? 0
+        paragraphSpace = try container.decodeIfPresent(Double.self, forKey: .paragraphSpace) ?? 0
+        hyphenation = try container.decodeIfPresent(Bool.self, forKey: .hyphenation) ?? false
+        hangingPunctuation = try container.decodeIfPresent(Bool.self, forKey: .hangingPunctuation) ?? false
     }
 }
 
@@ -154,6 +181,7 @@ final class AppState: ObservableObject {
     @Published var pageFormat: String = "A4Landscape"
     @Published var pageFormats: [String] = []
     @Published var showBaselines: Bool = false
+    @Published var viewMode: ViewMode = .page
 
     // Output
     @Published var outputDirectory: String = ""
@@ -179,6 +207,7 @@ final class AppState: ObservableObject {
     // Available OT features from loaded fonts (minus hidden)
     private(set) var availableOTFeatures: [String] = []
     private(set) var availableSubstitutionFeatures: [String] = []
+    private(set) var anyFontSupportsOpbd: Bool = false
 
     // MARK: - Registry cache
 
@@ -413,6 +442,7 @@ final class AppState: ObservableObject {
             let allFeatures = engine.getAvailableOTFeatures(path: firstPath)
             availableOTFeatures = allFeatures.filter { !HIDDEN_FEATURES.contains($0) }
             availableSubstitutionFeatures = engine.getAvailableSubstitutionFeatures(path: firstPath)
+            anyFontSupportsOpbd = fontPaths.contains { FontLoader.fontSupportsOpbd(path: $0) }
 
             // Apply to all proofs that don't have features yet
             for (name, settings) in proofSettingsByProof where settings.otFeatures.isEmpty {
@@ -494,6 +524,7 @@ final class AppState: ObservableObject {
         fontStyles.removeAll()
         availableOTFeatures.removeAll()
         availableSubstitutionFeatures.removeAll()
+        anyFontSupportsOpbd = false
         outputDirectory = ""
         useCustomOutputLocation = false
         customOutputLocation = ""
@@ -677,6 +708,7 @@ final class AppState: ObservableObject {
             // Columns — only for proofs that support it
             if entry.supportsCols {
                 flat["\(settingsKey)_cols"] = settings.columns
+                flat["\(settingsKey)_columnGap"] = settings.columnGap
             }
 
             // Tracking — only for proofs that support formatting
@@ -687,6 +719,11 @@ final class AppState: ObservableObject {
             // Alignment — only for proofs that support formatting
             if entry.supportsFormatting {
                 flat["\(settingsKey)_align"] = settings.alignment
+                flat["\(settingsKey)_direction"] = settings.direction
+                flat["\(settingsKey)_paragraphIndent"] = settings.paragraphIndent
+                flat["\(settingsKey)_paragraphSpace"] = settings.paragraphSpace
+                flat["\(settingsKey)_hyphenation"] = settings.hyphenation
+                flat["\(settingsKey)_hangingPunctuation"] = settings.hangingPunctuation
             }
 
             // Paragraphs — only for proofs that have them

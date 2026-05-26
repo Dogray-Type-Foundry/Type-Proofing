@@ -20,6 +20,7 @@ struct HoverButton: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+        .help(title)
     }
 }
 
