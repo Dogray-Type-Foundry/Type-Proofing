@@ -257,7 +257,6 @@ final class AppState: ObservableObject {
                 guard let self,
                       let opt = self.selectedProofOption else { return }
                 self.proofSettingsByProof[opt.name] = newValue
-                self.refreshCurrentConfigFingerprint()
                 self.previewCoordinator?.proofSettingsChanged(proofID: opt.id)
                 self.schedulePersist(notifyPreview: false)
             }

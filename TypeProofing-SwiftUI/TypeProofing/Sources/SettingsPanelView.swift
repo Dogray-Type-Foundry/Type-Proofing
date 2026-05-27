@@ -963,7 +963,18 @@ struct OTFeaturesSection: View {
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
-    private var defaultVariations: [String: Double]? {
+    @State private var cachedVariations: [String: Double]?
+    @State private var cachedSamples: [String: String] = [:]
+    @State private var cachedFontPath: String?
+
+    private func refreshOTCache() {
+        guard fontPath != cachedFontPath else { return }
+        cachedFontPath = fontPath
+        cachedVariations = computeDefaultVariations()
+        cachedSamples = computeFeatureSamples(variations: cachedVariations)
+    }
+
+    private func computeDefaultVariations() -> [String: Double]? {
         guard let path = fontPath else { return nil }
         guard let ctFont = FontLoader.makeFont(path: path, size: 13, features: nil, variations: nil) else { return nil }
         guard let axes = CTFontCopyVariationAxes(ctFont) as? [[String: Any]] else { return nil }
@@ -977,10 +988,10 @@ struct OTFeaturesSection: View {
         return defaults.isEmpty ? nil : defaults
     }
 
-    private var featureSamples: [String: String] {
+    private func computeFeatureSamples(variations: [String: Double]?) -> [String: String] {
         guard let path = fontPath else { return [:] }
         let subs = SubstitutionBridge.getSubstitutions(fontPath: path)
-        let baseFont = FontLoader.makeFont(path: path, size: 13, features: nil, variations: defaultVariations)
+        let baseFont = FontLoader.makeFont(path: path, size: 13, features: nil, variations: variations)
 
         var samples: [String: String] = [:]
         for feature in subs {
@@ -1107,13 +1118,15 @@ struct OTFeaturesSection: View {
                             feature: $feature,
                             forceOff: isSpacingProof && feature.tag == "kern",
                             fontPath: fontPath,
-                            defaultVariations: defaultVariations,
-                            featureSample: featureSamples[feature.tag]
+                            defaultVariations: cachedVariations,
+                            featureSample: cachedSamples[feature.tag]
                         )
                     }
                 }
             }
         }
+        .onAppear { refreshOTCache() }
+        .onChange(of: fontPath) { _ in refreshOTCache() }
     }
 }
 
@@ -1128,14 +1141,25 @@ private struct OTFeaturePill: View {
 
     private var isActive: Bool { !forceOff && feature.enabled }
 
-    private var featureFont: Font? {
-        guard let path = fontPath else { return nil }
+    @State private var cachedFeatureFont: Font?
+    @State private var cachedPillFontPath: String?
+
+    private func refreshFeatureFont() {
+        guard fontPath != cachedPillFontPath else { return }
+        cachedPillFontPath = fontPath
+        guard let path = fontPath else {
+            cachedFeatureFont = nil
+            return
+        }
         guard let ctFont = FontLoader.makeFont(
             path: path, size: 13,
             features: [feature.tag: true],
             variations: defaultVariations
-        ) else { return nil }
-        return Font(ctFont as NSFont)
+        ) else {
+            cachedFeatureFont = nil
+            return
+        }
+        cachedFeatureFont = Font(ctFont as NSFont)
     }
 
     var body: some View {
@@ -1150,7 +1174,7 @@ private struct OTFeaturePill: View {
                     .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                 Spacer()
                 Text(featureSample ?? fallbackSampleText(for: feature.tag))
-                    .font(featureFont ?? .system(size: 13))
+                    .font(cachedFeatureFont ?? .system(size: 13))
                     .foregroundStyle(isActive ? .white.opacity(0.9) : Color.secondary)
             }
             .padding(.horizontal, 8)
@@ -1163,6 +1187,8 @@ private struct OTFeaturePill: View {
         }
         .buttonStyle(.plain)
         .disabled(forceOff)
+        .onAppear { refreshFeatureFont() }
+        .onChange(of: fontPath) { _ in refreshFeatureFont() }
     }
 
     private func fallbackSampleText(for tag: String) -> String {

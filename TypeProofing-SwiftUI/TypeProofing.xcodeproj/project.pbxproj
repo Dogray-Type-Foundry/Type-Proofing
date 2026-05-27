@@ -55,6 +55,7 @@
 		CDBEC215222250315A9455BA /* DiagnosticEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F45325CD2D0F5DE8F5E86AE6 /* DiagnosticEventTests.swift */; };
 		CEDF4B94D516B35C8E407464 /* WordSivBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001D9684F32482754BB7F203 /* WordSivBridge.swift */; };
 		D94AEFEA10A22A4042E5EDEF /* PDFRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DE047F7FA06BAAFDC49B218 /* PDFRenderer.swift */; };
+		DAD7E171C9FBE82C9B1D0A87 /* AppFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766076121FBE98F93D9AC08A /* AppFont.swift */; };
 		DD85863B71C3B3C5F5F450C0 /* PageFormatUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A8C01627880490D4A7E2E2 /* PageFormatUITests.swift */; };
 		DD978AF718BE379A244EEB07 /* accented_dictionary.json in Resources */ = {isa = PBXBuildFile; fileRef = ECF1B375578774D615ECE8FB /* accented_dictionary.json */; };
 		DEA298B94D1B2EDD940F98EB /* AppIntegrationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0FC932935540E76A1FC78A /* AppIntegrationUITests.swift */; };
@@ -105,6 +106,7 @@
 		637D42E4A5FDEB7E3048C469 /* MarkupParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupParser.swift; sourceTree = "<group>"; };
 		65794A061E53E1ACC420FDF0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6D94825326F627660F1F94DA /* CharacterCategorizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterCategorizer.swift; sourceTree = "<group>"; };
+		766076121FBE98F93D9AC08A /* AppFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFont.swift; sourceTree = "<group>"; };
 		7B4B0E69F25CBAFA4C0B8F6E /* SettingsPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanelView.swift; sourceTree = "<group>"; };
 		7D7FCB2FD81DBACB3AF8E10E /* TypeProofing.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TypeProofing.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		847EA2F6D0EBBFEACD4E513E /* CategoryBasedProofHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryBasedProofHandler.swift; sourceTree = "<group>"; };
@@ -168,6 +170,7 @@
 		1863C657ABD6958C3DFA5935 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				766076121FBE98F93D9AC08A /* AppFont.swift */,
 				90438448008FA276EEC20F55 /* AppState.swift */,
 				48C400F557AD777FB0D600E6 /* ContentView.swift */,
 				B0F272E6A94B474DD21D5D59 /* FontAxesView.swift */,
@@ -400,6 +403,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DAD7E171C9FBE82C9B1D0A87 /* AppFont.swift in Sources */,
 				43E7BC229EB9768F13C0F01F /* AppState.swift in Sources */,
 				CD23AE3576C1F1ABE9992E1D /* ArabicProofHandler.swift in Sources */,
 				3D74AB9AD80AA0E7F4CF0D3D /* AutoSizing.swift in Sources */,
