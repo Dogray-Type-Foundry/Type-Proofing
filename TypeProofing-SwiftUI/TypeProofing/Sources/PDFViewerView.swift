@@ -17,16 +17,14 @@ class PDFViewCoordinator: ObservableObject {
     var lastLoadedPDFPath: String?
     var lastHandledNavigationRequestID: UUID?
     private var scaleObservers: [NSObjectProtocol] = []
+    var pendingAnchor: Anchor?
+    private var pendingAnchorClearTask: DispatchWorkItem?
 
     private func observeScaleChanges() {
         for obs in scaleObservers { NotificationCenter.default.removeObserver(obs) }
         scaleObservers.removeAll()
         guard let pdfView else { return }
         syncZoomPercent()
-
-        let update: @Sendable (Notification) -> Void = { [weak self] _ in
-            DispatchQueue.main.async { self?.syncZoomPercent() }
-        }
 
         scaleObservers.append(NotificationCenter.default.addObserver(
             forName: .PDFViewScaleChanged, object: pdfView, queue: .main
@@ -70,12 +68,16 @@ class PDFViewCoordinator: ObservableObject {
         let sectionName: String?
         let offset: Int
         let absolutePage: Int
+        let scaleFactor: CGFloat
+        let scrollOrigin: CGPoint
     }
 
     func currentAnchor() -> Anchor? {
         guard let pdfView,
               let document = pdfView.document,
-              let page = pdfView.currentPage else { return nil }
+              let page = pdfView.currentPage,
+              let docView = pdfView.documentView,
+              let scrollView = docView.enclosingScrollView else { return nil }
         let pageIndex = document.index(for: page)
         guard pageIndex != NSNotFound else { return nil }
 
@@ -87,15 +89,18 @@ class PDFViewCoordinator: ObservableObject {
                 break
             }
         }
+
         return Anchor(
             sectionName: currentSection?.name,
             offset: currentSection.map { max(0, pageIndex - $0.firstPage) } ?? 0,
-            absolutePage: pageIndex
+            absolutePage: pageIndex,
+            scaleFactor: pdfView.scaleFactor,
+            scrollOrigin: scrollView.contentView.bounds.origin
         )
     }
 
-    func restore(anchor: Anchor?, in document: PDFDocument, sections: [ProofSection]) {
-        guard let pdfView, let anchor, document.pageCount > 0 else { return }
+    func restore(in document: PDFDocument, sections: [ProofSection]) {
+        guard let pdfView, let anchor = pendingAnchor, document.pageCount > 0 else { return }
         let targetIndex: Int
         if let sectionName = anchor.sectionName,
            let section = sections.first(where: { $0.name == sectionName }) {
@@ -103,9 +108,43 @@ class PDFViewCoordinator: ObservableObject {
         } else {
             targetIndex = min(anchor.absolutePage, document.pageCount - 1)
         }
-        if let page = document.page(at: max(0, targetIndex)) {
-            pdfView.go(to: page)
+        guard let page = document.page(at: max(0, targetIndex)) else { return }
+
+        pdfView.autoScales = false
+        pdfView.scaleFactor = anchor.scaleFactor
+        pdfView.go(to: page)
+
+        let savedOrigin = anchor.scrollOrigin
+        DispatchQueue.main.async { [weak pdfView] in
+            guard let pdfView else { return }
+            pdfView.autoScales = false
+            pdfView.scaleFactor = anchor.scaleFactor
+            pdfView.layoutSubtreeIfNeeded()
+
+            DispatchQueue.main.async {
+                guard let docView = pdfView.documentView,
+                      let scrollView = docView.enclosingScrollView else { return }
+                let maxScroll = CGPoint(
+                    x: max(docView.bounds.width - scrollView.contentView.bounds.width, 0),
+                    y: max(docView.bounds.height - scrollView.contentView.bounds.height, 0)
+                )
+                let origin = CGPoint(
+                    x: min(max(savedOrigin.x, 0), maxScroll.x),
+                    y: min(max(savedOrigin.y, 0), maxScroll.y)
+                )
+                NSLog("[Viewport] restore scroll to \(origin) (saved=\(savedOrigin), max=\(maxScroll), docBounds=\(docView.bounds))")
+                scrollView.contentView.scroll(to: origin)
+                scrollView.reflectScrolledClipView(scrollView.contentView)
+            }
         }
+        schedulePendingAnchorClear()
+    }
+
+    private func schedulePendingAnchorClear() {
+        pendingAnchorClearTask?.cancel()
+        let task = DispatchWorkItem { [weak self] in self?.pendingAnchor = nil }
+        pendingAnchorClearTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: task)
     }
 
     func handleNavigation(
@@ -160,10 +199,20 @@ struct PDFCanvasView: NSViewRepresentable {
             let documentChanged = pdfCoordinator.lastLoadedPDFPath != path
             if let document = documentChanged ? PDFDocument(url: url) : pdfView.document {
                 if documentChanged {
-                    let anchor = pdfCoordinator.currentAnchor()
+                    if pdfCoordinator.pendingAnchor == nil {
+                        let anchor = pdfCoordinator.currentAnchor()
+                        pdfCoordinator.pendingAnchor = anchor
+                        if let a = anchor {
+                            NSLog("[Viewport] captured anchor: page=\(a.absolutePage) section=\(a.sectionName ?? "nil") scale=\(a.scaleFactor) scroll=\(a.scrollOrigin)")
+                        } else {
+                            NSLog("[Viewport] captured anchor: nil")
+                        }
+                    } else {
+                        NSLog("[Viewport] reusing pending anchor (page=\(pdfCoordinator.pendingAnchor!.absolutePage))")
+                    }
                     pdfView.document = document
                     pdfCoordinator.lastLoadedPDFPath = path
-                    pdfCoordinator.restore(anchor: anchor, in: document, sections: sections)
+                    pdfCoordinator.restore(in: document, sections: sections)
                 }
                 let sectionsChanged = pdfCoordinator.sections != sections
                 pdfCoordinator.updateThumbnails(

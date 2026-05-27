@@ -285,6 +285,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3779E817181D68D1FBD6CDAF /* Build configuration list for PBXNativeTarget "TypeProofing" */;
 			buildPhases = (
+				AC4E2F220C7EB24DC6BE2DCC /* Build NativeLib if missing */,
 				4CF8EDADFC2A28B5355D6612 /* Sources */,
 				DBB74F200945AC77C16FDC8B /* Resources */,
 				8EEB318053FEF47A66119371 /* Frameworks */,
@@ -397,6 +398,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		AC4E2F220C7EB24DC6BE2DCC /* Build NativeLib if missing */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build NativeLib if missing";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ ! -f \"${SRCROOT}/NativeLib/libtpnative.a\" ]; then\n  echo \"NativeLib missing — building from Rust sources…\"\n  bash \"${SRCROOT}/../native/build_rust.sh\"\n  cp \"${SRCROOT}/../native/lib/libtpnative.a\" \"${SRCROOT}/NativeLib/libtpnative.a\"\n  cp \"${SRCROOT}/../native/include/tpnative.h\" \"${SRCROOT}/NativeLib/include/tpnative.h\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		4CF8EDADFC2A28B5355D6612 /* Sources */ = {

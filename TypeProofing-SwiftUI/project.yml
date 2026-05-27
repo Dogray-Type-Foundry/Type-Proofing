@@ -70,7 +70,16 @@ targets:
           - "-ltpnative"
     dependencies:
       - package: CompactSlider
-    preBuildScripts: []
+    preBuildScripts:
+      - name: "Build NativeLib if missing"
+        script: |
+          if [ ! -f "${SRCROOT}/NativeLib/libtpnative.a" ]; then
+            echo "NativeLib missing — building from Rust sources…"
+            bash "${SRCROOT}/../native/build_rust.sh"
+            cp "${SRCROOT}/../native/lib/libtpnative.a" "${SRCROOT}/NativeLib/libtpnative.a"
+            cp "${SRCROOT}/../native/include/tpnative.h" "${SRCROOT}/NativeLib/include/tpnative.h"
+          fi
+        basedOnDependencyAnalysis: false
     postBuildScripts: []
 
   TypeProofingTests:

@@ -320,6 +320,7 @@ struct FloatingToolbar: View {
                     get: { "\(pdfCoordinator.zoomPercent)" },
                     set: { newValue in
                         if let pct = Int(newValue), pct >= 10, pct <= 500 {
+                            pdfCoordinator.pdfView?.autoScales = false
                             pdfCoordinator.pdfView?.scaleFactor = CGFloat(pct) / 100.0
                         }
                     }
@@ -332,6 +333,7 @@ struct FloatingToolbar: View {
                 .onSubmit {
                     let text = "\(pdfCoordinator.zoomPercent)"
                     if let pct = Int(text), pct >= 10, pct <= 500 {
+                        pdfCoordinator.pdfView?.autoScales = false
                         pdfCoordinator.pdfView?.scaleFactor = CGFloat(pct) / 100.0
                     }
                 }
@@ -374,6 +376,7 @@ struct FloatingToolbar: View {
 
     private func zoom(by delta: CGFloat) {
         guard let pdfView = pdfCoordinator.pdfView else { return }
+        pdfView.autoScales = false
         pdfView.scaleFactor = max(0.1, min(pdfView.scaleFactor + delta, 5.0))
     }
 

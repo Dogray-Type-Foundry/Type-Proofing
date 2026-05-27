@@ -41,11 +41,13 @@ echo "  Project:    ${PROJECT_DIR}"
 echo "  Signing ID: ${CODESIGN_ID}"
 echo ""
 
-# ── 0. Verify NativeLib exists ────────────────────────────────────────
+# ── 0. Build NativeLib if missing ─────────────────────────────────────
 if [ ! -f "${PROJECT_DIR}/NativeLib/libtpnative.a" ]; then
-    echo "Error: NativeLib/libtpnative.a not found."
-    echo "Build the Rust native library first."
-    exit 1
+    echo "NativeLib/libtpnative.a not found — building from Rust sources…"
+    bash "${REPO_ROOT}/native/build_rust.sh"
+    cp "${REPO_ROOT}/native/lib/libtpnative.a" "${PROJECT_DIR}/NativeLib/libtpnative.a"
+    cp "${REPO_ROOT}/native/include/tpnative.h" "${PROJECT_DIR}/NativeLib/include/tpnative.h"
+    echo "✓ NativeLib built and copied"
 fi
 
 # ── 1. Regenerate Xcode project ──────────────────────────────────────
