@@ -965,15 +965,12 @@ struct OTFeaturesSection: View {
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
-    @State private var cachedVariations: [String: Double]?
-    @State private var cachedSamples: [String: String] = [:]
-    @State private var cachedFontPath: String?
+    private var defaultVariations: [String: Double]? {
+        computeDefaultVariations()
+    }
 
-    private func refreshOTCache() {
-        guard fontPath != cachedFontPath else { return }
-        cachedFontPath = fontPath
-        cachedVariations = computeDefaultVariations()
-        cachedSamples = computeFeatureSamples(variations: cachedVariations)
+    private var featureSamples: [String: String] {
+        computeFeatureSamples(variations: defaultVariations)
     }
 
     private func computeDefaultVariations() -> [String: Double]? {
@@ -998,21 +995,31 @@ struct OTFeaturesSection: View {
         var samples: [String: String] = [:]
         for feature in subs {
             let tag = feature.tag
+            let viable = feature.entries.filter { !$0.inputText.isEmpty }
             switch tag {
             case "calt":
                 samples[tag] = pickCaltSample(feature.entries)
             case "ordn", "sinf", "subs", "sups", "numr", "dnom":
-                if let entry = feature.entries.first, !entry.inputText.isEmpty {
-                    samples[tag] = "x" + String(entry.inputText.prefix(3))
+                if let latin = viable.first(where: { Self.isLatinText($0.inputText) }) {
+                    samples[tag] = "x" + String(latin.inputText.prefix(3))
+                } else if let entry = viable.first {
+                    let prefix: String = Self.isArabicText(entry.inputText) ? "\u{0628}" : "x"
+                    samples[tag] = prefix + String(entry.inputText.prefix(3))
                 }
             case "case":
                 samples[tag] = pickCaseSample(feature.entries)
             case "frac":
-                samples[tag] = "1/2"
+                if viable.contains(where: { Self.isLatinText($0.inputText) }) || viable.isEmpty {
+                    samples[tag] = "1/2"
+                } else {
+                    samples[tag] = "\u{0661}/\u{0662}"
+                }
             case "tnum", "pnum", "onum", "lnum":
                 break
             default:
-                if let entry = feature.entries.first, !entry.inputText.isEmpty {
+                if let latin = viable.first(where: { Self.isLatinText($0.inputText) }) {
+                    samples[tag] = String(latin.inputText.prefix(4))
+                } else if let entry = viable.first {
                     samples[tag] = String(entry.inputText.prefix(4))
                 }
             }
@@ -1020,12 +1027,23 @@ struct OTFeaturesSection: View {
 
         if let font = baseFont {
             if samples["mark"] == nil {
-                let mark = findCombiningMark(in: font)
-                if let m = mark { samples["mark"] = "a\(m)" }
+                if let m = findCombiningMark(in: font, from: Self.combiningMarks) {
+                    samples["mark"] = "a\(m)"
+                } else if let m = findCombiningMark(in: font, from: Self.arabicCombiningMarks),
+                          let base = findFirstChar(in: font, from: Self.arabicBaseChars) {
+                    samples["mark"] = "\(base)\(m)"
+                }
             }
             if samples["mkmk"] == nil {
-                let marks = findTwoCombiningMarks(in: font)
-                if marks.count == 2 { samples["mkmk"] = "a\(marks[0])\(marks[1])" }
+                let marks = findTwoCombiningMarks(in: font, from: Self.combiningMarks)
+                if marks.count == 2 {
+                    samples["mkmk"] = "a\(marks[0])\(marks[1])"
+                } else {
+                    let aMarks = findTwoCombiningMarks(in: font, from: Self.arabicCombiningMarks)
+                    if aMarks.count == 2, let base = findFirstChar(in: font, from: Self.arabicBaseChars) {
+                        samples["mkmk"] = "\(base)\(aMarks[0])\(aMarks[1])"
+                    }
+                }
             }
         }
 
@@ -1088,19 +1106,48 @@ struct OTFeaturesSection: View {
         "\u{0306}", "\u{030A}", "\u{0304}", "\u{030B}",
     ]
 
-    private func findCombiningMark(in font: CTFont) -> Character? {
-        Self.combiningMarks.first { FontLoader.fontContains(font, characters: String($0)) }
+    private static let arabicCombiningMarks: [Character] = [
+        "\u{064E}", "\u{064F}", "\u{0650}", "\u{0651}",
+        "\u{0652}", "\u{064B}", "\u{064C}", "\u{064D}",
+    ]
+
+    private static let arabicBaseChars: [Character] = [
+        "\u{0628}", "\u{062A}", "\u{0646}", "\u{0627}",
+    ]
+
+    private static func isLatinText(_ text: String) -> Bool {
+        text.unicodeScalars.contains { s in
+            (0x0041...0x005A).contains(s.value) ||
+            (0x0061...0x007A).contains(s.value) ||
+            (0x0030...0x0039).contains(s.value)
+        }
     }
 
-    private func findTwoCombiningMarks(in font: CTFont) -> [Character] {
+    private static func isArabicText(_ text: String) -> Bool {
+        text.unicodeScalars.contains { s in
+            (0x0600...0x06FF).contains(s.value) ||
+            (0xFB50...0xFDFF).contains(s.value) ||
+            (0xFE70...0xFEFF).contains(s.value)
+        }
+    }
+
+    private func findCombiningMark(in font: CTFont, from marks: [Character]) -> Character? {
+        marks.first { FontLoader.fontContains(font, characters: String($0)) }
+    }
+
+    private func findTwoCombiningMarks(in font: CTFont, from marks: [Character]) -> [Character] {
         var found: [Character] = []
-        for mark in Self.combiningMarks {
+        for mark in marks {
             if FontLoader.fontContains(font, characters: String(mark)) {
                 found.append(mark)
                 if found.count == 2 { break }
             }
         }
         return found
+    }
+
+    private func findFirstChar(in font: CTFont, from chars: [Character]) -> Character? {
+        chars.first { FontLoader.fontContains(font, characters: String($0)) }
     }
 
     var body: some View {
@@ -1120,15 +1167,13 @@ struct OTFeaturesSection: View {
                             feature: $feature,
                             forceOff: isSpacingProof && feature.tag == "kern",
                             fontPath: fontPath,
-                            defaultVariations: cachedVariations,
-                            featureSample: cachedSamples[feature.tag]
+                            defaultVariations: defaultVariations,
+                            featureSample: featureSamples[feature.tag]
                         )
                     }
                 }
             }
         }
-        .onAppear { refreshOTCache() }
-        .onChange(of: fontPath) { _ in refreshOTCache() }
     }
 }
 
@@ -1143,25 +1188,14 @@ private struct OTFeaturePill: View {
 
     private var isActive: Bool { !forceOff && feature.enabled }
 
-    @State private var cachedFeatureFont: Font?
-    @State private var cachedPillFontPath: String?
-
-    private func refreshFeatureFont() {
-        guard fontPath != cachedPillFontPath else { return }
-        cachedPillFontPath = fontPath
-        guard let path = fontPath else {
-            cachedFeatureFont = nil
-            return
-        }
+    private var featureFont: Font? {
+        guard let path = fontPath else { return nil }
         guard let ctFont = FontLoader.makeFont(
             path: path, size: 13,
             features: [feature.tag: true],
             variations: defaultVariations
-        ) else {
-            cachedFeatureFont = nil
-            return
-        }
-        cachedFeatureFont = Font(ctFont as NSFont)
+        ) else { return nil }
+        return Font(ctFont as NSFont)
     }
 
     var body: some View {
@@ -1176,7 +1210,7 @@ private struct OTFeaturePill: View {
                     .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                 Spacer()
                 Text(featureSample ?? fallbackSampleText(for: feature.tag))
-                    .font(cachedFeatureFont ?? .system(size: 13))
+                    .font(featureFont ?? .system(size: 13))
                     .foregroundStyle(isActive ? .white.opacity(0.9) : Color.secondary)
             }
             .padding(.horizontal, 8)
@@ -1189,8 +1223,6 @@ private struct OTFeaturePill: View {
         }
         .buttonStyle(.plain)
         .disabled(forceOff)
-        .onAppear { refreshFeatureFont() }
-        .onChange(of: fontPath) { _ in refreshFeatureFont() }
     }
 
     private func fallbackSampleText(for tag: String) -> String {
