@@ -5,10 +5,10 @@ import SwiftUI
 /// Users can add criteria from a menu, reorder by drag, and remove with X.
 struct FontSortBar: View {
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var fonts: FontState
 
-    /// Properties not yet used in the current criteria.
     private var availableProperties: [FontSortProperty] {
-        let used = Set(state.fontSortCriteria.map(\.property))
+        let used = Set(fonts.fontSortCriteria.map(\.property))
         return FontSortProperty.allCases.filter { !used.contains($0) }
     }
 
@@ -18,13 +18,12 @@ struct FontSortBar: View {
                 .foregroundStyle(.secondary)
                 .font(.caption)
 
-            // Criterion chips
-            ForEach(state.fontSortCriteria) { criterion in
-                if let index = state.fontSortCriteria.firstIndex(where: { $0.id == criterion.id }) {
+            ForEach(fonts.fontSortCriteria) { criterion in
+                if let index = fonts.fontSortCriteria.firstIndex(where: { $0.id == criterion.id }) {
                     SortChip(
-                        criterion: $state.fontSortCriteria[index],
+                        criterion: $fonts.fontSortCriteria[index],
                         onRemove: {
-                            state.fontSortCriteria.remove(at: index)
+                            fonts.fontSortCriteria.remove(at: index)
                             state.applySortCriteria()
                             state.schedulePersistPublic()
                         }
@@ -39,12 +38,11 @@ struct FontSortBar: View {
                 }
             }
 
-            // Add button / menu
             if !availableProperties.isEmpty {
                 Menu {
                     ForEach(availableProperties, id: \.self) { property in
                         Button(property.rawValue) {
-                            state.fontSortCriteria.append(
+                            fonts.fontSortCriteria.append(
                                 FontSortCriterion(property: property)
                             )
                             state.applySortCriteria()
@@ -111,11 +109,11 @@ struct SortChipDropDelegate: DropDelegate {
                   let draggedUUID = UUID(uuidString: draggedID)
             else { return }
             DispatchQueue.main.async {
-                guard let fromIndex = state.fontSortCriteria.firstIndex(where: { $0.id == draggedUUID }) else {
+                guard let fromIndex = state.fonts.fontSortCriteria.firstIndex(where: { $0.id == draggedUUID }) else {
                     return
                 }
                 let dest = targetIndex > fromIndex ? targetIndex + 1 : targetIndex
-                state.fontSortCriteria.move(
+                state.fonts.fontSortCriteria.move(
                     fromOffsets: IndexSet(integer: fromIndex),
                     toOffset: dest
                 )

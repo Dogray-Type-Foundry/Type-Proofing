@@ -5,7 +5,7 @@ import SwiftUI
 /// Picker that lets the user select the "default" font/style for Custom Text proof.
 /// For VFs, each named instance appears as a separate option.
 struct DefaultFontPicker: View {
-    @EnvironmentObject var state: AppState
+    @EnvironmentObject var fonts: FontState
     @Binding var defaultFontPath: String
     @Binding var defaultFontAxisDict: [String: Double]?
 
@@ -16,7 +16,7 @@ struct DefaultFontPicker: View {
                 .foregroundStyle(.secondary)
             Picker("", selection: selectedStyleBinding) {
                 Text("Auto (first font)").tag(-1)
-                ForEach(state.fontStylesByFamily, id: \.familyName) { group in
+                ForEach(fonts.fontStylesByFamily, id: \.familyName) { group in
                     Section(group.familyName) {
                         ForEach(group.styles) { style in
                             Text(style.styleName).tag(style.index)
@@ -32,14 +32,12 @@ struct DefaultFontPicker: View {
         Binding(
             get: {
                 guard !defaultFontPath.isEmpty else { return -1 }
-                // Find matching style by path + coordinates
-                if let match = state.fontStyles.first(where: {
+                if let match = fonts.fontStyles.first(where: {
                     $0.fontPath == defaultFontPath && $0.coordinates == defaultFontAxisDict
                 }) {
                     return match.index
                 }
-                // Fall back to matching just by path
-                if let match = state.fontStyles.first(where: { $0.fontPath == defaultFontPath }) {
+                if let match = fonts.fontStyles.first(where: { $0.fontPath == defaultFontPath }) {
                     return match.index
                 }
                 return -1
@@ -48,7 +46,7 @@ struct DefaultFontPicker: View {
                 if newIndex == -1 {
                     defaultFontPath = ""
                     defaultFontAxisDict = nil
-                } else if let style = state.fontStyles.first(where: { $0.index == newIndex }) {
+                } else if let style = fonts.fontStyles.first(where: { $0.index == newIndex }) {
                     defaultFontPath = style.fontPath
                     defaultFontAxisDict = style.coordinates
                 }
@@ -61,7 +59,7 @@ struct DefaultFontPicker: View {
 
 /// Grouped checkbox list of all font styles with family-level group toggles.
 struct MultiStyleFontList: View {
-    @EnvironmentObject var state: AppState
+    @EnvironmentObject var fonts: FontState
     @Binding var enabledStyleIndices: [String: Bool]
 
     var body: some View {
@@ -70,12 +68,21 @@ struct MultiStyleFontList: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            if state.fontStyles.isEmpty {
+            if fonts.loadedFonts.contains(where: \.isVariable) {
+                Picker("", selection: $fonts.styleSourceMode) {
+                    Text("Named Instances").tag(StyleSourceMode.namedInstances)
+                    Text("Custom Positions").tag(StyleSourceMode.customPositions)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+
+            if fonts.fontStyles.isEmpty {
                 Text("Load fonts to see available styles")
                     .foregroundStyle(.tertiary)
                     .font(.caption)
             } else {
-                ForEach(state.fontStylesByFamily, id: \.familyName) { group in
+                ForEach(fonts.fontStylesByFamily, id: \.familyName) { group in
                     FamilyGroupView(
                         familyName: group.familyName,
                         styles: group.styles,

@@ -18,6 +18,12 @@ pub struct AxisInstances {
 }
 
 #[derive(Debug, Clone)]
+pub struct NamedInstanceRecord {
+    pub name: String,
+    pub coordinates: Vec<([u8; 4], f64)>,
+}
+
+#[derive(Debug, Clone)]
 pub struct FontInfo {
     pub family_name: String,
     pub subfamily_name: String,
@@ -137,6 +143,42 @@ pub fn load_font_info(data: &[u8]) -> Option<FontInfo> {
     })
 }
 
+pub fn get_named_instances(data: &[u8]) -> Vec<NamedInstanceRecord> {
+    let font = match FontRef::new(data) {
+        Ok(f) => f,
+        Err(_) => return vec![],
+    };
+
+    let axis_tags: Vec<[u8; 4]> = font
+        .axes()
+        .iter()
+        .map(|a| a.tag().to_be_bytes())
+        .collect();
+
+    if axis_tags.is_empty() {
+        return vec![];
+    }
+
+    font.named_instances()
+        .iter()
+        .map(|instance| {
+            let name = font
+                .localized_strings(instance.subfamily_name_id())
+                .english_or_first()
+                .map(|s| s.chars().collect::<String>())
+                .unwrap_or_default();
+
+            let coordinates: Vec<([u8; 4], f64)> = axis_tags
+                .iter()
+                .zip(instance.user_coords())
+                .map(|(tag, val)| (*tag, val as f64))
+                .collect();
+
+            NamedInstanceRecord { name, coordinates }
+        })
+        .collect()
+}
+
 fn extract_features(font: &FontRef) -> Vec<String> {
     let mut tags = std::collections::BTreeSet::new();
     if let Ok(gsub) = font.gsub() {
@@ -228,5 +270,23 @@ mod tests {
         assert!(info.features.contains(&"kern".to_string()));
         assert!(info.features.contains(&"calt".to_string()));
         assert!(info.features.contains(&"ss01".to_string()));
+    }
+
+    #[test]
+    fn test_named_instances_vf() {
+        let data = std::fs::read("../../SetsGroteskVF.ttf").expect("font file");
+        let instances = get_named_instances(&data);
+        assert!(!instances.is_empty(), "should have named instances");
+        for inst in &instances {
+            assert!(!inst.name.is_empty(), "instance should have a name");
+            assert!(!inst.coordinates.is_empty(), "instance should have coordinates");
+        }
+    }
+
+    #[test]
+    fn test_named_instances_static() {
+        let data = std::fs::read("../../SetsGroteskXS-Regular.ttf").expect("font file");
+        let instances = get_named_instances(&data);
+        assert!(instances.is_empty(), "static font should have no named instances");
     }
 }

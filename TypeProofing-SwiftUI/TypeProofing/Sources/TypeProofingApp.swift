@@ -10,21 +10,27 @@ struct TypeProofingApp: App {
             ContentView()
                 .environmentObject(engine)
                 .environmentObject(appState)
+                .environmentObject(appState.fonts)
+                .environmentObject(appState.proofs)
+                .environmentObject(appState.preview)
+                .environmentObject(appState.page)
+                .environmentObject(appState.ui)
+                .environmentObject(appState.output)
         }
         .commands {
             CommandGroup(after: .newItem) {
                 Button("Import Settings…") {
-                    appState.showSettingsImporter = true
+                    appState.ui.showSettingsImporter = true
                 }
                 Divider()
                 Button("Reset Settings") {
                     appState.resetAllSettings()
                 }
-                .disabled(!engine.isReady || !appState.isRegistryLoaded)
+                .disabled(!engine.isReady || !appState.proofs.isRegistryLoaded)
                 Button("Reset Fonts") {
                     appState.resetFonts()
                 }
-                .disabled(!engine.isReady || !appState.isRegistryLoaded)
+                .disabled(!engine.isReady || !appState.proofs.isRegistryLoaded)
             }
         }
     }

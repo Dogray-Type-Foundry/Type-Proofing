@@ -4,33 +4,34 @@ import UniformTypeIdentifiers
 struct FontsSection: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var engine: ProofEngine
+    @EnvironmentObject var fonts: FontState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if !state.loadedFonts.isEmpty {
+            if !fonts.loadedFonts.isEmpty {
                 FontSortBar()
 
                 Divider()
             }
 
-            ForEach(Array(state.loadedFonts.enumerated()), id: \.element.id) { index, font in
+            ForEach(Array(fonts.loadedFonts.enumerated()), id: \.element.id) { index, font in
                 SidebarListRow(
                     name: font.name,
                     enabled: Binding(
-                        get: { !state.disabledFontPaths.contains(font.id) },
+                        get: { !fonts.disabledFontPaths.contains(font.id) },
                         set: { enabled in
                             if enabled {
-                                state.disabledFontPaths.remove(font.id)
+                                fonts.disabledFontPaths.remove(font.id)
                             } else {
-                                state.disabledFontPaths.insert(font.id)
+                                fonts.disabledFontPaths.insert(font.id)
                             }
                             state.schedulePersistPublic()
                         }
                     ),
-                    isLast: font.id == state.loadedFonts.last?.id,
+                    isLast: font.id == fonts.loadedFonts.last?.id,
                     badge: font.isVariable ? "VF" : nil,
                     onRemove: {
-                        if let idx = state.loadedFonts.firstIndex(where: { $0.id == font.id }) {
+                        if let idx = fonts.loadedFonts.firstIndex(where: { $0.id == font.id }) {
                             state.removeFont(at: IndexSet(integer: idx), engine: engine)
                         }
                     },
@@ -39,9 +40,9 @@ struct FontsSection: View {
                             FontAxesView(
                                 font: font,
                                 axisValues: Binding(
-                                    get: { state.axisValuesByFont[font.id] ?? [:] },
+                                    get: { fonts.axisValuesByFont[font.id] ?? [:] },
                                     set: {
-                                        state.axisValuesByFont[font.id] = $0
+                                        fonts.axisValuesByFont[font.id] = $0
                                         state.schedulePersistPublic()
                                     }
                                 )
@@ -58,7 +59,7 @@ struct FontsSection: View {
                 ))
             }
 
-            if state.loadedFonts.isEmpty {
+            if fonts.loadedFonts.isEmpty {
                 Text("Drop font files here or click + Fonts")
                     .foregroundStyle(.tertiary)
                     .font(.caption)
@@ -137,7 +138,7 @@ struct FontDropDelegate: DropDelegate {
         provider.loadObject(ofClass: NSString.self) { item, _ in
             guard let draggedID = item as? String else { return }
             DispatchQueue.main.async {
-                guard let fromIndex = state.loadedFonts.firstIndex(where: { $0.id == draggedID }) else { return }
+                guard let fromIndex = state.fonts.loadedFonts.firstIndex(where: { $0.id == draggedID }) else { return }
                 state.moveFonts(from: IndexSet(integer: fromIndex), to: targetIndex > fromIndex ? targetIndex + 1 : targetIndex)
             }
         }

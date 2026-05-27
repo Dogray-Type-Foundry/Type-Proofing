@@ -230,7 +230,7 @@ struct GridViewCanvas: View {
     let pdfPath: String
     let sections: [ProofSection]
     let pdfCoordinator: PDFViewCoordinator
-    @EnvironmentObject var state: AppState
+    @EnvironmentObject var page: PageState
 
     @State private var document: PDFDocument?
 
@@ -253,7 +253,7 @@ struct GridViewCanvas: View {
                             }
 
                             Button {
-                                state.viewMode = .page
+                                page.viewMode = .page
                                 if let page = document.page(at: pageIndex) {
                                     pdfCoordinator.pdfView?.go(to: page)
                                 }

@@ -66,6 +66,8 @@ char *tp_get_charset(const uint8_t *data, uintptr_t len);
 
 char *tp_get_axes_json(const uint8_t *data, uintptr_t len);
 
+char *tp_get_named_instances_json(const uint8_t *data, uintptr_t len);
+
 char *tp_get_substitutions_json(const uint8_t *data, uintptr_t len);
 
 const char *tp_version(void);

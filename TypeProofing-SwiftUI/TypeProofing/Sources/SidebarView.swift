@@ -4,6 +4,10 @@ import UniformTypeIdentifiers
 struct SidebarView: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var engine: ProofEngine
+    @EnvironmentObject var fonts: FontState
+    @EnvironmentObject var ui: UIState
+    @EnvironmentObject var page: PageState
+    @EnvironmentObject var preview: PreviewState
 
     var body: some View {
         VStack(spacing: 0) {
@@ -11,7 +15,7 @@ struct SidebarView: View {
                 VStack(spacing: 0) {
                     fontsSection
                     Divider().padding(.horizontal, 12)
-                    proofsSection
+                    SidebarProofsSection()
                 }
                 .padding(.horizontal, 4)
             }
@@ -28,13 +32,13 @@ struct SidebarView: View {
 
     private var fontsSection: some View {
         VStack(spacing: 0) {
-            collapsibleHeader(
-                "FONTS",
-                detail: "\(state.loadedFonts.count) loaded",
-                expanded: $state.fontsSectionExpanded
+            CollapsibleSectionHeader(
+                title: "FONTS",
+                detail: "\(fonts.loadedFonts.count) loaded",
+                expanded: $ui.fontsSectionExpanded
             )
 
-            if state.fontsSectionExpanded {
+            if ui.fontsSectionExpanded {
                 VStack(alignment: .leading, spacing: 4) {
                     FontsSection()
                 }
@@ -43,82 +47,9 @@ struct SidebarView: View {
 
                 HStack {
                     HoverButton("Add Fonts", systemImage: "plus") {
-                        state.showFontPicker = true
+                        ui.showFontPicker = true
                     }
                     .accessibilityIdentifier("add-fonts-button")
-                    Spacer()
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
-            }
-        }
-    }
-
-    // MARK: - Proofs Section
-
-    private var visibleProofs: [ProofOption] {
-        if state.anyFontSupportsArabic { return state.proofOptions }
-        return state.proofOptions.filter { option in
-            !(state.registryByKey[option.baseType]?.isArabic ?? false)
-        }
-    }
-
-    private var proofsSection: some View {
-        VStack(spacing: 0) {
-            collapsibleHeader(
-                "PROOFS",
-                detail: "\(state.proofOptions.filter(\.enabled).count) of \(visibleProofs.count)",
-                expanded: $state.proofsSectionExpanded
-            )
-
-            if state.proofsSectionExpanded {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(visibleProofs) { option in
-                        if let index = state.proofOptions.firstIndex(where: { $0.id == option.id }) {
-                            SidebarListRow(
-                                name: option.name,
-                                enabled: Binding(
-                                    get: { state.proofOptions[index].enabled },
-                                    set: { newValue in
-                                        state.proofOptions[index].enabled = newValue
-                                        state.schedulePersistPublic(notifyPreview: false)
-                                        state.previewCoordinator?.proofEnableChanged(proofID: option.id)
-                                    }
-                                ),
-                                isLast: option.id == visibleProofs.last?.id,
-                                isSelected: state.selectedProof == option.id,
-                                onRemove: {
-                                    state.removeProofOption(at: IndexSet(integer: index))
-                                },
-                                onTap: {
-                                    state.selectedProof = option.id
-                                    state.requestPreviewNavigation(to: option.id)
-                                },
-                                onRename: { newName in
-                                    state.proofOptions[index].name = newName
-                                    state.schedulePersistPublic()
-                                }
-                            )
-                            .onDrag {
-                                NSItemProvider(object: option.id.uuidString as NSString)
-                            }
-                            .onDrop(of: [.text], delegate: ProofDropDelegate(
-                                state: state,
-                                targetIndex: index
-                            ))
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
-
-                HStack {
-                    HoverButton("Add Proof", systemImage: "plus") {
-                        state.showAddProofSheet = true
-                    }
-                    .accessibilityIdentifier("add-proof-button")
-                    .popover(isPresented: $state.showAddProofSheet, arrowEdge: .top) {
-                        AddProofPopover()
-                    }
                     Spacer()
                 }
                 .padding(.horizontal, 8)
@@ -131,14 +62,14 @@ struct SidebarView: View {
 
     private var outputSection: some View {
         VStack(spacing: 0) {
-            collapsibleHeader("OUTPUT", detail: nil, expanded: $state.outputSectionExpanded)
+            CollapsibleSectionHeader(title: "OUTPUT", detail: nil, expanded: $ui.outputSectionExpanded)
 
-            if state.outputSectionExpanded {
+            if ui.outputSectionExpanded {
                 VStack(spacing: 8) {
                     PDFOutputSection()
 
-                    Picker("", selection: $state.pageFormat) {
-                        ForEach(state.pageFormats, id: \.self) { format in
+                    Picker("", selection: $page.pageFormat) {
+                        ForEach(page.pageFormats, id: \.self) { format in
                             Text(format).tag(format)
                         }
                     }
@@ -176,33 +107,147 @@ struct SidebarView: View {
             .buttonStyle(.glassProminent)
             .tint(state.isFinalPDFStale ? .orange : .dograyPurple)
             .help(state.isFinalPDFStale ? "Final PDF is out of sync with current settings" : "Generate Final PDF")
-            .disabled(engine.isGenerating || state.enabledFontPaths.isEmpty)
+            .disabled(engine.isGenerating || fonts.enabledFontPaths.isEmpty)
 
             if engine.isGenerating {
                 GenerationProgressView(progress: engine.generationProgress) {
                     engine.cancelGeneration()
                 }
             } else {
-                ProofRunSummaryCompact(summary: state.makeRunSummary())
+                ProofRunSummaryCompact(summary: state.cachedRunSummary)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
     }
 
-    // MARK: - Collapsible Section Header
+    // MARK: - Generate
 
-    private func collapsibleHeader(_ title: String, detail: String?, expanded: Binding<Bool>) -> some View {
+    private func generateProof() async {
+        state.previewCoordinator?.pauseForFinalGeneration()
+        state.persistState()
+        let config = state.buildProofConfig()
+        let capturedFingerprint = config.fingerprint()
+        engine.refreshRunSummary(config: config)
+        preview.finalPDFPath = nil
+        preview.finalSections = []
+        await Task.yield()
+        if let result = await engine.generateProof(config: config) {
+            preview.finalPDFPath = result.path
+            preview.finalSections = result.sections
+            preview.currentPDFPath = result.path
+            preview.proofSections = result.sections
+            if preview.previewPDFPath == nil {
+                preview.previewPDFPath = result.path
+                preview.previewSections = result.sections
+            }
+            state.refreshCurrentConfigFingerprint()
+            if preview.currentConfigFingerprint == capturedFingerprint {
+                preview.finalGeneratedConfigFingerprint = capturedFingerprint
+            }
+        }
+        state.previewCoordinator?.resumeAfterFinalGeneration()
+    }
+}
+
+// MARK: - Proofs Section (isolated observation)
+
+private struct SidebarProofsSection: View {
+    @EnvironmentObject var proofs: ProofState
+    @EnvironmentObject var fonts: FontState
+    @EnvironmentObject var state: AppState
+    @EnvironmentObject var ui: UIState
+
+    private var visibleProofs: [ProofOption] {
+        if fonts.anyFontSupportsArabic { return proofs.proofOptions }
+        return proofs.proofOptions.filter { option in
+            !(proofs.registryByKey[option.baseType]?.isArabic ?? false)
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            CollapsibleSectionHeader(
+                title: "PROOFS",
+                detail: "\(proofs.proofOptions.filter(\.enabled).count) of \(visibleProofs.count)",
+                expanded: $ui.proofsSectionExpanded
+            )
+
+            if ui.proofsSectionExpanded {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(visibleProofs) { option in
+                        if let index = proofs.proofOptions.firstIndex(where: { $0.id == option.id }) {
+                            SidebarListRow(
+                                name: option.name,
+                                enabled: Binding(
+                                    get: { proofs.proofOptions[index].enabled },
+                                    set: { newValue in
+                                        proofs.proofOptions[index].enabled = newValue
+                                        state.schedulePersistPublic(notifyPreview: false)
+                                        state.previewCoordinator?.proofEnableChanged(proofID: option.id)
+                                    }
+                                ),
+                                isLast: option.id == visibleProofs.last?.id,
+                                isSelected: proofs.selectedProof == option.id,
+                                onRemove: {
+                                    state.removeProofOption(at: IndexSet(integer: index))
+                                },
+                                onTap: {
+                                    proofs.selectedProof = option.id
+                                    state.requestPreviewNavigation(to: option.id)
+                                },
+                                onRename: { newName in
+                                    proofs.proofOptions[index].name = newName
+                                    state.schedulePersistPublic()
+                                }
+                            )
+                            .onDrag {
+                                NSItemProvider(object: option.id.uuidString as NSString)
+                            }
+                            .onDrop(of: [.text], delegate: ProofDropDelegate(
+                                state: state,
+                                targetIndex: index
+                            ))
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+
+                HStack {
+                    HoverButton("Add Proof", systemImage: "plus") {
+                        ui.showAddProofSheet = true
+                    }
+                    .accessibilityIdentifier("add-proof-button")
+                    .popover(isPresented: $ui.showAddProofSheet, arrowEdge: .top) {
+                        AddProofPopover()
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+            }
+        }
+    }
+}
+
+// MARK: - Collapsible Section Header
+
+struct CollapsibleSectionHeader: View {
+    let title: String
+    let detail: String?
+    @Binding var expanded: Bool
+
+    var body: some View {
         Button {
             withAnimation(.easeInOut(duration: 0.2)) {
-                expanded.wrappedValue.toggle()
+                expanded.toggle()
             }
         } label: {
             HStack {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.quaternary)
-                    .rotationEffect(expanded.wrappedValue ? .degrees(90) : .zero)
+                    .rotationEffect(expanded ? .degrees(90) : .zero)
                 Text(title)
                     .font(.system(size: 11, weight: .medium))
                     .tracking(0.88)
@@ -219,34 +264,6 @@ struct SidebarView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    // MARK: - Generate
-
-    private func generateProof() async {
-        state.previewCoordinator?.pauseForFinalGeneration()
-        state.persistState()
-        let config = state.buildProofConfig()
-        let capturedFingerprint = config.fingerprint()
-        engine.refreshRunSummary(config: config)
-        state.finalPDFPath = nil
-        state.finalSections = []
-        await Task.yield()
-        if let result = await engine.generateProof(config: config) {
-            state.finalPDFPath = result.path
-            state.finalSections = result.sections
-            state.currentPDFPath = result.path
-            state.proofSections = result.sections
-            if state.previewPDFPath == nil {
-                state.previewPDFPath = result.path
-                state.previewSections = result.sections
-            }
-            state.refreshCurrentConfigFingerprint()
-            if state.currentConfigFingerprint == capturedFingerprint {
-                state.finalGeneratedConfigFingerprint = capturedFingerprint
-            }
-        }
-        state.previewCoordinator?.resumeAfterFinalGeneration()
     }
 }
 
@@ -318,7 +335,7 @@ struct ProofDropDelegate: DropDelegate {
                   let uuid = UUID(uuidString: draggedID)
             else { return }
             Task { @MainActor in
-                guard let fromIndex = state.proofOptions.firstIndex(where: { $0.id == uuid }) else { return }
+                guard let fromIndex = state.proofs.proofOptions.firstIndex(where: { $0.id == uuid }) else { return }
                 state.moveProofOptions(
                     from: IndexSet(integer: fromIndex),
                     to: targetIndex > fromIndex ? targetIndex + 1 : targetIndex

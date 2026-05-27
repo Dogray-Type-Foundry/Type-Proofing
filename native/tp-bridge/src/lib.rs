@@ -224,6 +224,26 @@ pub unsafe extern "C" fn tp_get_axes_json(data: *const u8, len: usize) -> *mut c
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn tp_get_named_instances_json(data: *const u8, len: usize) -> *mut c_char {
+    let slice = std::slice::from_raw_parts(data, len);
+    let instances = tp_fonts::font_info::get_named_instances(slice);
+    if instances.is_empty() {
+        return ptr::null_mut();
+    }
+
+    let json_items: Vec<String> = instances.iter().map(|inst| {
+        let coords: Vec<String> = inst.coordinates.iter().map(|(tag, val)| {
+            let tag_str = std::str::from_utf8(tag).unwrap_or("????");
+            format!("\"{}\":{}", tag_str, val)
+        }).collect();
+        let name = inst.name.replace('\\', "\\\\").replace('"', "\\\"");
+        format!("{{\"name\":\"{}\",\"coordinates\":{{{}}}}}", name, coords.join(","))
+    }).collect();
+
+    string_to_c(format!("[{}]", json_items.join(",")))
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn tp_get_substitutions_json(data: *const u8, len: usize) -> *mut c_char {
     let slice = std::slice::from_raw_parts(data, len);
     let subs = tp_fonts::substitutions::get_font_substitutions(slice);

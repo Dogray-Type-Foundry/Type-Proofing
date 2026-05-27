@@ -101,7 +101,8 @@ struct InspectorGroup<Content: View>: View {
 // MARK: - SettingsPanelView
 
 struct SettingsPanelView: View {
-    @EnvironmentObject var state: AppState
+    @EnvironmentObject var proofs: ProofState
+    @EnvironmentObject var fonts: FontState
     @EnvironmentObject var engine: ProofEngine
     @State private var selectedTab: SettingsPanelTab = .settings
 
@@ -131,8 +132,9 @@ struct SettingsPanelView: View {
     private var settingsContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if let option = state.selectedProofOption {
-                    let entry = state.selectedRegistryEntry
+                if let option = proofs.selectedProofOption {
+                    let entry = proofs.selectedRegistryEntry
+                    let settings = proofs.selectedProofSettings
 
                     Text(option.name)
                         .font(.headline)
@@ -144,18 +146,18 @@ struct SettingsPanelView: View {
                     InspectorGroup(icon: "textformat.size", title: "Typography") {
                         NumericSetting(
                             label: "Size",
-                            value: state.selectedProofSettings.fontSize,
+                            value: settings.fontSize,
                             range: 4...200,
                             step: 1,
                             unit: "pt"
                         )
 
                         if option.baseType == "filtered_character_set" {
-                            Toggle("Auto-size (fit category in one page)", isOn: state.selectedProofSettings.autoSize)
+                            Toggle("Auto-size (fit category in one page)", isOn: settings.autoSize)
                                 .toggleStyle(.checkbox)
                                 .font(.caption)
                         } else if entry?.isMultiStyle ?? false {
-                            Toggle("Auto-size (fit longest line)", isOn: state.selectedProofSettings.autoSize)
+                            Toggle("Auto-size (fit longest line)", isOn: settings.autoSize)
                                 .toggleStyle(.checkbox)
                                 .font(.caption)
                         }
@@ -163,7 +165,7 @@ struct SettingsPanelView: View {
                         if entry?.supportsLineHeight ?? false {
                             NumericSetting(
                                 label: "Line Height",
-                                value: state.selectedProofSettings.lineHeight,
+                                value: settings.lineHeight,
                                 range: 0.5...5.0,
                                 step: 0.05,
                                 unit: "em"
@@ -173,7 +175,7 @@ struct SettingsPanelView: View {
                         if entry?.supportsFormatting ?? false {
                             NumericSetting(
                                 label: "Tracking",
-                                value: state.selectedProofSettings.tracking,
+                                value: settings.tracking,
                                 range: -20...100,
                                 step: 0.1
                             )
@@ -189,13 +191,13 @@ struct SettingsPanelView: View {
                             if entry?.supportsCols ?? false {
                                 NumericSetting(
                                     label: "Columns",
-                                    value: state.selectedProofSettings.columns,
+                                    value: settings.columns,
                                     range: 1...6,
                                     step: 1
                                 )
                                 NumericSetting(
                                     label: "Column Gap",
-                                    value: state.selectedProofSettings.columnGap,
+                                    value: settings.columnGap,
                                     range: 0...100,
                                     step: 1,
                                     unit: "pt"
@@ -203,15 +205,15 @@ struct SettingsPanelView: View {
                             }
 
                             if entry?.supportsFormatting ?? false {
-                                AlignmentPicker(alignment: state.selectedProofSettings.alignment)
-                                DirectionPicker(direction: state.selectedProofSettings.direction)
+                                AlignmentPicker(alignment: settings.alignment)
+                                DirectionPicker(direction: settings.direction)
                                 if entry?.supportsHyphenation ?? false {
-                                    Toggle("Hyphenation", isOn: state.selectedProofSettings.hyphenation)
+                                    Toggle("Hyphenation", isOn: settings.hyphenation)
                                         .toggleStyle(.switch)
                                         .controlSize(.small)
                                 }
-                                if state.anyFontSupportsOpbd {
-                                    Toggle("Hanging Punctuation", isOn: state.selectedProofSettings.hangingPunctuation)
+                                if fonts.anyFontSupportsOpbd {
+                                    Toggle("Hanging Punctuation", isOn: settings.hangingPunctuation)
                                         .toggleStyle(.switch)
                                         .controlSize(.small)
                                 }
@@ -227,7 +229,7 @@ struct SettingsPanelView: View {
                         InspectorGroup(icon: "text.alignleft", title: "Paragraph") {
                             NumericSetting(
                                 label: "Paragraphs",
-                                value: state.selectedProofSettings.paragraphs,
+                                value: settings.paragraphs,
                                 range: 1...20,
                                 step: 1
                             )
@@ -235,14 +237,14 @@ struct SettingsPanelView: View {
                             if entry?.supportsFormatting ?? false {
                                 NumericSetting(
                                     label: "Indent",
-                                    value: state.selectedProofSettings.paragraphIndent,
+                                    value: settings.paragraphIndent,
                                     range: 0...10,
                                     step: 0.5,
                                     unit: "em"
                                 )
                                 NumericSetting(
                                     label: "Spacing",
-                                    value: state.selectedProofSettings.paragraphSpace,
+                                    value: settings.paragraphSpace,
                                     range: 0...5,
                                     step: 0.1,
                                     unit: "em"
@@ -258,30 +260,30 @@ struct SettingsPanelView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         if (entry?.hasCategories ?? false) || option.baseType == "substitution_overview" {
                             if entry?.hasCategories ?? false {
-                                CategoryCheckboxes(categories: state.selectedProofSettings.categories)
+                                CategoryCheckboxes(categories: settings.categories)
                             }
                             if option.baseType == "substitution_overview" {
-                                SubstitutionCheckboxes(features: state.selectedProofSettings.substitutionFeatures)
+                                SubstitutionCheckboxes(features: settings.substitutionFeatures)
                             }
                             Divider()
                         }
 
                         if entry?.hasCustomText ?? false {
                             if option.baseType == "custom_text" {
-                                TextPresetsSection(customText: state.selectedProofSettings.customText)
+                                TextPresetsSection(customText: settings.customText)
                             }
 
                             CustomTextSection(
-                                text: state.selectedProofSettings.customText,
-                                markupEnabled: state.selectedProofSettings.markupEnabled,
-                                generateOnce: state.selectedProofSettings.generateOnce,
+                                text: settings.customText,
+                                markupEnabled: settings.markupEnabled,
+                                generateOnce: settings.generateOnce,
                                 showGenerateOnce: !(entry?.isMultiStyle ?? false)
                             )
 
-                            if !(entry?.isMultiStyle ?? false) && state.selectedProofSettings.generateOnce.wrappedValue {
+                            if !(entry?.isMultiStyle ?? false) && settings.generateOnce.wrappedValue {
                                 DefaultFontPicker(
-                                    defaultFontPath: state.selectedProofSettings.defaultFontPath,
-                                    defaultFontAxisDict: state.selectedProofSettings.defaultFontAxisDict
+                                    defaultFontPath: settings.defaultFontPath,
+                                    defaultFontAxisDict: settings.defaultFontAxisDict
                                 )
                             }
 
@@ -290,18 +292,18 @@ struct SettingsPanelView: View {
 
                         if entry?.isMultiStyle ?? false {
                             MultiStyleFontList(
-                                enabledStyleIndices: state.selectedProofSettings.enabledStyleIndices
+                                enabledStyleIndices: settings.enabledStyleIndices
                             )
-                            Toggle("Show fallback glyphs for missing characters", isOn: state.selectedProofSettings.showFallback)
+                            Toggle("Show fallback glyphs for missing characters", isOn: settings.showFallback)
                                 .toggleStyle(.checkbox)
                             Divider()
                         }
 
                         if option.baseType != "substitution_overview" {
                             OTFeaturesSection(
-                                features: state.selectedProofSettings.otFeatures,
+                                features: settings.otFeatures,
                                 isSpacingProof: option.baseType == "spacing_proof",
-                                fontPath: state.enabledFontPaths.first
+                                fontPath: fonts.enabledFontPaths.first
                             )
                         }
                     }
@@ -446,6 +448,7 @@ private struct DiagnosticRow: View {
 
 struct PDFOutputSection: View {
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var output: OutputState
     @State private var showFolderPicker = false
 
     var body: some View {
@@ -454,19 +457,19 @@ struct PDFOutputSection: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Picker("", selection: $state.useCustomOutputLocation) {
+            Picker("", selection: $output.useCustomOutputLocation) {
                 Text("First font's folder").tag(false)
                 Text("Custom location").tag(true)
             }
             .pickerStyle(.radioGroup)
             .labelsHidden()
 
-            if state.useCustomOutputLocation {
+            if output.useCustomOutputLocation {
                 HStack {
-                    Text(state.customOutputLocation.isEmpty ? "No folder selected" : (state.customOutputLocation as NSString).lastPathComponent)
+                    Text(output.customOutputLocation.isEmpty ? "No folder selected" : (output.customOutputLocation as NSString).lastPathComponent)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                        .foregroundStyle(state.customOutputLocation.isEmpty ? .tertiary : .primary)
+                        .foregroundStyle(output.customOutputLocation.isEmpty ? .tertiary : .primary)
                         .font(.caption)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Button("Browse…") {
@@ -480,19 +483,18 @@ struct PDFOutputSection: View {
                 ) { result in
                     if case .success(let url) = result {
                         _ = url.startAccessingSecurityScopedResource()
-                        state.customOutputLocation = url.path
+                        output.customOutputLocation = url.path
                         state.schedulePersistPublic()
                     }
                 }
             } else {
                 HStack {
-                    Text(state.outputDirectory.isEmpty ? " " : (state.outputDirectory as NSString).lastPathComponent)
+                    Text(output.outputDirectory.isEmpty ? " " : (output.outputDirectory as NSString).lastPathComponent)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .foregroundStyle(.tertiary)
                         .font(.caption)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    // Invisible button to reserve same space as "Browse…"
                     Button("Browse…") {}
                         .controlSize(.small)
                         .hidden()
@@ -659,7 +661,7 @@ struct AlignmentPicker: View {
 struct TextPresetsSection: View {
     @Binding var customText: String
     @EnvironmentObject var engine: ProofEngine
-    @EnvironmentObject var state: AppState
+    @EnvironmentObject var fonts: FontState
 
     private static let pangrams = """
     The quick brown fox jumps over the lazy dog.
@@ -691,7 +693,7 @@ struct TextPresetsSection: View {
                 presetButton("Punctuation") { customText = PremadeTexts.additionalSmallText }
                 presetButton("Diacritics") { customText = Self.diacritics }
                 presetButton("Word-o-mat") {
-                    guard let path = state.enabledFontPaths.first else { return }
+                    guard let path = fonts.enabledFontPaths.first else { return }
                     customText = engine.generateWordomat(fontPath: path)
                 }
                 presetButton("Clipboard") {

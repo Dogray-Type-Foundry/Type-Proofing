@@ -579,7 +579,11 @@ final class ProofEngine: ObservableObject {
         return bridge.text(glyphs: charset, paragraphs: paragraphs)
     }
 
-    func getFontStyles(paths: [String]) -> [FontStyleEntry] {
+    func getFontStyles(
+        paths: [String],
+        mode: StyleSourceMode = .namedInstances,
+        axisValuesByFont: [String: [String: [Double]]] = [:]
+    ) -> [FontStyleEntry] {
         var entries: [FontStyleEntry] = []
         var globalIndex = 0
 
@@ -607,92 +611,95 @@ final class ProofEngine: ObservableObject {
                 continue
             }
 
-            // Variable font: enumerate named instances via CoreText
-            let url = URL(fileURLWithPath: path) as CFURL
-            guard let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor],
-                  let desc = descriptors.first else {
-                entries.append(FontStyleEntry(
-                    index: globalIndex, fontPath: path,
-                    familyName: rustInfo.familyName, styleName: rustInfo.subfamilyName,
-                    isVariable: true, coordinates: nil
-                ))
-                globalIndex += 1
-                continue
+            switch mode {
+            case .namedInstances:
+                let instanceEntries = namedInstanceEntries(data: data, path: path, familyName: rustInfo.familyName, subfamilyName: rustInfo.subfamilyName, globalIndex: &globalIndex)
+                entries.append(contentsOf: instanceEntries)
+
+            case .customPositions:
+                let customEntries = customPositionEntries(data: data, path: path, familyName: rustInfo.familyName, subfamilyName: rustInfo.subfamilyName, axisValues: axisValuesByFont[path], globalIndex: &globalIndex)
+                entries.append(contentsOf: customEntries)
             }
+        }
+        return entries
+    }
 
-            let ctFont = CTFontCreateWithFontDescriptor(desc, 12, nil)
-            guard let ctAxes = CTFontCopyVariationAxes(ctFont) as? [[String: Any]] else {
-                entries.append(FontStyleEntry(
-                    index: globalIndex, fontPath: path,
-                    familyName: rustInfo.familyName, styleName: rustInfo.subfamilyName,
-                    isVariable: true, coordinates: nil
-                ))
-                globalIndex += 1
-                continue
+    private func namedInstanceEntries(data: Data, path: String, familyName: String, subfamilyName: String, globalIndex: inout Int) -> [FontStyleEntry] {
+        let instances: [[String: Any]]? = data.withUnsafeBytes { buffer in
+            guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                  let jsonPtr = tp_get_named_instances_json(ptr, UInt(buffer.count)) else { return nil }
+            defer { wsv_free_string(jsonPtr) }
+            let jsonStr = String(cString: jsonPtr)
+            guard let jsonData = jsonStr.data(using: .utf8),
+                  let arr = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] else { return nil }
+            return arr
+        }
+
+        guard let instances, !instances.isEmpty else {
+            let entry = FontStyleEntry(
+                index: globalIndex, fontPath: path,
+                familyName: familyName, styleName: subfamilyName,
+                isVariable: true, coordinates: nil
+            )
+            globalIndex += 1
+            return [entry]
+        }
+
+        var entries: [FontStyleEntry] = []
+        for inst in instances {
+            let name = inst["name"] as? String ?? ""
+            let coordsDict = inst["coordinates"] as? [String: Double] ?? [:]
+            entries.append(FontStyleEntry(
+                index: globalIndex, fontPath: path,
+                familyName: familyName, styleName: name,
+                isVariable: true, coordinates: coordsDict
+            ))
+            globalIndex += 1
+        }
+        return entries
+    }
+
+    private func customPositionEntries(data: Data, path: String, familyName: String, subfamilyName: String, axisValues: [String: [Double]]?, globalIndex: inout Int) -> [FontStyleEntry] {
+        var axisArrays: [(tag: String, values: [Double])] = []
+
+        if let userValues = axisValues, !userValues.isEmpty {
+            for (tag, values) in userValues.sorted(by: { $0.key < $1.key }) {
+                axisArrays.append((tag, values))
             }
+        }
 
-            // Map axis identifiers to tag strings
-            let axisIDToTag: [Int: String] = Dictionary(uniqueKeysWithValues: ctAxes.compactMap { axis -> (Int, String)? in
-                guard let id = axis[kCTFontVariationAxisIdentifierKey as String] as? Int,
-                      let tag = axis[kCTFontVariationAxisNameKey as String] as? String else { return nil }
-                // Convert 4-byte int ID to tag string
-                let tagStr = String(UnicodeScalar((id >> 24) & 0xFF)!) +
-                             String(UnicodeScalar((id >> 16) & 0xFF)!) +
-                             String(UnicodeScalar((id >> 8) & 0xFF)!) +
-                             String(UnicodeScalar(id & 0xFF)!)
-                return (id, tagStr)
-            })
+        if axisArrays.isEmpty {
+            let entry = FontStyleEntry(
+                index: globalIndex, fontPath: path,
+                familyName: familyName, styleName: subfamilyName,
+                isVariable: true, coordinates: nil
+            )
+            globalIndex += 1
+            return [entry]
+        }
 
-            // Get named instances from the fvar table via CoreText
-            // CoreText doesn't directly expose named instances, but we can use the font's variation data
-            // Use the Rust axes JSON which has generation values (min, [default], max)
-            if let genData = data.withUnsafeBytes({ buffer -> String? in
-                guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return nil }
-                guard let jsonPtr = tp_get_axes_json(ptr, UInt(buffer.count)) else { return nil }
-                defer { wsv_free_string(jsonPtr) }
-                return String(cString: jsonPtr)
-            }), let jsonData = genData.data(using: .utf8),
-               let genAxes = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] {
-
-                // Build the Cartesian product of all axis values to create "instances"
-                var axisValuesArrays: [(tag: String, values: [Double])] = []
-                for axis in genAxes {
-                    guard let tag = axis["tag"] as? String,
-                          let values = axis["values"] as? [Double] else { continue }
-                    axisValuesArrays.append((tag, values))
+        var combinations: [[(String, Double)]] = [[]]
+        for (tag, values) in axisArrays {
+            var next: [[(String, Double)]] = []
+            for combo in combinations {
+                for val in values {
+                    next.append(combo + [(tag, val)])
                 }
-
-                // Cartesian product
-                var combinations: [[(String, Double)]] = [[]]
-                for (tag, values) in axisValuesArrays {
-                    var newCombinations: [[(String, Double)]] = []
-                    for combo in combinations {
-                        for val in values {
-                            newCombinations.append(combo + [(tag, val)])
-                        }
-                    }
-                    combinations = newCombinations
-                }
-
-                for combo in combinations {
-                    let coords = Dictionary(uniqueKeysWithValues: combo)
-                    let styleParts = combo.map { "\($0.0)=\(Int($0.1))" }
-                    let styleName = styleParts.joined(separator: " ")
-                    entries.append(FontStyleEntry(
-                        index: globalIndex, fontPath: path,
-                        familyName: rustInfo.familyName, styleName: styleName,
-                        isVariable: true, coordinates: coords
-                    ))
-                    globalIndex += 1
-                }
-            } else {
-                entries.append(FontStyleEntry(
-                    index: globalIndex, fontPath: path,
-                    familyName: rustInfo.familyName, styleName: rustInfo.subfamilyName,
-                    isVariable: true, coordinates: nil
-                ))
-                globalIndex += 1
             }
+            combinations = next
+        }
+
+        var entries: [FontStyleEntry] = []
+        for combo in combinations {
+            let coords = Dictionary(uniqueKeysWithValues: combo)
+            let styleParts = combo.map { "\($0.0)=\(Int($0.1))" }
+            let styleName = styleParts.joined(separator: " ")
+            entries.append(FontStyleEntry(
+                index: globalIndex, fontPath: path,
+                familyName: familyName, styleName: styleName,
+                isVariable: true, coordinates: coords
+            ))
+            globalIndex += 1
         }
         return entries
     }

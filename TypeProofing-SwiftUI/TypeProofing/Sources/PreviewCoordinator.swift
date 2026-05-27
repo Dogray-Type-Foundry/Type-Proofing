@@ -36,14 +36,6 @@ private struct PreviewJob {
     let priority: PreviewPriority
 }
 
-private struct PlaceholderKey: Hashable {
-    let pageFormat: String
-    let title: String
-    let message: String
-    let width: Int
-    let height: Int
-}
-
 @MainActor
 final class PreviewCoordinator: ObservableObject {
     private weak var state: AppState?
@@ -63,7 +55,6 @@ final class PreviewCoordinator: ObservableObject {
         .appendingPathComponent("type-proofing-preview")
         .appendingPathComponent(UUID().uuidString)
     private var pageDimensions: [String: PageFormatDimensions] = [:]
-    private var placeholderCache: [PlaceholderKey: URL] = [:]
     private var retainedComposedURLs: [URL] = []
 
     private var maxFastParallelism: Int {
@@ -105,7 +96,7 @@ final class PreviewCoordinator: ObservableObject {
 
     func proofEnableChanged(proofID: ProofOption.ID) {
         guard let state else { return }
-        if state.proofOptions.first(where: { $0.id == proofID })?.enabled == true {
+        if state.proofs.proofOptions.first(where: { $0.id == proofID })?.enabled == true {
             invalidateProof(proofID)
         } else {
             cancelRunning(for: proofID)
@@ -120,7 +111,7 @@ final class PreviewCoordinator: ObservableObject {
     }
 
     func selectedProofChanged() {
-        guard let selected = state?.selectedProof else { return }
+        guard let selected = state?.proofs.selectedProof else { return }
         prioritizeQueuedJob(for: selected)
         pumpQueues()
     }
@@ -151,24 +142,27 @@ final class PreviewCoordinator: ObservableObject {
         fastQueue.removeAll()
         wordsivQueue.removeAll()
 
-        let enabled = state.proofOptions.filter(\.enabled)
-        guard !state.enabledFontPaths.isEmpty, !enabled.isEmpty else {
+        let enabled = state.proofs.proofOptions.filter(\.enabled)
+        guard !state.fonts.enabledFontPaths.isEmpty, !enabled.isEmpty else {
             fragments.removeAll()
-            state.previewPDFPath = nil
-            state.previewSections = []
+            state.preview.previewPDFPath = nil
+            state.preview.previewSections = []
             return
         }
 
-        let selectedID = state.selectedProof
+        let fullConfig = state.buildProofConfig()
+        let flatSettings = state.buildFlatProofSettings()
+        let selectedID = state.proofs.selectedProof
         for option in enabled {
-            enqueue(option: option, priority: option.id == selectedID ? .selected : .normal)
+            enqueue(option: option, priority: option.id == selectedID ? .selected : .normal,
+                    fullConfig: fullConfig, flatSettings: flatSettings)
         }
         requestCompose(immediate: true)
         pumpQueues()
     }
 
     private func invalidateProof(_ proofID: ProofOption.ID) {
-        guard let option = state?.proofOptions.first(where: { $0.id == proofID }) else { return }
+        guard let state, let option = state.proofs.proofOptions.first(where: { $0.id == proofID }) else { return }
         cancelRunning(for: proofID)
         removeQueuedJobs(for: proofID)
         guard option.enabled else {
@@ -176,14 +170,19 @@ final class PreviewCoordinator: ObservableObject {
             requestCompose(immediate: true)
             return
         }
-        enqueue(option: option, priority: option.id == state?.selectedProof ? .selected : .normal)
+        let fullConfig = state.buildProofConfig()
+        let flatSettings = state.buildFlatProofSettings()
+        enqueue(option: option, priority: option.id == state.proofs.selectedProof ? .selected : .normal,
+                fullConfig: fullConfig, flatSettings: flatSettings)
         requestCompose(immediate: true)
         pumpQueues()
     }
 
-    private func enqueue(option: ProofOption, priority: PreviewPriority) {
+    private func enqueue(option: ProofOption, priority: PreviewPriority,
+                         fullConfig: ProofConfig? = nil, flatSettings: [String: Any]? = nil) {
         guard let state else { return }
-        let fingerprint = state.previewFingerprint(for: option)
+        let resolvedFlatSettings = flatSettings ?? state.buildFlatProofSettings()
+        let fingerprint = state.previewFingerprint(for: option, flatSettings: resolvedFlatSettings)
         if let existing = fragments[option.id],
            existing.fingerprint == fingerprint,
            case .ready = existing.status {
@@ -191,7 +190,7 @@ final class PreviewCoordinator: ObservableObject {
         }
 
         let token = UUID()
-        let cost = state.registryByKey[option.baseType]?.previewCost ?? .fast
+        let cost = state.proofs.registryByKey[option.baseType]?.previewCost ?? .fast
         fragments[option.id] = PreviewFragment(
             proofID: option.id,
             proofName: option.name,
@@ -207,7 +206,7 @@ final class PreviewCoordinator: ObservableObject {
             proofID: option.id,
             proofName: option.name,
             baseType: option.baseType,
-            fullConfig: state.buildProofConfig(),
+            fullConfig: fullConfig ?? state.buildProofConfig(),
             fingerprint: fingerprint,
             cost: cost,
             priority: priority
@@ -290,7 +289,7 @@ final class PreviewCoordinator: ObservableObject {
                   result.baseType == job.baseType else {
                 fragment.status = .failed(message: "Preview worker returned a different proof.")
                 fragments[job.proofID] = fragment
-                composePreview()
+                requestCompose(immediate: true)
                 pumpQueues()
                 return
             }
@@ -311,109 +310,100 @@ final class PreviewCoordinator: ObservableObject {
 
     private func requestCompose(immediate: Bool = false) {
         composeTask?.cancel()
-        if immediate {
-            composeTask = nil
-            composePreview()
-            return
-        }
-
         composeTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 75_000_000)
+            if !immediate {
+                try? await Task.sleep(nanoseconds: 75_000_000)
+            }
             guard !Task.isCancelled else { return }
-            self?.composePreview()
+            await self?.composePreview()
         }
     }
 
-    private func composePreview() {
+    private func composePreview() async {
         guard let state else { return }
-        let enabled = state.proofOptions.filter(\.enabled)
-        guard !enabled.isEmpty, !state.enabledFontPaths.isEmpty else {
-            state.previewPDFPath = nil
-            state.previewSections = []
+        let enabled = state.proofs.proofOptions.filter(\.enabled)
+        guard !enabled.isEmpty, !state.fonts.enabledFontPaths.isEmpty else {
+            state.preview.previewPDFPath = nil
+            state.preview.previewSections = []
             return
         }
 
-        let output = PDFDocument()
-        var sections: [ProofSection] = []
-
+        var entries: [(name: String, readyPath: String?, message: String)] = []
         for option in enabled {
-            sections.append(ProofSection(name: option.name, firstPage: output.pageCount))
             let status = fragments[option.id]?.status ?? .empty
-            appendPages(for: option, status: status, to: output)
+            switch status {
+            case .ready(let path, _, _):
+                entries.append((option.name, path, "Preview unavailable"))
+            case .failed(let msg):
+                entries.append((option.name, nil, msg))
+            case .generating:
+                entries.append((option.name, nil, "Generating preview..."))
+            case .queued:
+                entries.append((option.name, nil, "Queued for preview..."))
+            case .empty:
+                entries.append((option.name, nil, "Waiting for preview..."))
+            }
         }
+        let dims = currentPageDimensions()
+        let outDir = composedDirectory()
 
-        let url = composedDirectory()
-            .appendingPathComponent("preview-\(UUID().uuidString).pdf")
-        if output.pageCount > 0, output.write(to: url) {
-            state.previewPDFPath = url.path
-            state.previewSections = sections
+        let result = await Self.performCompose(entries: entries, pageWidth: dims.width, pageHeight: dims.height, outputDir: outDir)
+
+        guard !Task.isCancelled else { return }
+        if let (url, sections) = result {
+            state.preview.previewPDFPath = url.path
+            state.preview.previewSections = sections
             retainComposedURL(url)
         }
     }
 
-    private func appendPages(for option: ProofOption, status: PreviewFragmentStatus, to output: PDFDocument) {
-        switch status {
-        case .ready(let path, _, _):
-            if let document = PDFDocument(url: URL(fileURLWithPath: path)), document.pageCount > 0 {
+    nonisolated private static func performCompose(
+        entries: [(name: String, readyPath: String?, message: String)],
+        pageWidth: CGFloat,
+        pageHeight: CGFloat,
+        outputDir: URL
+    ) -> (URL, [ProofSection])? {
+        let output = PDFDocument()
+        var sections: [ProofSection] = []
+
+        for entry in entries {
+            sections.append(ProofSection(name: entry.name, firstPage: output.pageCount))
+
+            if let path = entry.readyPath,
+               let document = PDFDocument(url: URL(fileURLWithPath: path)),
+               document.pageCount > 0 {
                 for index in 0..<document.pageCount {
                     if let page = document.page(at: index) {
-                        let pageForOutput = (page.copy() as? PDFPage) ?? page
-                        output.insert(pageForOutput, at: output.pageCount)
+                        let pageCopy = (page.copy() as? PDFPage) ?? page
+                        output.insert(pageCopy, at: output.pageCount)
                     }
                 }
-                return
+            } else {
+                if let page = Self.makePlaceholderPage(
+                    title: entry.name, message: entry.message,
+                    width: pageWidth, height: pageHeight
+                ) {
+                    output.insert(page, at: output.pageCount)
+                }
             }
-            appendPlaceholder(title: option.name, message: "Preview unavailable", to: output)
-        case .failed(let message):
-            appendPlaceholder(title: option.name, message: message, to: output)
-        case .generating:
-            appendPlaceholder(title: option.name, message: "Generating preview...", to: output)
-        case .queued:
-            appendPlaceholder(title: option.name, message: "Queued for preview...", to: output)
-        case .empty:
-            appendPlaceholder(title: option.name, message: "Waiting for preview...", to: output)
         }
+
+        let url = outputDir.appendingPathComponent("preview-\(UUID().uuidString).pdf")
+        guard output.pageCount > 0, output.write(to: url) else { return nil }
+        return (url, sections)
     }
 
-    private func appendPlaceholder(title: String, message: String, to output: PDFDocument) {
-        let dimensions = currentPageDimensions()
-        let key = PlaceholderKey(
-            pageFormat: state?.pageFormat ?? "A4Landscape",
-            title: title,
-            message: message,
-            width: Int(dimensions.width.rounded()),
-            height: Int(dimensions.height.rounded())
-        )
-        let url: URL
-        if let cached = placeholderCache[key],
-           FileManager.default.fileExists(atPath: cached.path) {
-            url = cached
-        } else {
-            let newURL = placeholderDirectory()
-                .appendingPathComponent("placeholder-\(UUID().uuidString).pdf")
-            writePlaceholderPDF(title: title, message: message, dimensions: dimensions, to: newURL)
-            placeholderCache[key] = newURL
-            url = newURL
-        }
-        guard let document = PDFDocument(url: url), let page = document.page(at: 0) else { return }
-        let pageForOutput = (page.copy() as? PDFPage) ?? page
-        output.insert(pageForOutput, at: output.pageCount)
-    }
-
-    private func writePlaceholderPDF(
-        title: String,
-        message: String,
-        dimensions: PageFormatDimensions,
-        to url: URL
-    ) {
-        var mediaBox = CGRect(x: 0, y: 0, width: dimensions.width, height: dimensions.height)
+    nonisolated private static func makePlaceholderPage(
+        title: String, message: String, width: CGFloat, height: CGFloat
+    ) -> PDFPage? {
+        var mediaBox = CGRect(x: 0, y: 0, width: width, height: height)
         let data = NSMutableData()
         guard let consumer = CGDataConsumer(data: data as CFMutableData),
-              let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else { return }
+              let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else { return nil }
 
         context.beginPDFPage(nil)
         context.saveGState()
-        context.translateBy(x: 0, y: dimensions.height)
+        context.translateBy(x: 0, y: height)
         context.scaleBy(x: 1, y: -1)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
@@ -427,21 +417,23 @@ final class PreviewCoordinator: ObservableObject {
             .foregroundColor: NSColor.secondaryLabelColor,
         ]
         let x: CGFloat = 48
-        let y = dimensions.height / 2 - 30
+        let y = height / 2 - 30
         NSAttributedString(string: title, attributes: titleAttributes)
-            .draw(in: CGRect(x: x, y: y, width: dimensions.width - x * 2, height: 32))
+            .draw(in: CGRect(x: x, y: y, width: width - x * 2, height: 32))
         NSAttributedString(string: message, attributes: messageAttributes)
-            .draw(in: CGRect(x: x, y: y + 36, width: dimensions.width - x * 2, height: 48))
+            .draw(in: CGRect(x: x, y: y + 36, width: width - x * 2, height: 48))
 
         NSGraphicsContext.restoreGraphicsState()
         context.restoreGState()
         context.endPDFPage()
         context.closePDF()
-        data.write(to: url, atomically: true)
+
+        guard let pdfDoc = PDFDocument(data: data as Data) else { return nil }
+        return pdfDoc.page(at: 0)
     }
 
     private func currentPageDimensions() -> PageFormatDimensions {
-        pageDimensions[state?.pageFormat ?? "A4Landscape"]
+        pageDimensions[state?.page.pageFormat ?? "A4Landscape"]
             ?? PageFormatDimensions(width: 842, height: 595)
     }
 
@@ -478,7 +470,6 @@ final class PreviewCoordinator: ObservableObject {
 
     private func createPreviewDirectories() {
         try? FileManager.default.createDirectory(at: fragmentsDirectory(), withIntermediateDirectories: true)
-        try? FileManager.default.createDirectory(at: placeholderDirectory(), withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: composedDirectory(), withIntermediateDirectories: true)
     }
 
@@ -490,10 +481,6 @@ final class PreviewCoordinator: ObservableObject {
         fragmentsDirectory()
             .appendingPathComponent(job.proofID.uuidString)
             .appendingPathComponent(job.token.uuidString)
-    }
-
-    private func placeholderDirectory() -> URL {
-        sessionDirectory.appendingPathComponent("placeholders")
     }
 
     private func composedDirectory() -> URL {

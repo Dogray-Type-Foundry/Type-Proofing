@@ -8,6 +8,10 @@ extension Color {
 struct ContentView: View {
     @EnvironmentObject var engine: ProofEngine
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var ui: UIState
+    @EnvironmentObject var page: PageState
+    @EnvironmentObject var preview: PreviewState
+    @EnvironmentObject var fonts: FontState
     @StateObject private var previewCoordinator = PreviewCoordinator()
     @StateObject private var pdfCoordinator = PDFViewCoordinator()
 
@@ -26,21 +30,28 @@ struct ContentView: View {
                 state.loadFromEngine(engine)
                 previewCoordinator.configure(state: state, engine: engine)
                 state.previewCoordinator = previewCoordinator
+                state.pdfCoordinator = pdfCoordinator
                 previewCoordinator.startInitialPreview()
             }
         }
-        .onChange(of: state.pageFormat) { _ in
+        .onChange(of: page.pageFormat) { _ in
             state.schedulePersistPublic()
         }
-        .onChange(of: state.showBaselines) { _ in
+        .onChange(of: page.showBaselines) { _ in
             state.schedulePersistPublic()
         }
-        .onChange(of: state.selectedProof) { _ in
-            previewCoordinator.selectedProofChanged()
+        .onChange(of: fonts.styleSourceMode) { _ in
+            state.refreshFontStyles(engine: engine)
+            state.schedulePersistPublic()
         }
-        // Add-proof popover is now presented from SidebarView
+        .onChange(of: fonts.axisValuesByFont) { _ in
+            if fonts.styleSourceMode == .customPositions {
+                state.refreshFontStyles(engine: engine)
+            }
+        }
+        .background(ProofSelectionRelay(coordinator: previewCoordinator))
         .fileImporter(
-            isPresented: $state.showSettingsImporter,
+            isPresented: $ui.showSettingsImporter,
             allowedContentTypes: [.json]
         ) { result in
             if case .success(let url) = result {
@@ -48,7 +59,7 @@ struct ContentView: View {
             }
         }
         .fileImporter(
-            isPresented: $state.showFontPicker,
+            isPresented: $ui.showFontPicker,
             allowedContentTypes: [
                 UTType(filenameExtension: "otf") ?? .data,
                 UTType(filenameExtension: "ttf") ?? .data,
@@ -87,55 +98,55 @@ struct ContentView: View {
 
     private var mainLayout: some View {
         HStack(spacing: 0) {
-            if state.showSidebar {
+            if ui.showSidebar {
                 SidebarView()
-                    .frame(width: state.sidebarWidth)
+                    .frame(width: ui.sidebarWidth)
                     .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 12))
                     .transition(.move(edge: .leading))
                 PanelDragHandle(
-                    width: $state.sidebarWidth,
+                    width: $ui.sidebarWidth,
                     minWidth: 180, maxWidth: 400
                 )
             }
-            if state.showThumbnailStrip {
+            if ui.showThumbnailStrip {
                 ThumbnailStripView(
-                    pdfPath: state.previewPDFPath,
-                    sections: state.previewSections,
+                    pdfPath: preview.previewPDFPath,
+                    sections: preview.previewSections,
                     pdfCoordinator: pdfCoordinator
                 )
-                .frame(width: state.thumbnailStripWidth)
+                .frame(width: ui.thumbnailStripWidth)
                 .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 12))
                 .transition(.move(edge: .leading))
                 PanelDragHandle(
-                    width: $state.thumbnailStripWidth,
+                    width: $ui.thumbnailStripWidth,
                     minWidth: 100, maxWidth: 260
                 )
             }
             ZStack(alignment: .top) {
-                if let pdfPath = state.previewPDFPath {
-                    switch state.viewMode {
+                if let pdfPath = preview.previewPDFPath {
+                    switch page.viewMode {
                     case .page:
                         PDFCanvasView(
                             pdfPath: pdfPath,
-                            sections: state.previewSections,
-                            navigationRequest: state.previewNavigationRequest,
+                            sections: preview.previewSections,
+                            navigationRequest: preview.previewNavigationRequest,
                             pdfCoordinator: pdfCoordinator
                         )
                     case .grid:
                         GridViewCanvas(
                             pdfPath: pdfPath,
-                            sections: state.previewSections,
+                            sections: preview.previewSections,
                             pdfCoordinator: pdfCoordinator
                         )
                     case .compare:
                         CompareViewCanvas(
                             pdfPath: pdfPath,
                             pdfCoordinator: pdfCoordinator,
-                            vertical: state.compareVertical
+                            vertical: page.compareVertical
                         )
                     }
                 } else {
-                    PDFPlaceholderView(hasFonts: !state.enabledFontPaths.isEmpty)
+                    PDFPlaceholderView(hasFonts: !fonts.enabledFontPaths.isEmpty)
                 }
                 FloatingToolbar(pdfCoordinator: pdfCoordinator)
                 HStack {
@@ -144,23 +155,23 @@ struct ContentView: View {
                 }
             }
             .frame(minWidth: 400)
-            if state.showInspector {
+            if ui.showInspector {
                 PanelDragHandle(
-                    width: $state.inspectorWidth,
+                    width: $ui.inspectorWidth,
                     minWidth: 240, maxWidth: 500,
                     inverted: true
                 )
                 SettingsPanelView()
-                    .frame(width: state.inspectorWidth)
+                    .frame(width: ui.inspectorWidth)
                     .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 12))
                     .transition(.move(edge: .trailing))
             }
         }
         .padding(6)
         .background(.background)
-        .animation(.easeInOut(duration: 0.25), value: state.showSidebar)
-        .animation(.easeInOut(duration: 0.25), value: state.showThumbnailStrip)
-        .animation(.easeInOut(duration: 0.25), value: state.showInspector)
+        .animation(.easeInOut(duration: 0.25), value: ui.showSidebar)
+        .animation(.easeInOut(duration: 0.25), value: ui.showThumbnailStrip)
+        .animation(.easeInOut(duration: 0.25), value: ui.showInspector)
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
                 HStack(spacing: 2) {
@@ -170,7 +181,7 @@ struct ContentView: View {
                         Image(systemName: "square.and.arrow.up")
                     }
                     .help("Share PDF")
-                    .disabled(state.previewPDFPath == nil)
+                    .disabled(preview.previewPDFPath == nil)
 
                     Button {} label: {
                         Image(systemName: "arrow.left.arrow.right")
@@ -190,7 +201,7 @@ struct ContentView: View {
     }
 
     private func sharePDF() {
-        guard let pdfPath = state.previewPDFPath ?? state.finalPDFPath else { return }
+        guard let pdfPath = preview.previewPDFPath ?? preview.finalPDFPath else { return }
         let url = URL(fileURLWithPath: pdfPath)
         guard FileManager.default.fileExists(atPath: pdfPath) else { return }
         let picker = NSSharingServicePicker(items: [url])
@@ -199,8 +210,6 @@ struct ContentView: View {
         let rect = CGRect(x: contentView.bounds.midX, y: contentView.bounds.maxY - 50, width: 1, height: 1)
         picker.show(relativeTo: rect, of: contentView, preferredEdge: .minY)
     }
-
-
 
     // MARK: - Settings Import
 
@@ -215,14 +224,13 @@ struct ContentView: View {
             return
         }
 
-        // Load fonts
         if let fontsDict = json["fonts"] as? [String: Any],
            let paths = fontsDict["paths"] as? [String] {
             let validPaths = paths.filter { FileManager.default.fileExists(atPath: $0) }
             if !validPaths.isEmpty {
-                state.fontPaths = validPaths
-                state.loadedFonts = engine.getFontMetadata(paths: validPaths)
-                state.outputDirectory = (validPaths[0] as NSString).deletingLastPathComponent
+                fonts.fontPaths = validPaths
+                fonts.loadedFonts = engine.getFontMetadata(paths: validPaths)
+                state.output.outputDirectory = (validPaths[0] as NSString).deletingLastPathComponent
 
                 let allFeatures = engine.getAvailableOTFeatures(path: validPaths[0])
                 state.setAvailableOTFeatures(allFeatures.filter { !HIDDEN_FEATURES.contains($0) })
@@ -230,9 +238,8 @@ struct ContentView: View {
             }
         }
 
-        // Load page format
         if let format = json["page_format"] as? String {
-            state.pageFormat = format
+            page.pageFormat = format
         }
 
         state.schedulePersistPublic()
@@ -243,49 +250,48 @@ struct ContentView: View {
 // MARK: - FloatingToolbar
 
 struct FloatingToolbar: View {
-    @EnvironmentObject var state: AppState
+    @EnvironmentObject var ui: UIState
+    @EnvironmentObject var page: PageState
     @ObservedObject var pdfCoordinator: PDFViewCoordinator
 
     var body: some View {
         HStack(spacing: 12) {
-            // Panel toggles
             HStack(spacing: 2) {
-                toolbarButton("sidebar.leading", active: state.showSidebar, help: "Toggle sidebar") {
-                    state.showSidebar.toggle()
+                toolbarButton("sidebar.leading", active: ui.showSidebar, help: "Toggle sidebar") {
+                    ui.showSidebar.toggle()
                 }
-                toolbarButton("rectangle.split.3x1", active: state.showThumbnailStrip, help: "Toggle thumbnails") {
-                    state.showThumbnailStrip.toggle()
+                toolbarButton("rectangle.split.3x1", active: ui.showThumbnailStrip, help: "Toggle thumbnails") {
+                    ui.showThumbnailStrip.toggle()
                 }
-                toolbarButton("sidebar.trailing", active: state.showInspector, help: "Toggle inspector") {
-                    state.showInspector.toggle()
+                toolbarButton("sidebar.trailing", active: ui.showInspector, help: "Toggle inspector") {
+                    ui.showInspector.toggle()
                 }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .glassEffect(.regular, in: .capsule)
 
-            // View modes + grid toggles
             HStack(spacing: 2) {
-                toolbarButton("doc.richtext", active: state.viewMode == .page, help: "Page view") {
-                    state.viewMode = .page
+                toolbarButton("doc.richtext", active: page.viewMode == .page, help: "Page view") {
+                    page.viewMode = .page
                 }
-                toolbarButton("square.grid.2x2", active: state.viewMode == .grid, help: "Grid view") {
-                    state.viewMode = .grid
+                toolbarButton("square.grid.2x2", active: page.viewMode == .grid, help: "Grid view") {
+                    page.viewMode = .grid
                 }
-                toolbarButton("arrow.left.arrow.right", active: state.viewMode == .compare, help: "Compare view") {
-                    state.viewMode = .compare
+                toolbarButton("arrow.left.arrow.right", active: page.viewMode == .compare, help: "Compare view") {
+                    page.viewMode = .compare
                 }
 
-                if state.viewMode == .compare {
+                if page.viewMode == .compare {
                     Divider()
                         .frame(height: 16)
                         .padding(.horizontal, 4)
                     toolbarButton(
-                        state.compareVertical ? "rectangle.split.1x2" : "rectangle.split.2x1",
+                        page.compareVertical ? "rectangle.split.1x2" : "rectangle.split.2x1",
                         active: false,
-                        help: state.compareVertical ? "Side by side" : "Stacked"
+                        help: page.compareVertical ? "Side by side" : "Stacked"
                     ) {
-                        state.compareVertical.toggle()
+                        page.compareVertical.toggle()
                     }
                 }
 
@@ -293,15 +299,14 @@ struct FloatingToolbar: View {
                     .frame(height: 16)
                     .padding(.horizontal, 4)
 
-                toolbarButton("line.3.horizontal", active: state.showBaselines, help: "Baseline grid") {
-                    state.showBaselines.toggle()
+                toolbarButton("line.3.horizontal", active: page.showBaselines, help: "Baseline grid") {
+                    page.showBaselines.toggle()
                 }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .glassEffect(.regular, in: .capsule)
 
-            // Zoom controls
             HStack(spacing: 2) {
                 Button { zoom(by: -0.1) } label: {
                     Image(systemName: "minus")
@@ -378,15 +383,30 @@ struct FloatingToolbar: View {
     }
 }
 
+// MARK: - Proof Selection Relay
+
+private struct ProofSelectionRelay: View {
+    @EnvironmentObject var proofs: ProofState
+    let coordinator: PreviewCoordinator
+
+    var body: some View {
+        Color.clear
+            .allowsHitTesting(false)
+            .onChange(of: proofs.selectedProof) { _ in
+                coordinator.selectedProofChanged()
+            }
+    }
+}
+
 // MARK: - DiagnosticChip
 
 struct DiagnosticChip: View {
-    @EnvironmentObject var state: AppState
+    @EnvironmentObject var proofs: ProofState
 
     var body: some View {
-        if let option = state.selectedProofOption {
-            let settings = state.proofSettingsByProof[option.name] ?? ProofSettings()
-            let entry = state.registryByKey[option.baseType]
+        if let option = proofs.selectedProofOption {
+            let settings = proofs.proofSettingsByProof[option.name] ?? ProofSettings()
+            let entry = proofs.registryByKey[option.baseType]
 
             HStack(spacing: 10) {
                 chipValue("\(Int(settings.fontSize))pt")
@@ -418,6 +438,8 @@ struct DiagnosticChip: View {
 struct AddProofPopover: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var engine: ProofEngine
+    @EnvironmentObject var fonts: FontState
+    @EnvironmentObject var ui: UIState
 
     private static let customKeys: Set<String> = [
         "custom_text", "multi_style_comparison", "substitution_overview"
@@ -441,17 +463,17 @@ struct AddProofPopover: View {
                     ForEach(latin, id: \.key) { entry in
                         AddProofRow(entry: entry) {
                             state.addProofInstance(baseType: entry.key)
-                            state.showAddProofSheet = false
+                            ui.showAddProofSheet = false
                         }
                     }
                 }
 
-                if state.anyFontSupportsArabic && !arabic.isEmpty {
+                if fonts.anyFontSupportsArabic && !arabic.isEmpty {
                     proofGroupHeader("ARABIC")
                     ForEach(arabic, id: \.key) { entry in
                         AddProofRow(entry: entry) {
                             state.addProofInstance(baseType: entry.key)
-                            state.showAddProofSheet = false
+                            ui.showAddProofSheet = false
                         }
                     }
                 }
@@ -461,7 +483,7 @@ struct AddProofPopover: View {
                     ForEach(custom, id: \.key) { entry in
                         AddProofRow(entry: entry) {
                             state.addProofInstance(baseType: entry.key)
-                            state.showAddProofSheet = false
+                            ui.showAddProofSheet = false
                         }
                     }
                 }

@@ -187,6 +187,9 @@ struct MultiStyleComparisonHandler: ProofHandler {
     }
 
     private func collectStyles(allFonts: [String], context: ProofContext) -> [StyleEntry] {
+        let modeRaw = settingsValue(makeSettingsKey("styleSourceMode"), default: "namedInstances", from: context.proofSettings) as String
+        let mode = StyleSourceMode(rawValue: modeRaw) ?? .namedInstances
+
         var styles: [StyleEntry] = []
         var styleIndex = 0
 
@@ -200,65 +203,81 @@ struct MultiStyleComparisonHandler: ProofHandler {
                 continue
             }
 
-            let axesJSON: String? = fontData.withUnsafeBytes { buffer in
-                guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return nil }
-                guard let jsonPtr = tp_get_axes_json(ptr, UInt(buffer.count)) else { return nil }
-                defer { wsv_free_string(jsonPtr) }
-                return String(cString: jsonPtr)
-            }
+            let familyName = URL(fileURLWithPath: fontPath).deletingPathExtension().lastPathComponent
+                .components(separatedBy: "-").first ?? "Unknown"
 
-            var axisArrays: [(tag: String, values: [Double])] = []
-            if let json = axesJSON,
-               let jsonData = json.data(using: .utf8),
-               let axes = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] {
-                for axis in axes {
-                    guard let tag = axis["tag"] as? String,
-                          let values = axis["values"] as? [Double],
-                          !values.isEmpty else { continue }
-                    axisArrays.append((tag, values))
+            switch mode {
+            case .namedInstances:
+                let instances = parseNamedInstances(fontData: fontData)
+                if instances.isEmpty {
+                    if isStyleEnabled(styleIndex, settings: context.proofSettings) {
+                        let displayName = URL(fileURLWithPath: fontPath).deletingPathExtension().lastPathComponent
+                        styles.append(StyleEntry(fontPath: fontPath, variations: nil, label: displayName))
+                    }
+                    styleIndex += 1
+                } else {
+                    for inst in instances {
+                        if isStyleEnabled(styleIndex, settings: context.proofSettings) {
+                            let name = inst["name"] as? String ?? ""
+                            let coords = inst["coordinates"] as? [String: Double] ?? [:]
+                            let label = "\(familyName) \u{2014} \(name)"
+                            styles.append(StyleEntry(fontPath: fontPath, variations: coords, label: label))
+                        }
+                        styleIndex += 1
+                    }
                 }
-            }
 
-            if axisArrays.isEmpty {
+            case .customPositions:
+                var axisArrays: [(tag: String, values: [Double])] = []
                 if let userValues = context.axisValuesByFont[fontPath], !userValues.isEmpty {
-                    for (tag, values) in userValues.sorted(by: { $0.key < $1.key }) where values.count > 1 {
+                    for (tag, values) in userValues.sorted(by: { $0.key < $1.key }) {
                         axisArrays.append((tag, values))
                     }
                 }
-            }
 
-            if axisArrays.isEmpty {
-                if isStyleEnabled(styleIndex, settings: context.proofSettings) {
-                    let displayName = URL(fileURLWithPath: fontPath).deletingPathExtension().lastPathComponent
-                    styles.append(StyleEntry(fontPath: fontPath, variations: nil, label: displayName))
-                }
-                styleIndex += 1
-            } else {
-                var combinations: [[(String, Double)]] = [[]]
-                for (tag, values) in axisArrays {
-                    var next: [[(String, Double)]] = []
-                    for combo in combinations {
-                        for val in values {
-                            next.append(combo + [(tag, val)])
-                        }
-                    }
-                    combinations = next
-                }
-
-                let familyName = URL(fileURLWithPath: fontPath).deletingPathExtension().lastPathComponent
-                    .components(separatedBy: "-").first ?? "Unknown"
-                for combo in combinations {
+                if axisArrays.isEmpty {
                     if isStyleEnabled(styleIndex, settings: context.proofSettings) {
-                        let coords = Dictionary(uniqueKeysWithValues: combo)
-                        let label = "\(familyName) \u{2014} " + combo.map { "\($0.0)=\(Int($0.1))" }.joined(separator: " ")
-                        styles.append(StyleEntry(fontPath: fontPath, variations: coords, label: label))
+                        let displayName = URL(fileURLWithPath: fontPath).deletingPathExtension().lastPathComponent
+                        styles.append(StyleEntry(fontPath: fontPath, variations: nil, label: displayName))
                     }
                     styleIndex += 1
+                } else {
+                    var combinations: [[(String, Double)]] = [[]]
+                    for (tag, values) in axisArrays {
+                        var next: [[(String, Double)]] = []
+                        for combo in combinations {
+                            for val in values {
+                                next.append(combo + [(tag, val)])
+                            }
+                        }
+                        combinations = next
+                    }
+
+                    for combo in combinations {
+                        if isStyleEnabled(styleIndex, settings: context.proofSettings) {
+                            let coords = Dictionary(uniqueKeysWithValues: combo)
+                            let label = "\(familyName) \u{2014} " + combo.map { "\($0.0)=\(Int($0.1))" }.joined(separator: " ")
+                            styles.append(StyleEntry(fontPath: fontPath, variations: coords, label: label))
+                        }
+                        styleIndex += 1
+                    }
                 }
             }
         }
 
         return styles
+    }
+
+    private func parseNamedInstances(fontData: Data) -> [[String: Any]] {
+        fontData.withUnsafeBytes { buffer -> [[String: Any]] in
+            guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                  let jsonPtr = tp_get_named_instances_json(ptr, UInt(buffer.count)) else { return [] }
+            defer { wsv_free_string(jsonPtr) }
+            let jsonStr = String(cString: jsonPtr)
+            guard let jsonData = jsonStr.data(using: .utf8),
+                  let arr = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] else { return [] }
+            return arr
+        }
     }
 
     private func isStyleEnabled(_ index: Int, settings: [String: Any]) -> Bool {
