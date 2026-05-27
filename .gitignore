@@ -42,6 +42,7 @@ build_app_local.sh
 # Rust / native build artifacts
 native/target/
 native/lib/
+TypeProofing-SwiftUI/NativeLib/libtpnative.a
 
 # Other
 .github
