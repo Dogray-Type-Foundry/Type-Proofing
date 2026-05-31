@@ -122,6 +122,13 @@ struct ProofParams {
     let paragraphSpace: CGFloat
     let hyphenation: Bool
     let hangingPunctuation: Bool
+    let generativeLanguage: String
+    let wordDiversity: Double
+    let vocabularySize: Int
+    let minWordLength: Int
+    let maxWordLength: Int
+    let biasChars: String
+    let biasStrength: Double
 }
 
 protocol ProofHandler {
@@ -167,6 +174,13 @@ extension ProofHandler {
         let paragraphSpace = settingsValue(makeSettingsKey("paragraphSpace"), default: 0.0, from: settings) as Double
         let hyphenation = settingsValue(makeSettingsKey("hyphenation"), default: false, from: settings) as Bool
         let hangingPunctuation = settingsValue(makeSettingsKey("hangingPunctuation"), default: false, from: settings) as Bool
+        let generativeLanguage = settingsValue(makeSettingsKey("generativeLanguage"), default: "en", from: settings) as String
+        let wordDiversity = settingsValue(makeSettingsKey("wordDiversity"), default: 0.0, from: settings) as Double
+        let vocabularySize = settingsValue(makeSettingsKey("vocabularySize"), default: 0, from: settings) as Int
+        let minWordLength = settingsValue(makeSettingsKey("minWordLength"), default: 1, from: settings) as Int
+        let maxWordLength = settingsValue(makeSettingsKey("maxWordLength"), default: 0, from: settings) as Int
+        let biasChars = settingsValue(makeSettingsKey("biasChars"), default: "", from: settings) as String
+        let biasStrength = settingsValue(makeSettingsKey("biasStrength"), default: 0.0, from: settings) as Double
 
         let prefix = "otf_\(proofKey)_"
         var features: [String: Bool] = [:]
@@ -193,7 +207,14 @@ extension ProofHandler {
             paragraphIndent: CGFloat(paragraphIndent),
             paragraphSpace: CGFloat(paragraphSpace),
             hyphenation: hyphenation,
-            hangingPunctuation: hangingPunctuation
+            hangingPunctuation: hangingPunctuation,
+            generativeLanguage: generativeLanguage,
+            wordDiversity: wordDiversity,
+            vocabularySize: vocabularySize,
+            minWordLength: minWordLength,
+            maxWordLength: maxWordLength,
+            biasChars: biasChars,
+            biasStrength: biasStrength
         )
     }
 

@@ -51,7 +51,14 @@ struct StandardTextProofHandler: ProofHandler {
                 cat: context.cat,
                 fullCharacterSet: context.fullCharacterSet,
                 language: config.language,
-                hoeflerStyle: config.hoeflerStyle
+                hoeflerStyle: config.hoeflerStyle,
+                generativeLanguage: params.generativeLanguage,
+                wordDiversity: params.wordDiversity,
+                vocabularySize: params.vocabularySize,
+                minWordLength: params.minWordLength,
+                maxWordLength: params.maxWordLength,
+                biasChars: params.biasChars,
+                biasStrength: params.biasStrength
             )
         }
 

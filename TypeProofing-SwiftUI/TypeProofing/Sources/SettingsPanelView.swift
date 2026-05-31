@@ -253,6 +253,89 @@ struct SettingsPanelView: View {
                         }
                     }
 
+                    // MARK: Generative Language
+
+                    if entry?.hasTextConfig ?? false {
+                        Divider()
+
+                        InspectorGroup(icon: "globe", title: "Text Generation") {
+                            Picker("Language", selection: settings.generativeLanguage) {
+                                ForEach(WordSivBridge.availableVocabs) { vocab in
+                                    Text(vocab.name).tag(vocab.key)
+                                }
+                            }
+                            .labelsHidden()
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text("Word Diversity")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text(String(format: "%.2f", settings.wordDiversity.wrappedValue))
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                HStack(spacing: 6) {
+                                    Text("Common")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.tertiary)
+                                    Slider(value: settings.wordDiversity, in: 0...1, step: 0.05)
+                                        .controlSize(.small)
+                                    Text("Diverse")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+
+                            NumericSetting(
+                                label: "Vocabulary Size",
+                                value: settings.vocabularySize,
+                                range: 0...10000,
+                                step: 100
+                            )
+
+                            NumericSetting(
+                                label: "Min Word Length",
+                                value: settings.minWordLength,
+                                range: 1...20,
+                                step: 1
+                            )
+
+                            NumericSetting(
+                                label: "Max Word Length",
+                                value: settings.maxWordLength,
+                                range: 0...30,
+                                step: 1
+                            )
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Focus Character")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                TextField("e.g. g", text: settings.biasChars)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(.body, design: .monospaced))
+                            }
+
+                            if !settings.biasChars.wrappedValue.isEmpty {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack {
+                                        Text("Bias Strength")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Text(String(format: "%.2f", settings.biasStrength.wrappedValue))
+                                            .font(.system(.caption, design: .monospaced))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    Slider(value: settings.biasStrength, in: 0...1, step: 0.05)
+                                        .controlSize(.small)
+                                }
+                            }
+                        }
+                    }
+
                     Divider()
 
                     // MARK: Remaining Sections (unchanged)

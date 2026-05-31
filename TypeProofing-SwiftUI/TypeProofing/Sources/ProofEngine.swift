@@ -56,6 +56,7 @@ struct ProofRegistryEntry {
     let defaultEnabled: Bool
     let displayOrder: Int
     let previewCost: ProofCost
+    let hasTextConfig: Bool
 
     /// Proofs that don't support tracking/alignment (character-set style proofs)
     private static let noFormattingKeys: Set<String> = [
@@ -554,7 +555,8 @@ final class ProofEngine: ObservableObject {
                 isMultiStyle: info.multiStyle,
                 defaultEnabled: info.defaultEnabled,
                 displayOrder: displayOrder,
-                previewCost: cost
+                previewCost: cost,
+                hasTextConfig: info.textConfig != nil
             )
         }
     }

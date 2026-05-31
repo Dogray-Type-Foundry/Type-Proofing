@@ -71,6 +71,13 @@ struct ProofSettings: Codable {
     var paragraphSpace: Double = 0
     var hyphenation: Bool = false
     var hangingPunctuation: Bool = false
+    var generativeLanguage: String = "en"
+    var wordDiversity: Double = 0
+    var vocabularySize: Int = 0
+    var minWordLength: Int = 1
+    var maxWordLength: Int = 0
+    var biasChars: String = ""
+    var biasStrength: Double = 0
 
     init() {}
 
@@ -81,7 +88,9 @@ struct ProofSettings: Codable {
         case defaultFontPath, defaultFontAxisDict, enabledStyleIndices
         case autoSize, showFallback
         case columnGap, direction, paragraphIndent, paragraphSpace
-        case hyphenation, hangingPunctuation
+        case hyphenation, hangingPunctuation, generativeLanguage
+        case wordDiversity, vocabularySize, minWordLength, maxWordLength
+        case biasChars, biasStrength
     }
 
     init(from decoder: Decoder) throws {
@@ -109,6 +118,13 @@ struct ProofSettings: Codable {
         paragraphSpace = try container.decodeIfPresent(Double.self, forKey: .paragraphSpace) ?? 0
         hyphenation = try container.decodeIfPresent(Bool.self, forKey: .hyphenation) ?? false
         hangingPunctuation = try container.decodeIfPresent(Bool.self, forKey: .hangingPunctuation) ?? false
+        generativeLanguage = try container.decodeIfPresent(String.self, forKey: .generativeLanguage) ?? "en"
+        wordDiversity = try container.decodeIfPresent(Double.self, forKey: .wordDiversity) ?? 0
+        vocabularySize = try container.decodeIfPresent(Int.self, forKey: .vocabularySize) ?? 0
+        minWordLength = try container.decodeIfPresent(Int.self, forKey: .minWordLength) ?? 1
+        maxWordLength = try container.decodeIfPresent(Int.self, forKey: .maxWordLength) ?? 0
+        biasChars = try container.decodeIfPresent(String.self, forKey: .biasChars) ?? ""
+        biasStrength = try container.decodeIfPresent(Double.self, forKey: .biasStrength) ?? 0
     }
 }
 
@@ -743,6 +759,16 @@ final class AppState: ObservableObject {
 
             if entry.hasParagraphs {
                 flat["\(settingsKey)_para"] = settings.paragraphs
+            }
+
+            if entry.hasTextConfig {
+                flat["\(settingsKey)_generativeLanguage"] = settings.generativeLanguage
+                flat["\(settingsKey)_wordDiversity"] = settings.wordDiversity
+                flat["\(settingsKey)_vocabularySize"] = settings.vocabularySize
+                flat["\(settingsKey)_minWordLength"] = settings.minWordLength
+                flat["\(settingsKey)_maxWordLength"] = settings.maxWordLength
+                flat["\(settingsKey)_biasChars"] = settings.biasChars
+                flat["\(settingsKey)_biasStrength"] = settings.biasStrength
             }
 
             if entry.hasCategories {

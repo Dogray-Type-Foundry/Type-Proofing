@@ -1,875 +1,784 @@
-# Type Proofing — Complete Codebase Reference
+# CODEBASE.md — Type Proofing Technical Reference
 
-> A macOS application for type designers to generate font proofing PDF documents. Built as a SwiftUI app with an embedded Python engine that uses DrawBot for PDF rendering.
-
-## Table of Contents
-
-- [What the App Does](#what-the-app-does)
-- [Architecture Overview](#architecture-overview)
-- [Directory Structure](#directory-structure)
-- [Build System](#build-system)
-- [SwiftUI Layer (GUI)](#swiftui-layer-gui)
-- [Python Layer (Engine)](#python-layer-engine)
-- [Data Flow: From Button Click to PDF](#data-flow-from-button-click-to-pdf)
-- [The Proof Registry](#the-proof-registry)
-- [Proof Handler System](#proof-handler-system)
-- [Settings System](#settings-system)
-- [Font Management](#font-management)
-- [Text Generation](#text-generation)
-- [Markup Parser](#markup-parser)
-- [PDF Management](#pdf-management)
-- [Module Dependency Graph](#module-dependency-graph)
-- [Key Constants and Defaults](#key-constants-and-defaults)
-- [Conventions and Patterns](#conventions-and-patterns)
+> This document is aimed at LLM agents and developers working on the codebase. It covers architecture, data flow, the proof system, settings, rendering pipelines, and the specific steps required to add or modify proofs.
 
 ---
 
-## What the App Does
+## 1. What This App Does
 
-Type Proofing generates PDF documents that type designers use to visually evaluate their fonts. The user loads one or more font files, selects which proof types to generate (character sets, spacing tests, paragraph proofs, etc.), tweaks per-proof settings (font size, columns, tracking, OpenType features), and clicks **Generate**. The app produces a multi-page PDF with all selected proofs for all loaded fonts.
+Type Proofing is a macOS SwiftUI app that generates multi-page PDF proofing documents for fonts. A type designer loads one or more font files (`.otf`, `.ttf`), selects which proof types to generate, tweaks per-proof settings (font size, columns, OpenType features, etc.), and hits "Generate." The app produces a PDF with pages covering character sets, spacing tests, paragraph proofs, diacritic words, Arabic contextual forms, and more.
 
-**Key capabilities:**
-- Analyzes font character sets, OpenType features, and variable font axes automatically
-- Supports 24 proof types covering Latin, Arabic, Persian, and mixed scripts
-- Handles both static and variable fonts — variable fonts generate proof pages for each axis combination
-- Pairs regular/italic and regular/bold styles for mixed-style proofs
-- Supports custom text input with a lightweight markup syntax for inline styling
-- Multi-style comparison proofs showing one line per font style on the same page
-- Auto-sizing mode that binary-searches for the largest font size that fits content on a page
+The app supports:
+- Static and variable fonts (with full axis control)
+- Latin and Arabic/Farsi/Urdu scripts
+- Live PDF preview (per-proof fragment generation + composition)
+- Premade and generative text (via WordSiv, a Rust text generator)
+- A rich markup language for custom text proofs
+- Multi-style comparison (all named instances or custom axis positions side-by-side)
+- OpenType feature toggling per proof
+- GSUB substitution overview rendering
+- Settings persistence and import/export
 
 ---
 
-## Architecture Overview
+## 2. High-Level Architecture
 
-The app is split into two layers:
+Three language layers coexist:
 
 ```
 ┌─────────────────────────────────────────────────┐
-│             SwiftUI Layer (GUI)                  │
-│  TypeProofingApp → ContentView → Views           │
-│  AppState (observable state + persistence)        │
-│  ProofEngine (only PythonKit importer)            │
-│              ↕  PythonKit bridge                  │
+│  Swift / SwiftUI (macOS app)                    │
+│  - UI, state management, PDF preview            │
+│  - Native PDF rendering (CoreText/CoreGraphics) │
+│  - Calls Rust via C FFI for font analysis       │
 ├─────────────────────────────────────────────────┤
-│           Python Layer (Engine)                   │
-│  engine.py  (headless entry point)                │
-│  proof.py   (proof generation + handlers)         │
-│  fonts.py   (font analysis + management)          │
-│  config.py  (registry, constants, page formats)   │
-│  settings.py (persistence + utilities)            │
-│  markup_parser.py (custom text styling)           │
-│  pdf_manager.py (PDF save + preview)              │
-│  text_generators.py (text data access)            │
-│  DrawBot  (PDF rendering engine)                  │
+│  Rust (native/ directory)                       │
+│  - Font analysis: charset, axes, OT features    │
+│  - GSUB substitution extraction                 │
+│  - WordSiv text generation (separate crate)     │
+│  - Compiled as universal2 static lib            │
+├─────────────────────────────────────────────────┤
+│  Python (python/ directory) — LEGACY            │
+│  - Original proof engine using DrawBot          │
+│  - No longer called at runtime                  │
+│  - Source of truth for some proof logic patterns │
 └─────────────────────────────────────────────────┘
 ```
 
-**The boundary is strict:** `ProofEngine.swift` is the *only* Swift file that imports PythonKit. All Python calls go through it. SwiftUI views never touch Python directly.
-
-**Python runs on @MainActor** because PythonKit requires the GIL to be held on a single thread. The Swift side yields to the run loop before calling into Python so the UI can show a spinner.
+**The active pipeline is Swift + Rust.** Python is legacy code kept as reference. `ProofEngine.swift` is the only file that historically bridged to Python (via PythonKit), but the current renderer is fully native.
 
 ---
 
-## Directory Structure
+## 3. Source Layout
 
 ```
-Type-Proofing/
-├── python/                          # Python engine modules
-│   ├── config.py                    # Central registry, constants, page formats
-│   ├── engine.py                    # Headless entry point (called from Swift)
-│   ├── fonts.py                     # Font loading, charset analysis, VF support
-│   ├── proof.py                     # Proof generation handlers + drawing functions
-│   ├── settings.py                  # Settings persistence + utility functions
-│   ├── markup_parser.py             # Markdown-like styling for custom text
-│   ├── pdf_manager.py               # PDF creation, preview, export
-│   ├── text_generators.py           # Text data wrapper class
-│   ├── sample_texts.py              # Pre-made Latin text samples
-│   ├── script_texts.py              # Arabic/Persian/Urdu text samples
-│   ├── accented_dictionary.py       # Accented character word dictionaries
-│   └── eng_wiki.tsv                 # Word frequency data for Hoefler proofs
+TypeProofing-SwiftUI/
+├── project.yml                    # XcodeGen project definition (DO NOT edit .xcodeproj directly)
+├── NativeLib/
+│   ├── libtpnative.a             # Compiled Rust static library (universal2, gitignored)
+│   └── include/tpnative.h        # Auto-generated C header (cbindgen)
+├── Scripts/
+│   ├── build_release.sh           # Signed DMG creation
+│   ├── bundle_python_packages.sh  # Legacy: bundle Python deps
+│   └── copy_python_sources.sh     # Legacy: copy Python to bundle
+├── TypeProofing/
+│   ├── Sources/
+│   │   ├── TypeProofingApp.swift         # @main, creates ProofEngine + AppState, injects into environment
+│   │   ├── AppState.swift                # Central state (928 lines), split into 6 sub-objects
+│   │   ├── ProofEngine.swift             # Rust FFI wrapper, proof generation orchestration (706 lines)
+│   │   ├── ContentView.swift             # Main 4-panel layout (601 lines)
+│   │   ├── SidebarView.swift             # Left panel: fonts, proofs, output, generate (351 lines)
+│   │   ├── SettingsPanelView.swift        # Right panel: per-proof settings inspector (1265 lines)
+│   │   ├── PDFViewerView.swift           # PDF display + thumbnails + grid/compare views (903 lines)
+│   │   ├── PreviewCoordinator.swift       # Async preview generation pipeline (497 lines)
+│   │   ├── AppFont.swift                 # Custom app font (SetsGroteskVF)
+│   │   ├── FontsSection.swift            # Font list UI + drag/drop
+│   │   ├── FontAxesView.swift            # Variable font axis sliders
+│   │   ├── FontStyleSelectionViews.swift  # Default font picker, multi-style font list
+│   │   ├── FontSortBar.swift             # Font sorting controls
+│   │   ├── FontSortCriterion.swift        # Sort criteria enum
+│   │   ├── SidebarListRow.swift          # Reusable sidebar row component
+│   │   ├── HoverComponents.swift         # Hover state UI helpers
+│   │   └── NativeRenderer/               # PDF generation engine (see §5)
+│   │       ├── NativeProofOrchestrator.swift   # Main generation coordinator
+│   │       ├── ProofRegistry.swift             # All 22 proof type definitions
+│   │       ├── ProofHandler.swift              # Protocol + shared rendering logic
+│   │       ├── PDFRenderer.swift               # CGContext PDF wrapper
+│   │       ├── TextRenderer.swift              # CoreText text rendering
+│   │       ├── PageLayout.swift                # Page dimensions, columns, footer
+│   │       ├── FontLoader.swift                # CTFont loading with features/variations
+│   │       ├── StandardTextProofHandler.swift   # Text paragraph proofs
+│   │       ├── CategoryBasedProofHandler.swift  # Character set + spacing proofs
+│   │       ├── ArabicProofHandler.swift         # Arabic contextual forms
+│   │       ├── CustomTextProofHandler.swift     # User-provided text proofs
+│   │       ├── SubstitutionOverviewHandler.swift # GSUB feature display
+│   │       ├── MultiStyleComparisonHandler.swift # Side-by-side style comparison
+│   │       ├── MarkupParser.swift              # Markup tokenizer
+│   │       ├── MarkupRenderer.swift            # Markup → attributed string
+│   │       ├── TextGeneration.swift            # Text content generation logic
+│   │       ├── PremadeTexts.swift              # Static text samples + accented dictionary
+│   │       ├── WordSivBridge.swift             # FFI wrapper for WordSiv text generator
+│   │       ├── StylePairing.swift              # Upright/italic, regular/bold detection
+│   │       ├── CharacterCategorizer.swift       # Unicode category classification
+│   │       ├── BaselineGrid.swift              # Debug grid overlay
+│   │       └── AutoSizing.swift                # Binary search font sizing
+│   └── Resources/
+│       ├── accented_dictionary.json            # Character → accented word examples
+│       └── Assets.xcassets                     # App icons, colors
 │
-├── TypeProofing-SwiftUI/            # SwiftUI application
-│   ├── project.yml                  # xcodegen project specification
-│   ├── TypeProofing/
-│   │   ├── Sources/                 # All Swift source files
-│   │   │   ├── TypeProofingApp.swift
-│   │   │   ├── PythonSetup.swift
-│   │   │   ├── ProofEngine.swift
-│   │   │   ├── AppState.swift
-│   │   │   ├── ContentView.swift
-│   │   │   ├── SidebarView.swift
-│   │   │   ├── FontsSection.swift
-│   │   │   ├── FontSortBar.swift
-│   │   │   ├── FontSortCriterion.swift
-│   │   │   ├── FontAxesView.swift
-│   │   │   ├── SidebarListRow.swift
-│   │   │   ├── FontStyleSelectionViews.swift
-│   │   │   ├── SettingsPanelView.swift
-│   │   │   ├── PDFViewerView.swift
-│   │   │   └── HoverComponents.swift
-│   │   └── TypeProofing.entitlements
-│   ├── Scripts/
-│   │   ├── bundle_python_packages.sh  # One-time: pip install vendored packages
-│   │   ├── copy_python_sources.sh     # Build phase: copies .py + packages into bundle
-│   │   └── build_release.sh           # Release build + code signing
-│   ├── python-packages/               # Vendored Python packages (pip installed)
-│   └── TypeProofing.xcodeproj/        # Generated by xcodegen
-│
-├── tests/                           # Unit tests
-├── tests_integration/               # Integration tests
-├── wheels/                          # Vendored Python wheels (wordsiv)
-├── icon/                            # App icon assets
-├── README.md                        # User guide
-├── README_SETTINGS.md               # Settings file reference
-├── MARKUP_PLAN.md                   # Markup syntax specification
-└── requirements.txt                 # Python dependencies
+├── TypeProofingTests/             # Unit tests
+└── TypeProofingUITests/           # UI tests
+
+native/
+├── Cargo.toml                     # Workspace: tp-fonts + tp-bridge
+├── build_rust.sh                  # Build universal2 + generate header
+├── include/tpnative.h             # Generated C header
+├── tp-fonts/src/
+│   ├── lib.rs                     # Module declarations
+│   ├── font_info.rs               # Font metadata (family, weight, axes, features)
+│   ├── charset.rs                 # Filtered charset (outlines only, cmap + AGL fallback)
+│   ├── axes.rs                    # Variable font axis values + Cartesian product
+│   ├── substitutions.rs           # GSUB lookup extraction (single, ligature, contextual)
+│   └── agl.rs                     # Adobe Glyph List name→Unicode mapping
+└── tp-bridge/src/
+    └── lib.rs                     # C FFI exports (tp_load_font, tp_get_charset, wsv_*, etc.)
+
+python/                            # LEGACY — not called at runtime
+├── engine.py                      # Headless proof generation entry point
+├── proof.py                       # Proof handler classes (2974 lines)
+├── config.py                      # Proof registry, page formats, constants
+├── fonts.py                       # Font analysis utilities
+├── settings.py                    # Settings persistence
+├── sample_texts.py                # Premade Latin text samples
+├── script_texts.py                # Arabic/Farsi text samples
+├── accented_dictionary.py         # Character → accented word mapping
+├── text_generators.py             # Text generation helpers
+├── markup_parser.py               # Markup parsing
+├── opentype_substitutions.py      # GSUB extraction
+├── generation_config.py           # Typed generation config
+├── diagnostics.py                 # Diagnostic event collection
+├── pdf_manager.py                 # PDF output management
+└── worker.py                      # Background worker process
 ```
 
 ---
 
-## Build System
+## 4. State Architecture
 
-The Xcode project is generated from `project.yml` using **xcodegen**.
-
-### Key build details:
-- **Deployment target:** macOS 13.0+
-- **Swift version:** 5.9
-- **Python:** System Python 3.13 (`/Library/Frameworks/Python.framework`) embedded in bundle
-- **SPM dependencies:**
-  - **PythonKit** — Swift-to-Python bridge
-  - **CompactSlider** — Multi-handle slider used for VF axis controls
-
-### Build scripts:
-1. **`bundle_python_packages.sh`** — Run once after cloning. Installs drawBot, drawBotGrid, wordsiv, fontTools, Pillow, booleanOperations, and minimal PyObjC bridges into `python-packages/`.
-2. **`copy_python_sources.sh`** — Xcode build phase. Copies all `.py` files, `AdobeBlank.otf`, `eng_wiki.tsv`, and the vendored packages into the app bundle at `Resources/python-lib`.
-3. **`build_release.sh`** — Release build via `xcodebuild`. Fixes `Python.framework` install names from absolute to `@rpath`, then code-signs everything inside-out.
-
-### Regenerating the project:
-```bash
-cd TypeProofing-SwiftUI && xcodegen generate
-```
-
----
-
-## SwiftUI Layer (GUI)
-
-### Entry Point
-
-`TypeProofingApp.swift` — Creates the main window with two `@StateObject`s injected as environment objects:
-- **`ProofEngine`** — The Python bridge
-- **`AppState`** — All application state
-
-Menu commands: Import Settings, Reset Settings, Reset Fonts.
-
-### Window Layout
-
-`ContentView.swift` — Three-column `HSplitView`:
-
-```
-┌──────────┬──────────────────────┬──────────┐
-│ Sidebar  │    PDF Viewer        │ Settings │
-│ (220w)   │  Thumbnails + PDF    │ Panel    │
-│          │  (160w + rest)       │ (280w)   │
-└──────────┴──────────────────────┴──────────┘
-```
-
-### Sidebar (`SidebarView.swift`)
-
-**Top controls:** Generate button (disabled if no enabled fonts, shows spinner during generation), page format picker, baseline grid toggle.
-
-**Two tabs:**
-
-**Fonts tab** (`FontsSection.swift`):
-- Multi-criteria sort bar with draggable chips (`FontSortBar.swift`, `FontSortCriterion.swift`)
-- Font list with enable toggle, rename, delete, drag-reorder
-- Variable font axes shown inline per font (`FontAxesView.swift`) — multi-handle CompactSlider with named-instance snap markers, editable value labels, add/remove handle buttons
-- "Add Fonts" button + drag-drop support
-
-**Proofs tab:**
-- Reorderable list of proof options with enable toggle, rename, delete
-- Arabic proofs auto-hidden when no fonts support Arabic
-- "Add Proof" button → popover listing available proof types
-
-### Settings Panel (`SettingsPanelView.swift`)
-
-Right sidebar, dynamically shows/hides sections based on selected proof type's registry flags:
-
-| Section | Shown when |
-|---------|-----------|
-| Font Size (4–200) | Always |
-| Auto-size toggle | Charset or multi-style proofs |
-| Line Height (0.5–5.0 em) | Proof supports line height |
-| Columns (1–6) | Proof supports columns |
-| Tracking (-20–100 pt) | Proof supports formatting |
-| Paragraphs (1–20) | Proof has paragraphs |
-| Alignment (L/C/R/J) | Proof supports formatting |
-| Character categories (5 checkboxes) | Proof has categories |
-| Custom text editor + markup toggle | Proof has custom text |
-| Default font picker | Custom text "Generate Once" mode |
-| Multi-style font list | Multi-style proofs |
-| OpenType features (2-col grid) | Always (populated from first font) |
-
-Custom text editor uses `NSViewRepresentable` wrapping `NSTextView` with smart quotes/dashes disabled.
-
-### PDF Viewer (`PDFViewerView.swift`)
-
-Two-pane NSSplitView:
-- **Thumbnail sidebar** — Page thumbnails with section headers (e.g. "Filtered Character Set", "Basic Paragraph Large"). Clicking a thumbnail scrolls the main viewer.
-- **Main viewer** — PDFKit `PDFView` in single-page-continuous mode with auto-scaling.
-
-### Font Style Selection (`FontStyleSelectionViews.swift`)
-
-Two specialized components:
-- **DefaultFontPicker** — Hierarchical family→style picker for Custom Text "Generate Once" mode
-- **MultiStyleFontList** — Family-grouped toggles for selecting which styles appear in multi-style comparison proofs
-
-### Shared Components
-- **`SidebarListRow.swift`** — Reusable row with drag handle, toggle, name (double-click rename), badge, delete
-- **`HoverComponents.swift`** — `HoverButton`, `HoverIconButton`, `HoverValueLabel` with hover color changes
-
-### ProofEngine (`ProofEngine.swift`)
-
-The **sole Python bridge**. `@MainActor ObservableObject`.
-
-**Bootstrap:** Calls `PythonSetup.initialize()` which sets `PYTHON_LIBRARY`, `PYTHONHOME`, adds bundled packages to `sys.path`. Then imports `engine`, `config`, `fonts` modules.
-
-**Published state:** `isReady`, `isGenerating`, `lastPDFPath`, `errorMessage`.
-
-**Bridge methods:**
-
-| Swift method | Python call | Returns |
-|---|---|---|
-| `generateProof(config:)` | `engine.generate_proof(dict)` | PDF path + section list |
-| `getFontMetadata(paths:)` | `engine.get_font_metadata(paths)` | `[FontInfo]` |
-| `getAvailableOTFeatures(path:)` | `engine.get_available_ot_features(path)` | `[String]` |
-| `getProofRegistry()` | `engine.get_proof_registry()` | `[ProofRegistryEntry]` |
-| `getPageFormats()` | `engine.get_page_formats()` | `[String]` |
-| `getFontStyles(paths:)` | `engine.get_font_styles(paths)` | `[FontStyleEntry]` |
-
-### AppState (`AppState.swift`)
-
-Central `@MainActor ObservableObject` (~40 published properties):
-
-**Font state:** `fontPaths`, `loadedFonts` (`[FontInfo]`), `axisValuesByFont`, `disabledFontPaths`, `fontSortCriteria`, `fontStyles`.
-
-**Proof state:** `proofOptions` (`[ProofOption]`), `selectedProof`, `proofSettingsByProof` (`[String: ProofSettings]`).
-
-**Page/output:** `pageFormat`, `showBaselines`, `outputDirectory`, `currentPDFPath`, `proofSections`.
-
-**Persistence:** Auto-saves to `~/.type-proofing-swiftui-prefs.json` with a 3-second debounce timer. Loads on startup, encodes via `Codable` `PersistedState`.
-
-**Key method: `buildProofConfig()`** — Serializes all state into a flat `ProofConfig` struct that gets converted to a Python dict for `engine.generate_proof()`.
-
-### Swift Data Models
+The app uses a hierarchical `@MainActor ObservableObject` pattern. `AppState` is the root, with 6 published sub-objects:
 
 ```swift
-struct FontInfo       // id, name, isVariable, axes, supportsArabic, familyName, weight, width, slant, opticalSize
-struct FontAxis       // id(tag), name, min, max, default, current, instanceValues
-struct ProofOption    // id, name, baseType, enabled, order
-struct ProofSettings  // fontSize, tracking, lineHeight, columns, paragraphs, alignment, customText, markupEnabled,
-                      // generateOnce, categories, otFeatures, defaultFontPath, enabledStyleIndices, autoSize
-struct ProofRegistryEntry  // key, displayName, isArabic, hasSettings, defaultColumns, hasParagraphs, defaultFontSize,
-                           // hasCustomText, hasCategories, isMultiStyle + computed: supportsFormatting, supportsCols, etc.
-struct FontStyleEntry // index, fontPath, familyName, styleName, isVariable, coordinates
-```
-
----
-
-## Python Layer (Engine)
-
-### engine.py — Headless Entry Point
-
-The main function called from Swift. No UI imports, no Vanilla/AppKit dependencies (except DrawBot and pdf_manager).
-
-**`generate_proof(config: dict) → dict`**
-
-Receives a flat config dict from Swift, runs the full proof generation pipeline, returns `{"pdf_path": str, "sections": [...]}`.
-
-Steps:
-1. Extract font paths, axis values, proof options, proof settings, page format from config
-2. Create `Settings`, `FontManager`, `ProofSettingsManager` instances
-3. Begin DrawBot PDF document
-4. For each enabled proof option:
-   - Get the proof handler via `get_proof_handler()`
-   - For each font: build `ProofContext`, call `handler.generate_proof(context)`
-5. End DrawBot document, save PDF
-6. Return path + section metadata
-
-**Font sorting:** `_extract_sort_properties()` creates composite sort keys from OS/2 table values (weight class, width class, fsSelection) with name-based keyword tiebreakers. Supports weight (17 keywords), width (16 keywords), slant, and optical size extraction.
-
-**Other exports:** `get_font_metadata()`, `get_available_ot_features()`, `get_proof_registry()`, `get_page_formats()`, `get_font_styles()`, `get_default_proof_order()`.
-
-### config.py — Central Configuration
-
-**No internal dependencies.** The foundation module everything else imports.
-
-**Core contents:**
-
-- **App constants:** `APP_VERSION` (1.7.0), `SETTINGS_PATH`, `FALLBACK_FONT` (AdobeBlank.otf), `WORDSIV_SEED`
-- **Page formats:** `PAGE_FORMAT_OPTIONS` (12 formats: A4, Letter, A3, A5, Legal, iPhone sizes), `PAGE_DIMENSIONS` dict
-- **Layout constants:** `MARGIN_VERTICAL` (50pt), `MARGIN_HORIZONTAL` (40pt), footer font settings
-- **OpenType feature sets:** `DEFAULT_ON_FEATURES` (15 features), `HIDDEN_FEATURES` (10 features hidden from UI)
-- **Arabic/Farsi templates:** Character templates, positional forms (`init`, `medi`, `fina`), join types
-- **`PROOF_REGISTRY`** — The central data structure. See [The Proof Registry](#the-proof-registry).
-
-**Key helper functions:**
-- `get_proof_display_names(include_arabic)` — Ordered list of visible proof names
-- `resolve_base_proof_key(proof_name)` — Map user-visible name to (display_name, key)
-- `proof_has_custom_text()`, `proof_has_categories()`, `proof_is_multi_style()`, `proof_supports_formatting()` — Registry queries
-- `setup_page_format(page_format)` — Configures DrawBot page dimensions
-- `filter_visible_features(feature_tags)` — Strips hidden OT features for UI display
-- `resolve_character_set_by_key(cat, key)` — Maps a `character_set_key` to the actual character string from the categorized charset
-
-### fonts.py — Font Analysis
-
-**Depends on:** config, settings, fontTools, drawBot
-
-**`FontManager` class:**
-- `add_fonts(paths)`, `remove_fonts_by_indices(indices)`, `load_fonts(font_paths)`
-- `update_font_info()` — Refreshes font info, merges user axis values
-- `get_table_data()`, `get_all_axes()` — For UI display
-- `has_arabic_support()` — Checks if any loaded font has Arabic characters
-- `get_axis_values_for_font(font_path)` — Returns axis values dict
-
-**Font analysis functions:**
-- `filteredCharset(font)` — Gets charset excluding glyphs without outlines. Prefers cmap-based collection, falls back to AGL name mapping
-- `get_font_info(font_path)` — Returns dict with OT features, VF axes, named instances
-- `variableFont(font)` — Returns axes info + cartesian product of all axis value combinations
-- `pairStaticStyles(fonts)` — Matches regular/italic and regular/bold pairs by weight using OS/2 table
-- `categorize(charset)` — Groups characters by Unicode category (uppercase_base, lowercase_base, numbers_symbols, punctuation, accented, arabic_base, arabic_marks, farsi_extra)
-- `get_charset_proof_categories(cat)` — Organizes categorized chars into proof-ready groups
-- `check_arabic_support(charset)` — Detects Arabic support by checking for Arabic template characters
-
-**Caching:** `_ttfont_cache` stores `TTFont` instances by path; `clear_font_cache()` to reset.
-
-### proof.py — Proof Generation
-
-**Depends on:** config, fonts, settings, text_generators, markup_parser, drawBot, wordsiv, drawBotGrid
-
-This is the largest and most complex module. Contains drawing functions, text generation, and the handler class hierarchy.
-
-**Core drawing functions:**
-- `drawContent(textToDraw, pageTitle, columnNumber, ...)` — Renders text to DrawBot with column layout
-- `drawPageSegments(page_segments, ...)` — Renders markup output supporting multi-page, multi-column layout
-- `drawFooter(title, indFont, otFeatures, tracking, pageNumber)` — Date/time, font name, features, page number
-- `stringMaker(textInput, fontSize, indFont, ...)` — Creates `FormattedString` with optional mixed styles
-- `_render_proof_content(...)` — Unified helper that iterates over VF axis combinations, renders content, draws pages
-
-**Text generation functions:**
-- `generateTextProofString(characterSet, para, casing, ...)` — Main text generator dispatcher. Routes to wordsiv, Hoefler-style, uppercase-only, lowercase-only, or Arabic generators
-- `_generate_hoefler_style_text(...)` — Creates proofs showing contextual words per letter (loads from eng_wiki.tsv)
-- `_generate_arabic_farsi_text(...)` — Creates Arabic/Farsi text with positional forms
-- `generateSpacingString(characterSet)` — Creates HHxHH patterns for evaluating letter spacing
-
-**Auto-sizing:**
-- `_calc_auto_size_for_page(text, font_path, ...)` — Binary search for largest font size that fits content within page margins
-- `_calc_auto_size_for_line(text, font_path, ...)` — Binary search for largest font size fitting a single line
-
-### settings.py — Settings & Utilities
-
-**Depends on:** config
-
-**Utility functions (used everywhere):**
-- `normalize_path(path)` — Handles NSURL, file:// URLs, regular paths
-- `safe_json_load/save()` — Atomic JSON persistence (temp file + fsync + rename)
-- `log_error(error, context)` — Timestamped error logging
-- `safe_execute(name, func, ...)` — Try/except wrapper
-- `validate_setting_value(key, value)` — Type-based validation and coercion
-- `make_settings_key(base_key, setting_type, category?)` — Constructs consistent keys like `"proof_key_fontSize"`, `"proof_key_cat_uppercase"`
-- `make_feature_key(base_key, feature_tag)` — Constructs keys like `"otf_proof_key_kern"`
-
-**`Settings` class:**
-- Loads from `~/.type-proofing-prefs.json` (or auto-save path)
-- Nested dict access using dot notation: `settings.get("fonts.paths")`
-- Merge strategy: user data overrides defaults, missing keys filled from defaults
-- Font validation on load (checks files still exist)
-- Import/export to arbitrary files
-
-**`ProofSettingsManager` class:**
-- Manages per-proof-type settings (font size, columns, paragraphs, tracking, alignment, OT features, categories)
-- `initialize_proof_settings()` — Sets defaults for all proof types based on registry
-- `build_proof_data_for_generation(proof_options_items)` — Builds dicts keyed by proof type containing columns, paragraphs, and OT features for the generation pipeline
-- `get_popover_settings_for_proof(proof_key)` — Returns current settings for UI display
-- `update_feature_setting(key, enabled, readonly)` — Updates individual OT feature toggle
-
-### markup_parser.py — Custom Text Styling
-
-**Depends on:** config, fonts, drawBot
-
-Lightweight markdown-like parser for the Custom Text proof type.
-
-**Supported syntax:**
-```
-# Heading 1              → 2.5× base font size
-## Heading 2             → 1.8× base font size
-**bold**                 → Resolves VF wght:700 or static bold variant
-*italic*                 → Resolves VF ital:1/slnt or static italic variant
-***bold italic***        → Both combined
-[text]{wght:700, size:24, color:#FF0000, feat:smcp, style:"Bold"}
-#pagebreak()             → Force new page
-#colbreak()              → Force new column
-```
-
-**Processing pipeline:**
-1. `_escape(text)` — Replaces `\*`, `\#`, `\[`, etc. with Unicode private-use chars
-2. `_tokenize(raw_text)` — Splits into `Token` objects (heading, bold, italic, bold_italic, attr_span, plain, page_break, column_break)
-3. `_build_formatted_string(tokens, ...)` — Converts tokens to DrawBot `FormattedString` list (one per page)
-4. `_restore(text)` — Restores escaped characters in final output
-
-**Font resolution:** `_resolve_bold_font()`, `_resolve_italic_font()`, `_resolve_bold_italic_font()` — Try VF axis manipulation first (wght:700, ital:1, slnt:-12), fall back to file-name matching for static fonts.
-
-### pdf_manager.py — PDF Operations
-
-**Depends on:** settings, config, proof, AppKit, Quartz.PDFKit
-
-`PDFManager` class handles:
-- PDF preview via `PDFView` + `PDFThumbnailView` (AppKit hierarchy)
-- `begin_pdf_generation()` / `end_pdf_generation()` — DrawBot document lifecycle
-- `save_pdf_document(font_manager, now)` — Save to output directory with timestamped filename
-- `display_pdf(pdf_path)` — Load into preview
-- `export_pdf_pages(output_dir, page_range, pdf_path)` — Extract individual pages
-
-### text_generators.py — Text Data Wrapper
-
-Provides a `TextGenerator` class that wraps access to `sample_texts`, `script_texts`, and `accented_dictionary`. Methods: `get_text_sample()`, `get_script_text()`, `generate_accented_text()`. A global `text_generator` singleton is available module-wide.
-
----
-
-## Data Flow: From Button Click to PDF
-
-```
-User clicks "Generate"
-        │
-        ▼
-SidebarView.generateProof()
-        │
-        ▼
-AppState.buildProofConfig()
-  ├─ Collect enabledFontPaths + axisValuesByFont
-  ├─ Serialize proofOptions (name, baseType, enabled)
-  ├─ Flatten proofSettingsByProof → flat dict keys:
-  │     "{proofType}_fontSize", "{proofType}_cols",
-  │     "otf_{proofType}_{tag}", "{proofType}_cat_{category}", ...
-  ├─ Page format, baselines flag, output directory
-  └─ Return ProofConfig
-        │
-        ▼
-ProofEngine.generateProof(config:)
-  ├─ config.toPythonDict()  →  Python dict
-  └─ engine.generate_proof(pyDict)
-        │
-        ▼
-engine.py: generate_proof(config)
-  ├─ Create Settings, FontManager, ProofSettingsManager
-  ├─ Sort fonts by composite key (weight, width, slant, opsz)
-  ├─ FontManager.update_font_info()
-  ├─ ProofSettingsManager.initialize_proof_settings()
-  ├─ ProofSettingsManager.build_proof_data_for_generation()
-  ├─ setup_page_format()
-  ├─ db.newDrawing()
-  │
-  ├─ For each enabled proof option:
-  │   ├─ get_proof_handler(proof_type, proof_name, proof_settings, ...)
-  │   │     → Creates/caches handler from PROOF_HANDLER_REGISTRY
-  │   │
-  │   ├─ For each font in sorted fonts:
-  │   │   ├─ Get charset → filteredCharset(font)
-  │   │   ├─ Get axes product → variableFont(font)
-  │   │   ├─ Categorize chars → categorize(charset)
-  │   │   ├─ Pair styles if needed → pairStaticStyles(fonts)
-  │   │   ├─ Build ProofContext dataclass
-  │   │   └─ handler.generate_proof(context)
-  │   │         │
-  │   │         ▼
-  │   │     (Handler-specific logic — see Proof Handler System)
-  │   │         │
-  │   │         ▼
-  │   │     drawContent() or drawPageSegments()
-  │   │         ├─ stringMaker() → FormattedString
-  │   │         ├─ drawBot column layout
-  │   │         └─ drawFooter()
-  │   │
-  │   └─ Record section metadata (name + first page index)
-  │
-  ├─ db.saveImage(pdf_path)
-  ├─ db.endDrawing()
-  └─ Return {"pdf_path": ..., "sections": [...]}
-        │
-        ▼
-Back in Swift:
-  ├─ AppState.currentPDFPath = path
-  ├─ AppState.proofSections = sections
-  └─ PDFViewerView loads PDF, builds thumbnail sidebar with section headers
-```
-
----
-
-## The Proof Registry
-
-`PROOF_REGISTRY` in `config.py` is the **single source of truth** for all proof types. Every proof type is defined here with its capabilities and defaults.
-
-```python
-PROOF_REGISTRY = {
-    "filtered_character_set": {
-        "display_name": "Filtered Character Set",
-        "is_arabic": False,
-        "has_settings": True,
-        "default_cols": 1,
-        "default_size": 48,
-        "has_categories": True,
-        "text": {
-            "character_set_key": "uppercase_base",
-            ...
-        }
-    },
-    "basic_paragraph_large": {
-        "display_name": "Basic Paragraph Large",
-        "default_cols": 1,
-        "default_size": 24,
-        "has_paragraphs": True,
-        "text": {
-            "default_paragraphs": 5,
-            ...
-        }
-    },
-    # ... 24 total proof types
+@main struct TypeProofingApp: App {
+    @StateObject private var engine = ProofEngine()
+    @StateObject private var appState = AppState()
+    // All 6 sub-objects injected as individual @EnvironmentObject
 }
 ```
 
-**Registry flags control both Python behavior and Swift UI:**
+### 4.1 State Objects
 
-| Flag | Python effect | Swift UI effect |
-|------|--------------|----------------|
-| `has_settings` | Handler reads per-proof settings | Settings panel shown |
-| `has_categories` | Categories filter charset | Category checkboxes shown |
-| `has_paragraphs` | Paragraph count used | Paragraph stepper shown |
-| `has_custom_text` | Custom text editor input | Custom text section shown |
-| `multi_style` | Multi-style comparison logic | Font style list shown |
-| `is_arabic` | Arabic text generators used | Proof hidden if no Arabic fonts |
-| `default_cols/size` | Fallback defaults | Initial control values |
+| Object | Purpose | Key Properties |
+|--------|---------|----------------|
+| **FontState** | Loaded fonts, axes, styles | `fontPaths`, `loadedFonts: [FontInfo]`, `axisValuesByFont`, `disabledFontPaths`, `fontStyles: [FontStyleEntry]`, `styleSourceMode` (.namedInstances / .customPositions) |
+| **ProofState** | Proof instances, selection | `proofOptions: [ProofOption]`, `selectedProof: UUID?`, `proofSettingsByProof: [name: ProofSettings]`, `registryByKey` |
+| **PreviewState** | Preview/final PDF paths | `previewPDFPath`, `previewSections: [ProofSection]`, `finalPDFPath`, `currentConfigFingerprint`, `finalGeneratedConfigFingerprint` |
+| **PageState** | Page format, view mode | `pageFormat` ("A4Landscape", etc.), `showBaselines`, `viewMode` (.page/.grid/.compare) |
+| **UIState** | Panel visibility, widths | `showSidebar`, `showInspector`, `showThumbnailStrip`, panel widths, section expansion state |
+| **OutputState** | PDF output directory | `useCustomLocation`, `customLocation` |
 
-**Proof types (24 total):**
+### 4.2 ProofOption (Per-Instance)
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `filtered_character_set` | Category-based | Full charset organized by Unicode category |
-| `spacing_proof` | Category-based | HHxHH patterns for evaluating spacing |
-| `basic_paragraph_large` | Text | Large paragraphs (wordsiv or sample text) |
-| `basic_paragraph_small` | Text | Small paragraphs |
-| `diacritic_words_large` | Text | Words with diacritics, large |
-| `diacritic_words_small` | Text | Words with diacritics, small |
-| `paired_styles_paragraph_small` | Text | Alternating regular/italic or regular/bold |
-| `generative_text_small` | Text | Pseudo-random wordsiv text |
-| `misc_paragraph_small` | Text | Numbers, punctuation, symbols in paragraphs |
-| `custom_text` | Custom | User-entered text with optional markup |
-| `multi_style_comparison` | Multi-style | One line per font style, same text |
-| `ar_character_set` | Arabic | Arabic contextual forms (init/medi/fina/isol) |
-| `ar_paragraph_large` | Arabic text | Arabic paragraphs, large |
-| `ar_paragraph_small` | Arabic text | Arabic paragraphs, small |
-| `fa_paragraph_large` | Arabic text | Persian paragraphs, large |
-| `fa_paragraph_small` | Arabic text | Persian paragraphs, small |
-| `ar_vocalization_paragraph_small` | Arabic text | Arabic with vocalization marks |
-| `ar_lat_mixed_paragraph_small` | Arabic text | Arabic-Latin mixed text |
-| `ar_numbers_small` | Arabic text | Number proofs |
+Each proof in the sidebar is a `ProofOption` instance:
 
----
-
-## Proof Handler System
-
-Proof generation uses an abstract handler hierarchy with a registry-based factory.
-
-```
-BaseProofHandler (ABC)
-  ├─ StandardTextProofHandler        ← Most text-based proofs (default)
-  ├─ CustomTextProofHandler          ← Custom Text proof
-  ├─ ArCharacterSetHandler           ← Arabic character set
-  └─ CategoryBasedProofHandler
-        ├─ FilteredCharacterSetHandler  ← Filtered Character Set
-        ├─ SpacingProofHandler          ← Spacing Proof
-        └─ MultiStyleComparisonProofHandler ← Multi-Style Comparison
-```
-
-### BaseProofHandler
-
-Caches common settings on construction: `font_size`, `tracking`, `align`, `line_height`, `columns`, `paragraphs`, `otfeatures`. Provides template method `generate_text_proof()` that calls `textProof()` with standard parameters.
-
-### StandardTextProofHandler
-
-Handles the majority of proofs (basic paragraph, diacritics, paired styles, generative text, misc, Arabic/Farsi text proofs). Reads proof-specific config from the registry (`text.default_paragraphs`, `text.hoefler_style`, `text.casing`, etc.) and delegates to `textProof()`.
-
-### CategoryBasedProofHandler
-
-Base for proofs that iterate over character categories (uppercase, lowercase, numbers/symbols, punctuation, accented). Reads category enable flags from settings, filters charset accordingly.
-
-### CustomTextProofHandler
-
-Supports plain text or markup mode. Has a `generate_once` flag — when enabled, generates the custom text proof only for a single font (the user-selected default font), not for every loaded font. Uses `markup_parser._build_formatted_string()` when markup is enabled.
-
-### MultiStyleComparisonProofHandler
-
-Generates one line per loaded font style for selected categories. Uses class-level `_generated_instances` set for deduplication within a single PDF generation run — ensures each instance combination is only rendered once even when called for multiple fonts.
-
-### Factory
-
-```python
-PROOF_HANDLER_REGISTRY = {
-    "Filtered Character Set": FilteredCharacterSetHandler,
-    "Spacing Proof": SpacingProofHandler,
-    "ARA Character Set": ArCharacterSetHandler,
-    "Custom Text": CustomTextProofHandler,
-    "Multi-Style Comparison": MultiStyleComparisonProofHandler,
+```swift
+struct ProofOption: Identifiable, Codable {
+    let id: UUID          // Unique per instance
+    var name: String      // Display name, e.g. "Spacing Test 2"
+    var baseType: String  // Registry key, e.g. "spacing_proof"
+    var enabled: Bool
+    var order: Int        // Position in sidebar list
 }
-# All other proof display names → StandardTextProofHandler
+```
 
-get_proof_handler(proof_type, proof_name, proof_settings, get_proof_font_size_func)
-# → Returns cached handler instance
+Multiple instances of the same proof type can coexist with different settings. The `name` field is the settings key — each instance has its own `ProofSettings` in `proofSettingsByProof`.
+
+### 4.3 ProofSettings (Per-Instance)
+
+```swift
+struct ProofSettings: Codable {
+    var fontSize: Double            // 4–200 pt
+    var tracking: Double            // Letter spacing in points
+    var lineHeight: Double          // Em multiplier (default 1.2)
+    var columns: Int                // 1–6
+    var paragraphs: Int             // 1–20
+    var alignment: String           // "left" / "center" / "right" / "justified"
+    var customText: String          // For custom_text / multi_style_comparison
+    var markupEnabled: Bool         // Parse markup in custom text
+    var generateOnce: Bool          // Render once (not per font)
+    var categories: CategorySettings // uppercase/lowercase/numbersSymbols/punctuation/accented toggles
+    var otFeatures: [OTFeature]     // Per-proof OpenType feature toggles
+    var substitutionFeatures: [SubstitutionFeature]  // GSUB feature toggles
+    var autoSize: Bool              // Binary-search fit to page
+    var showFallback: Bool          // Show missing glyphs in multi-style
+    var columnGap: Double           // Column gutter in points
+    var direction: String           // "ltr" / "rtl" / "auto"
+    var paragraphIndent: Double
+    var paragraphSpace: Double
+    var hyphenation: Bool
+    var hangingPunctuation: Bool
+    var enabledStyleIndices: [String: Bool]  // Multi-style: which styles are visible
+    var defaultFontPath: String     // For generateOnce mode
+    var defaultFontAxisDict: [String: Double]?
+}
+```
+
+### 4.4 Settings Persistence
+
+- **Auto-save**: `~/.type-proofing-swiftui-prefs.json`, debounced 3 seconds
+- **Settings key derivation**: `pythonProofKey(for:)` lowercases and replaces spaces/dashes/slashes with underscores
+- **Flattening**: `buildFlatProofSettings()` converts nested `ProofSettings` into flat keys like `"spacing_proof_fontSize"`, `"otf_spacing_proof_kern"` — this format is consumed by the renderer
+- **Fingerprint**: SHA256 of sorted JSON config, used to detect changes and skip redundant regeneration
+
+### 4.5 OT Feature Defaults
+
+Two key constant sets control feature behavior:
+
+```swift
+let DEFAULT_ON_FEATURES: Set<String> = [
+    "ccmp", "kern", "calt", "rlig", "liga", "mark", "mkmk",
+    "clig", "dist", "rclt", "rvrn", "curs", "locl"
+]
+
+let HIDDEN_FEATURES: Set<String> = [
+    "init", "medi", "med2", "fina", "fin2", "fin3", "isol",
+    "curs", "aalt", "rand"
+]
+```
+
+Hidden features are never shown in the UI. Default-on features are enabled when a proof is first created. The spacing proof force-disables `kern`.
+
+---
+
+## 5. Native Renderer Pipeline
+
+### 5.1 Orchestration Flow
+
+```
+NativeProofOrchestrator.generate(config)
+  │
+  ├─ For each font path:
+  │    ├─ Read font file into Data
+  │    ├─ tp_get_charset() → filtered character string
+  │    ├─ CharacterCategorizer.categorize() → CharacterCategories
+  │    ├─ FontLoader.register(url:) → register in process scope
+  │    │
+  │    ├─ For each axis combination (Cartesian product):
+  │    │    │
+  │    │    ├─ For each enabled ProofOption:
+  │    │    │    ├─ makeHandler(baseType) → ProofHandler
+  │    │    │    ├─ Build ProofContext (charset, categories, features, settings)
+  │    │    │    └─ handler.generateProof(context, renderer)
+  │    │    │         ├─ Resolve params (fontSize, cols, tracking, etc.)
+  │    │    │         ├─ Generate/load text content
+  │    │    │         ├─ FontLoader.makeFont(path, size, features, variations)
+  │    │    │         ├─ TextRenderer.makeAttributedString(...)
+  │    │    │         └─ drawContent(...) → multi-page column rendering
+  │    │    │              ├─ PDFRenderer.beginPage()
+  │    │    │              ├─ PageLayout.drawFooter(...)
+  │    │    │              ├─ BaselineGrid (if showBaselines)
+  │    │    │              ├─ TextRenderer.drawText() per column
+  │    │    │              └─ PDFRenderer.endPage()
+  │    │    │
+  │    │    └─ Track ProofSection (page ranges per proof)
+  │    │
+  │    └─ FontLoader.unregister(url:)
+  │
+  └─ PDFRenderer.close() → finalized PDF
+```
+
+### 5.2 ProofHandler Protocol
+
+```swift
+protocol ProofHandler {
+    var proofName: String { get }
+    var proofKey: String { get }
+    func generateProof(context: ProofContext, renderer: PDFRenderer)
+}
+```
+
+The protocol extension provides shared utilities:
+- `resolveParams(from:)` → `ProofParams` — extracts all settings from the flat dict
+- `drawContent(...)` — multi-column paginated text rendering with footer, baselines, overflow
+- `makeSettingsKey(...)` — constructs keys like `"basic_paragraph_large_fontSize"`
+- `axisLabel(from:)` — formats axis values for footer display
+
+### 5.3 Handler Dispatch (makeHandler)
+
+```swift
+switch baseType {
+case "filtered_character_set":     → FilteredCharacterSetHandler
+case "spacing_proof":              → SpacingProofHandler
+case "ar_character_set":           → ArCharacterSetHandler
+case "custom_text":                → CustomTextProofHandler
+case "substitution_overview":      → SubstitutionOverviewHandler
+case "multi_style_comparison":     → MultiStyleComparisonHandler
+default (all text proofs):         → StandardTextProofHandler
+}
+```
+
+### 5.4 Handler Details
+
+**StandardTextProofHandler** — Handles 14 of the 22 proof types (all the text-based paragraph proofs). Uses `TextProofConfig` from the registry entry to determine:
+- Which character set to use (`base_letters`, `accented_plus`, `arabic`, `farsi`)
+- Whether to use premade text, generative text (WordSiv), or Hoefler-style contextual text
+- Whether to render mixed styles (alternating bold/italic via `StylePairing`)
+- Whether to inject premade text blocks (e.g., vocalization, numbers)
+
+**FilteredCharacterSetHandler** — Renders characters grouped by category (uppercase, lowercase, numbers, punctuation, accented). Supports auto-sizing via binary search to fit all characters on one page.
+
+**SpacingProofHandler** — Renders each character flanked by control characters (e.g., `HHHnHOnOOO`). Force-disables `kern` and `liga`.
+
+**ArCharacterSetHandler** — Renders Arabic characters showing contextual forms (isolated, initial, medial, final). Detects dual-join vs. right-join characters.
+
+**CustomTextProofHandler** — Renders user-provided text. Supports the markup language (bold, italic, headings, attributes, page/column breaks). Has `generateOnce` mode that renders with a single specified font across all fonts.
+
+**SubstitutionOverviewHandler** — Reads the font's GSUB table (via Rust FFI), displays input→output glyph substitutions with glyph name annotations. 5-column layout.
+
+**MultiStyleComparisonHandler** — Renders the same text in every enabled font style (named instances or custom axis positions), one line per style. Supports category-based text groups + custom text.
+
+---
+
+## 6. The Proof Registry — Complete Reference
+
+The registry at `ProofRegistry.swift` defines all 22 proof types. This is **the single source of truth** for what proofs exist.
+
+### 6.1 Latin Proofs
+
+| Key | Display Name | Default Size | Default Cols | Notable |
+|-----|-------------|-------------|-------------|---------|
+| `filtered_character_set` | Character Overview | 78pt | 1 | hasCategories, autoSize option |
+| `spacing_proof` | Spacing Test | 14pt | 2 | hasCategories, force-disables kern |
+| `basic_paragraph_large` | Structured Text - Heading | 28pt | 1 | hoeflerStyle text |
+| `diacritic_words_large` | Accented Words - Heading | 28pt | 1 | accents: 3 |
+| `basic_paragraph_small` | Structured Text - Text | 9pt | 2 | hoeflerStyle text |
+| `paired_styles_paragraph_small` | Style Pairing | 9pt | 2 | mixedStyles, forceWordsiv |
+| `generative_text_small` | Auto-Generated Text | 9pt | 2 | forceWordsiv, hasParagraphs |
+| `diacritic_words_small` | Accented Words - Text | 9pt | 2 | accents: 3 |
+| `misc_paragraph_small` | Practical Figures & Punctuation | 9pt | 2 | injectTextKey: "misc_small_injects" |
+| `custom_text` | Custom Text | 16pt | 1 | hasCustomText, markup support |
+| `multi_style_comparison` | Style Comparison | 24pt | 1 | hasCustomText, hasCategories, multiStyle |
+| `substitution_overview` | Substitution Overview | 28pt | 5 | defaultEnabled: false (opt-in) |
+
+### 6.2 Arabic Proofs (isArabic: true)
+
+| Key | Display Name | Default Size | Default Cols | Notable |
+|-----|-------------|-------------|-------------|---------|
+| `ar_character_set` | Ar Character Overview | 64pt | 1 | Contextual forms display |
+| `ar_paragraph_large` | Ar Structured Text - Heading | 28pt | 1 | language: "ar" |
+| `fa_paragraph_large` | Fa Structured Text - Heading | 28pt | 1 | language: "fa" |
+| `ar_paragraph_small` | Ar Structured Text - Text | 9pt | 1 | language: "ar" |
+| `fa_paragraph_small` | Fa Structured Text - Text | 9pt | 1 | language: "fa" |
+| `ar_vocalization_paragraph_small` | Ar Vowel Marks | 9pt | 2 | injectTextKey: "arabicVocalization" |
+| `ar_lat_mixed_paragraph_small` | Ar-Latin Mixed | 9pt | 2 | injectTextKey: "arabicLatinMixed" |
+| `ar_numbers_small` | Ar Numerals | 9pt | 2 | injectTextKey: "arabicFarsiUrduNumbers" |
+| `ar_generative_paragraph_small` | Ar All Combinations | 9pt | 2 | hoeflerStyle, language: "ar" |
+| `fa_generative_paragraph_small` | Fa All Combinations | 9pt | 2 | hoeflerStyle, language: "fa" |
+
+### 6.3 TextProofConfig Fields
+
+Each standard text proof has a `TextProofConfig`:
+
+```swift
+struct TextProofConfig {
+    let characterSetKey: String     // "base_letters", "accented_plus", "arabic", "farsi"
+    let defaultParagraphs: Int
+    let forceWordsiv: Bool          // Force WordSiv generation (skip premade text)
+    let mixedStyles: Bool           // Alternate regular/italic or regular/bold
+    let accents: Int                // Number of accented word examples per character
+    let language: String?           // "en", "ar", "fa" — affects text generation
+    let hoeflerStyle: Bool          // Context-aware word pairing (round/flat neighbors)
+    let injectTextKey: String?      // Key to PremadeTexts for injected content
+}
 ```
 
 ---
 
-## Settings System
+## 7. How to Add a New Proof Type
 
-### Two Settings Files
+Adding a new proof requires changes in exactly 3 places (plus optionally a 4th for custom handlers):
 
-| File | Purpose | Format |
-|------|---------|--------|
-| `~/.type-proofing-swiftui-prefs.json` | SwiftUI app auto-save | JSON (`PersistedState`) |
-| `~/.type-proofing-prefs.json` | Python-side settings (legacy + engine use) | JSON (flat structure) |
+### Step 1: Register in ProofRegistry.swift
 
-### Settings Key Convention
+Add a new `ProofRegistryInfo` entry to the `entries` array:
 
-Settings keys follow a consistent pattern:
-
+```swift
+ProofRegistryInfo(
+    key: "my_new_proof",
+    displayName: "My New Proof",
+    isArabic: false,
+    hasSettings: true,
+    defaultCols: 2,
+    hasParagraphs: true,
+    defaultSize: 12,
+    hasCustomText: false,
+    hasCategories: false,
+    multiStyle: false,
+    defaultEnabled: false,
+    textConfig: TextProofConfig(
+        characterSetKey: "base_letters",
+        defaultParagraphs: 5,
+        forceWordsiv: false,
+        mixedStyles: false,
+        accents: 0,
+        language: nil,
+        hoeflerStyle: false,
+        injectTextKey: nil
+    )
+)
 ```
-{proof_key}_fontSize          → Font size for proof
-{proof_key}_cols              → Column count
-{proof_key}_para              → Paragraph count
-{proof_key}_tracking          → Tracking value
-{proof_key}_align             → Alignment string
-{proof_key}_lineHeight        → Line height ratio
-{proof_key}_cat_{category}    → Category enable flag
-{proof_key}_customText        → Custom text content
-{proof_key}_markupEnabled     → Markup mode flag
-{proof_key}_generateOnce      → Generate-once flag
-otf_{proof_key}_{feature}     → OT feature toggle
+
+Also add the key to `defaultProofOrder`.
+
+### Step 2: Add Handler Dispatch (if custom handler needed)
+
+If the new proof follows the standard text pattern, `StandardTextProofHandler` handles it automatically based on the `TextProofConfig`. No code change needed.
+
+If it needs custom rendering, create a new handler class and add a case to `NativeProofOrchestrator.makeHandler()`:
+
+```swift
+case "my_new_proof": return MyNewProofHandler(proofName: proofName, proofKey: proofKey)
 ```
 
-Built by `make_settings_key(base_key, setting_type, category?)` and `make_feature_key(base_key, feature_tag)`.
+### Step 3: Create Handler Class (if custom)
 
-### Settings Flow (Swift → Python)
+Implement `ProofHandler`:
 
-1. Swift `AppState.proofSettingsByProof` stores typed `ProofSettings` structs per proof
-2. `buildFlatProofSettings()` flattens these into a `[String: PythonObject]` dict using the key convention above
-3. Python `engine.generate_proof()` passes the flat dict to `ProofSettingsManager`
-4. `ProofSettingsManager` reads keys using `make_settings_key()` / `make_feature_key()` and populates handler settings
+```swift
+final class MyNewProofHandler: ProofHandler {
+    let proofName: String
+    let proofKey: String
 
-### Atomic Persistence
+    init(proofName: String, proofKey: String) {
+        self.proofName = proofName
+        self.proofKey = proofKey
+    }
 
-`safe_json_save()` writes to a temp file, calls `fsync`, then atomically renames — preventing corruption on crash.
+    func generateProof(context: ProofContext, renderer: PDFRenderer) {
+        let params = resolveParams(from: context)
+        // ... custom rendering logic ...
+        // Use drawContent() for standard column rendering
+        // Or call renderer/TextRenderer directly for custom layouts
+    }
+}
+```
+
+### Step 4: Settings UI (automatic)
+
+`SettingsPanelView` automatically renders controls based on the registry entry's flags:
+- `hasSettings` → shows the settings panel
+- `hasParagraphs` → shows paragraph count control
+- `hasCustomText` → shows text editor + markup toggle
+- `hasCategories` → shows category checkboxes
+- `multiStyle` → shows style source picker + font style list
+- `supportsCols` (derived) → shows columns/gap controls
+- `supportsFormatting` (derived) → shows alignment, direction, hyphenation, etc.
+
+No UI code changes needed unless the proof needs truly novel controls.
 
 ---
 
-## Font Management
+## 8. Rust Native Library (native/)
 
-### Loading and Analysis
+### 8.1 Architecture
 
-1. User drops font files or clicks "Add Fonts"
-2. Swift calls `engine.get_font_metadata(paths)` → Python `fonts.get_font_info()` for each file
-3. Returns: family name, OT features, VF axes (min/max/default/named instances), Arabic support flag
-4. Swift populates `FontInfo` models, displays in sidebar with axis controls
+Two crates in a Cargo workspace:
+- **`tp-fonts`** — Pure Rust font analysis library, no FFI
+- **`tp-bridge`** — C FFI exports that wrap tp-fonts + WordSiv
 
-### Variable Font Handling
+Dependencies: `read-fonts` 0.39, `skrifa` 0.42 (Google Fonts Rust libraries), `wordsiv` (private crate from Dogray Type Foundry).
 
-- `variableFont(font)` returns axes info + cartesian product of all axis value combinations
-- User adjusts axis values via multi-handle sliders (each handle = one instance to generate)
-- The product of all axis values determines how many pages are generated per proof type
-- Example: 3 weight values × 2 width values = 6 instance combinations per proof
+### 8.2 FFI Functions (tpnative.h)
 
-### Character Set Analysis
+```c
+// Font analysis
+TPFontInfo *tp_load_font(const uint8_t *data, uintptr_t len);
+void tp_free_font_info(TPFontInfo *ptr);
+char *tp_get_charset(const uint8_t *data, uintptr_t len);
+char *tp_get_axes_json(const uint8_t *data, uintptr_t len);
+char *tp_get_named_instances_json(const uint8_t *data, uintptr_t len);
+char *tp_get_substitutions_json(const uint8_t *data, uintptr_t len);
 
-`filteredCharset()` builds the font's effective character set:
-1. Reads cmap tables, prefers format 4/12 for complete Unicode coverage
-2. Filters out glyphs without outlines (checks glyf/CFF tables)
-3. Falls back to AGL (Adobe Glyph List) name-to-Unicode mapping if cmap is sparse
+// Text generation (WordSiv)
+WordSiv *wsv_create(uint64_t seed);
+void wsv_free(WordSiv *ptr);
+char *wsv_text(WordSiv *ptr, const char *glyphs, uint32_t n_paras, ...);
+char *wsv_words(WordSiv *ptr, const char *glyphs, const char *case_str, ...);
+char *wsv_top_word(WordSiv *ptr, const char *glyphs, ...);
+void wsv_seed(WordSiv *ptr, uint64_t seed);
+```
 
-`categorize()` then groups characters:
-- `uppercase_base`, `lowercase_base` — Latin letters without diacritics
-- `numbers_symbols` — digits + currency + math symbols
-- `punctuation` — all punctuation categories
-- `accented` — characters with combining marks (detected via Unicode decomposition)
-- `arabic_base`, `arabic_marks`, `farsi_extra` — script-specific groups
+**Memory convention**: All `char *` returns are heap-allocated by Rust. Caller must free via `wsv_free_string()` or `tp_free_font_info()`. NULL return means error.
 
-### Font Pairing
+### 8.3 TPFontInfo Struct
 
-`pairStaticStyles(fonts)` matches fonts for alternating-style proofs:
-- Uses OS/2 `fsSelection` bits to identify Regular, Bold, Italic
-- Groups by weight class, pairs upright with italic at same weight
-- Returns paired font lists for `_handle_mixed_styles()`
+```c
+typedef struct TPFontInfo {
+    char *family_name;
+    char *subfamily_name;
+    uint16_t weight;      // OS/2 usWeightClass
+    uint16_t width;       // OS/2 usWidthClass
+    uint16_t fs_selection; // Bit flags (bit 0 = italic, bit 5 = bold, bit 6 = regular)
+    bool is_variable;
+    double slant;         // -12.0 for italic, 0.0 for upright
+    double optical_size;  // Default opsz value or 0.0
+    char *axes_json;      // JSON: [{"tag":"wght","min":100,"default":400,"max":900}]
+    char *features_json;  // JSON: ["kern","calt","ss01"]
+} TPFontInfo;
+```
 
-### Font Sorting (engine.py)
+### 8.4 Charset Detection (charset.rs)
 
-`_extract_sort_properties()` creates composite sort keys:
-- Primary: OS/2 `usWeightClass` → ordinal (100→1, 200→2, ..., 950→10)
-- Secondary: OS/2 `usWidthClass` → ordinal (1→1, ..., 9→9)
-- Fallback: Name-based keyword matching against 17 weight keywords, 16 width keywords
-- Additional: Slant (from `fsSelection` italic bit or slnt axis), optical size
-- Sort key: `(family_name, weight_composite, width_composite, slant, optical_size)`
+1. Parse font as `FontRef` via skrifa
+2. Iterate cmap best subtable by codepoint
+3. For each mapping, verify the glyph has actual outlines (not just a cmap entry):
+   - Check `glyf` table: `numberOfContours != 0`
+   - Check `CFF`/`CFF2`: outline provider
+4. Fallback: if cmap is empty, use Adobe Glyph List (agl.rs) for name→Unicode mapping
+5. Return sorted string of renderable characters
+
+### 8.5 GSUB Substitution Extraction (substitutions.rs)
+
+Extracts GSUB feature substitutions for the SubstitutionOverview proof:
+- Handles lookup types: Single (1:1), Ligature (N:1), ChainContextual (conditional)
+- Skips positional features: init, medi, fina, isol, curs, aalt, rand
+- Builds context strings for contextual substitutions
+- Returns JSON array of features with entries (input/output glyph IDs, names, context)
+
+### 8.6 Build Process
+
+```bash
+bash native/build_rust.sh
+# 1. cargo build --release --target aarch64-apple-darwin -p tp-bridge
+# 2. cargo build --release --target x86_64-apple-darwin -p tp-bridge
+# 3. lipo -create → lib/libtpnative.a (universal2)
+# 4. cbindgen → include/tpnative.h
+```
+
+The Xcode project has a pre-build script that auto-builds if `libtpnative.a` is missing.
 
 ---
 
-## Text Generation
+## 9. Preview System
 
-### Sources
+### 9.1 PreviewCoordinator
 
-| Source | Used for |
-|--------|----------|
-| **wordsiv** (WordSiv library) | Primary text generator — produces pseudo-random words from vocabulary, seeded for reproducibility |
-| **sample_texts.py** | Pre-made paragraphs (mixed case, lowercase, uppercase, numbers, punctuation) |
-| **script_texts.py** | Arabic vocalization, Arabic-Latin mixed, Arabic/Farsi/Urdu numbers |
-| **accented_dictionary.py** | Words containing specific accented characters |
-| **eng_wiki.tsv** | Word frequency data for Hoefler-style proofs |
+The live preview is not a single-shot generation. It decomposes proofs into **fragments** (one PDF per proof) and composes them into a single preview PDF.
 
-### Text Generation Strategy
+```
+State change detected
+  → Debounce (2s for global changes, 2s per proof)
+  → invalidateAll() or invalidateProof(id)
+  → Queue PreviewJobs by cost (.fast or .wordsiv)
+  → pumpQueues() — run up to N fast jobs in parallel, 1 wordsiv at a time
+  → Each job: engine.generatePreviewFragment(config)
+  → On completion: requestCompose() (debounced 75ms)
+  → composePreview() — merge fragment PDFs into one
+  → Update state.preview.previewPDFPath
+```
 
-`generateTextProofString()` dispatches based on font capabilities:
-1. **Font has upper + lowercase** → WordSiv mixed-case text, or sample text fallback
-2. **Font is uppercase-only** → Uppercase sample text + accented uppercase words
-3. **Font is lowercase-only** → Lowercase sample text + accented lowercase words
-4. **Arabic/Farsi font** → Script-specific text with positional forms
+Key design choices:
+- **Two queues**: `.fast` proofs (character set, spacing) run in parallel; `.wordsiv` proofs (text generation) are serialized to avoid WordSiv contention
+- **Fingerprinting**: Each fragment has a SHA256 fingerprint. If settings haven't changed, the existing fragment is reused
+- **Priority**: The currently-selected proof gets priority in the queue
+- **Pause/resume**: Final generation pauses the preview coordinator to avoid contention
 
-**Hoefler-style proofs:** For each letter in the charset, finds real English words from `eng_wiki.tsv` that contain that letter in various positions (initial, medial, final), grouped by letter shape (round-left, flat-left, round-right, flat-right). This creates contextually rich proofs showing how each letter behaves next to different letter shapes.
+### 9.2 PDF Viewer
 
-**WordSiv text:** Uses seeded randomization (`WORDSIV_SEED = 987654`) for reproducible output. Generates words that only use characters present in the font's charset, with recent-word tracking to avoid repetition.
+`PDFViewerView.swift` provides three view modes:
+- **Page view**: Standard scrollable PDFView with zoom (10–500%)
+- **Grid view**: Lazy grid of all pages with section headers
+- **Compare view**: Side-by-side PDFs with synced scroll/zoom (for before/after comparison)
+
+The thumbnail strip shows page thumbnails with proof section headers. Thumbnails are cached (up to 500) and eagerly rendered.
+
+Viewport anchor preservation: when the PDF is reloaded (after a preview update), the viewer restores the previous scroll position and zoom level.
 
 ---
 
-## Markup Parser
+## 10. Text Generation System
 
-The markup parser (`markup_parser.py`) enables rich text formatting in Custom Text proofs. It converts a markdown-like syntax into DrawBot `FormattedString` objects.
+### 10.1 Text Sources
 
-### Processing Pipeline
+Text for proofs comes from multiple sources, selected by the handler:
 
-```
-Raw text → _escape() → _tokenize() → _build_formatted_string() → _restore()
-                                              │
-                                    [FormattedString per page]
-```
+1. **Premade texts** (PremadeTexts.swift): Static pangrams, paragraph samples, Arabic vocalization text, numbers
+2. **Accented dictionary** (accented_dictionary.json): Maps base characters to words containing accented variants
+3. **WordSiv** (Rust crate via FFI): Generates pseudo-random text constrained to a font's character set
+4. **Hoefler-style generation** (TextGeneration.swift): Context-aware word pairing — each character is shown in words with specific neighboring character shapes (round, flat, diagonal)
+5. **Custom text** (user-provided): Plain or markup text entered in the settings panel
 
-### Token Types
+### 10.2 Markup Language
 
-| Token | Syntax | Effect |
-|-------|--------|--------|
-| `heading1` | `# Title` | min(base_size × 2.5, 90) |
-| `heading2` | `## Title` | min(base_size × 1.8, 90) |
-| `bold` | `**text**` | Resolves weight:700 or static bold |
-| `italic` | `*text*` | Resolves ital:1/slnt or static italic |
-| `bold_italic` | `***text***` | Both combined |
-| `attr_span` | `[text]{attrs}` | Inline attribute overrides |
-| `page_break` | `#pagebreak()` | New page |
-| `column_break` | `#colbreak()` | New column |
+Custom text supports a markup syntax:
 
-### Attribute Syntax
+| Syntax | Effect |
+|--------|--------|
+| `**text**` | Bold |
+| `*text*` | Italic |
+| `***text***` | Bold italic |
+| `# text` | Heading 1 |
+| `## text` | Heading 2 |
+| `[text]{attr:value}` | Attribute span |
+| `#pagebreak()` | Insert page break |
+| `#colbreak()` | Insert column break |
+| `\\`, `\*`, `\#` | Escape characters |
 
-```
-[text]{wght:700, size:24, color:#FF0000, feat:"smcp,onum", tracking:10, style:"Bold Italic"}
-```
+Attribute span supports: `wght`, `opsz`, `wdth`, `ital`, `slnt` (axis values), `size` (multiplier), `color` (hex), `tracking`, `style` (font style name), `feat` (OT features, prefix `-` to disable).
 
-- `wght`, `wdth`, `opsz`, `ital`, `slnt` → Variable font axis overrides
-- `style` → Resolves font by subfamily name from loaded fonts
-- `feat` → OpenType feature overrides
-- `size` → Font size override
-- `color` → Fill color (hex)
-- `tracking` → Tracking override
+### 10.3 Style Pairing
 
-### Font Resolution
+For mixed-style proofs (`paired_styles_paragraph_small`), the system detects style pairs:
+1. Static upright + italic (same weight)
+2. Static regular + bold
+3. Variable font with `ital` axis
+4. Variable font with `wght` axis (≥600 threshold)
 
-Bold/italic resolution tries three strategies:
-1. **Variable font axis:** Set wght:700, ital:1, or slnt:-12
-2. **Named instances:** Find matching instance in the same font
-3. **Static font matching:** Search loaded fonts for matching subfamily name
+Text is rendered alternating between styles every 1–4 words (deterministic via seeded XorShift64 RNG).
 
 ---
 
-## PDF Management
+## 11. Page Layout & Rendering
 
-`pdf_manager.py` handles the AppKit-level PDF operations:
+### 11.1 Page Formats
 
-- **Preview:** `PDFView` (auto-scaling, continuous scroll) + `PDFThumbnailView` (sidebar minimap)
-- **Save:** Timestamped filename (`YYYY-MM-DD_HHMM_{family_name}.pdf`), output to font directory or custom location
-- **Document lifecycle:** `begin_pdf_generation()` → proof handlers draw pages → `end_pdf_generation()`
+| Format | Width × Height (points) |
+|--------|------------------------|
+| A3Landscape | 1190 × 842 |
+| A4Landscape | 842 × 595 |
+| A5Landscape | 595 × 420 |
+| LetterLandscape | 792 × 612 |
+| LegalLandscape | 1008 × 612 |
 
-The PDF viewer in Swift (`PDFViewerView.swift`) reimplements the preview using PDFKit directly, with custom section headers in the thumbnail sidebar.
+Margins: 50pt vertical, 40pt horizontal. Default column gutter: 20pt.
+
+### 11.2 Footer
+
+Each page has a footer with:
+- Left: `date time | font_name | proof_name - axis_label`
+- Right: page number
+- Second line (7pt): `OT Fea: ON: smcp, OFF: kern | Tracking: 5 | Line Height: 1.5` (non-default features only)
+
+### 11.3 CoreText Rendering
+
+`TextRenderer.swift` uses two rendering paths:
+- **CTFramesetter** (default): Standard CoreText layout
+- **NSLayoutManager** (when hyphenation is enabled): Uses TextKit for hyphenation support
+
+For strings >2000 characters, enables unbounded layout to prevent CoreText truncation.
 
 ---
 
-## Module Dependency Graph
+## 12. Unicode & Character Categorization
 
+`CharacterCategorizer` classifies a font's character set into Unicode categories:
+
+| Category | Unicode Properties |
+|----------|-------------------|
+| `uniLu` | Uppercase letters |
+| `uniLl` | Lowercase letters |
+| `uniLo` | Other letters |
+| `uniNd` | Decimal numbers |
+| `uniNo` | Other numbers |
+| `uniPo`, `uniPc`, `uniPd`, `uniPs`, `uniPe`, `uniPi`, `uniPf` | Punctuation (various) |
+| `uniSm`, `uniSc`, `uniSo` | Symbols (math, currency, other) |
+| `accented` | Letters with combining marks |
+| `accentedPlus` | accented + non-Latin letters |
+
+Arabic-specific:
+- `ar`: Core Arabic character set (13 main characters)
+- `fa`: Farsi additions
+- `arabTyped`: All characters in Arabic Unicode ranges (0x0600–0x06FF, 0x0750–0x077F, 0x08A0–0x08FF, 0xFB50–0xFDFF, 0xFE70–0xFEFF)
+- `arfaDualJoin`: Characters that connect on both sides
+- `arfaRightJoin`: Characters that connect on right side only
+
+---
+
+## 13. Build & Project Configuration
+
+### 13.1 XcodeGen
+
+The Xcode project is generated from `TypeProofing-SwiftUI/project.yml`:
+- **Never edit `.xcodeproj` directly** — run `xcodegen generate`
+- Deployment target: macOS 26.0
+- Swift 5.9
+- SPM dependency: CompactSlider 2.1+
+- Links `libtpnative.a` via `LIBRARY_SEARCH_PATHS` + `OTHER_LDFLAGS`
+- Swift module map for C header: `SWIFT_INCLUDE_PATHS` → `NativeLib/include/`
+- Pre-build script auto-builds Rust if `.a` is missing
+
+### 13.2 Bundle Identifier
+
+`com.dograytype.typeproofing`, version 2.0.0, category: Graphics & Design.
+
+---
+
+## 14. Settings File Schema
+
+Settings persist to `~/.type-proofing-swiftui-prefs.json`. The full schema is documented in `README_SETTINGS.md`. Key sections:
+
+```json
+{
+    "version": "1.0",
+    "fonts": {
+        "paths": ["/path/to/font.otf"],
+        "axis_values": { "/path/to/font.otf": { "wght": 400 } }
+    },
+    "proof_options": {
+        "filtered_character_set": true,
+        "spacing_proof": true
+    },
+    "proof_settings": {
+        "BigParagraphProof_cols": 1,
+        "SmallParagraphProof_cols": 2,
+        "otf_BigParagraphProof_kern": true
+    },
+    "page_format": "A4Landscape",
+    "pdf_output": {
+        "use_custom_location": false,
+        "custom_location": ""
+    }
+}
 ```
-config.py                    ← No internal dependencies
-    │
-    ├──→ fonts.py            ← Depends on config, settings
-    ├──→ settings.py         ← Depends on config
-    ├──→ markup_parser.py    ← Depends on config, fonts
-    │
-    └──→ proof.py            ← Depends on config, fonts, settings,
-         │                      markup_parser, text_generators,
-         │                      wordsiv, drawBotGrid
-         │
-         └──→ engine.py      ← Depends on config, fonts, settings, proof
-              │
-              └──→ pdf_manager.py  ← Depends on settings, config, proof
+
+Users can duplicate this file, rename it, and load it via "Import Settings" to switch between project configurations.
+
+---
+
+## 15. Non-Obvious Patterns & Gotchas
+
+### Proof Instance vs. Proof Type
+A proof *type* is a registry entry (e.g., `"spacing_proof"`). A proof *instance* is a `ProofOption` with a unique UUID, name, and settings. Users can add multiple instances of the same type with different settings. The `baseType` field links an instance to its registry entry.
+
+### Settings Key Derivation
+Settings keys are derived from the proof *instance name*, not the type key. `pythonProofKey(for:)` lowercases and replaces non-alphanumeric characters with underscores. For named instances like "Spacing Test 2", the key becomes `"spacing_test_2"`. OT features are prefixed: `"otf_spacing_test_2_kern"`.
+
+### Axis Cartesian Product
+For variable fonts, the app generates a Cartesian product of all axis values. If a font has `wght: [100, 400, 900]` and `opsz: [8, 32]`, that's 6 combinations, each generating its own proof pages.
+
+### Preview Fragment Composition
+The preview PDF is a composition of individual fragment PDFs, one per proof. Fragments are generated independently and cached by fingerprint. Composition merges them in proof order with section markers for thumbnail navigation.
+
+### Arabic Contextual Form Detection
+Arabic proof rendering distinguishes dual-join characters (connect both sides: ب, ت, ث, etc.) from right-join characters (connect right only: ا, د, ر, etc.). This affects how the contextual form display is generated.
+
+### WordSiv Charset-Constrained Generation
+WordSiv generates text using only glyphs available in the loaded font. It takes a character set string and produces words from English, Arabic, or Farsi vocabularies. Seed 987654 ensures deterministic output.
+
+### Auto-Sizing Binary Search
+For character set proofs, the auto-size feature uses binary search (range 4–200pt) to find the largest font size that fits all characters on one page.
+
+### Hanging Punctuation
+Implemented via Apple Advanced Typography (AAT) feature type 22, selector 1. Only available if the font supports `opbd` (optical bounds). `FontLoader.fontSupportsOpbd()` checks for this.
+
+### Substitution Overview
+The GSUB substitution data comes from Rust (`tp_get_substitutions_json`), not from CoreText. The handler displays input glyphs → output glyphs with feature-on rendering, plus glyph name annotations.
+
+### Multi-Style "Generate Once"
+The `CustomTextProofHandler` with `generateOnce: true` renders the custom text exactly once using a specified default font, rather than once per loaded font. A static set tracks which instances have already generated to prevent duplicates.
+
+---
+
+## 16. Testing
+
+```bash
+# Python unit tests (mocked, no external deps)
+python3 -m pytest tests/ -v
+
+# Python integration tests (real fonts + DrawBot)
+python3 -m pytest tests_integration/ -v
+
+# Swift unit + UI tests
+xcodebuild -project TypeProofing-SwiftUI/TypeProofing.xcodeproj -scheme TypeProofing test
 ```
 
-External dependencies: `drawBot`, `fontTools`, `wordsiv`, `drawBotGrid`, `AppKit`, `Quartz.PDFKit`, `PythonKit`.
-
----
-
-## Key Constants and Defaults
-
-| Constant | Value | Location |
-|----------|-------|----------|
-| `APP_VERSION` | 1.7.0 | config.py |
-| `FALLBACK_FONT` | AdobeBlank.otf | config.py |
-| `WORDSIV_SEED` | 987654 | config.py |
-| `DUAL_STYLE_SEED` | 1029384756 | config.py |
-| `MARGIN_VERTICAL` | 50 pt | config.py |
-| `MARGIN_HORIZONTAL` | 40 pt | config.py |
-| `DEFAULT_PAGE_FORMAT` | A4Landscape | config.py |
-| `DEFAULT_CHARSET_TRACKING` | 24 | config.py |
-| Settings auto-save path | `~/.type-proofing-prefs.json` | config.py |
-| SwiftUI settings path | `~/.type-proofing-swiftui-prefs.json` | AppState.swift |
-| Bundle ID | `com.dograytype.typeproofing` | project.yml |
-| Deployment target | macOS 13.0+ | project.yml |
-| Python version | 3.13 | PythonSetup.swift |
-
----
-
-## Conventions and Patterns
-
-### Naming
-- **Python files:** snake_case (`proof_config.py`)
-- **Python classes:** PascalCase (`ProofSettingsManager`)
-- **Python functions:** snake_case, private prefixed with `_` (`_extract_sort_properties`)
-- **Swift files:** PascalCase (`ProofEngine.swift`)
-- **Settings keys:** `{proof_key}_{settingType}` or `otf_{proof_key}_{tag}`
-
-### Design Patterns
-- **Registry pattern:** `PROOF_REGISTRY` (config), `PROOF_HANDLER_REGISTRY` (proof) — centralized definitions queried by all layers
-- **Factory with caching:** `get_proof_handler()` creates and caches handler instances
-- **Abstract base class + template method:** `BaseProofHandler.generate_text_proof()` provides the template, subclasses override `generate_proof()`
-- **Context object:** `ProofContext` dataclass carries all per-font data to handlers
-- **Atomic file writes:** temp + fsync + rename for settings persistence
-- **Bridge pattern:** `ProofEngine` is the sole Swift↔Python interface
-- **Environment objects:** `ProofEngine` and `AppState` injected via SwiftUI environment
-- **Debounced persistence:** 3-second timer in AppState for auto-save
-
-### Error Handling
-- Python: `log_error(error, context)` for logging, `safe_execute(name, func)` for wrapped calls
-- Swift: `ProofEngine.errorMessage` published for UI display
-- Font loading: graceful degradation — invalid fonts skipped with warning
-- Missing characters: `AdobeBlank.otf` used as fallback (renders empty space, preserving layout)
-
-### Threading
-- All PythonKit calls run on `@MainActor` (required for GIL safety)
-- `Task.yield()` before Python calls to let SwiftUI redraw (show spinner)
-- No background Python threads — would cause SIGSEGV in `_PyObject_Malloc`
+Swift test files cover: markup parsing, category-based proofs, native library FFI, renderer output, proof key generation, standard text handler, diagnostics.

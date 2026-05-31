@@ -15,7 +15,14 @@ struct TextGeneration {
         cat: CharacterCategories,
         fullCharacterSet: String,
         language: String? = nil,
-        hoeflerStyle: Bool = false
+        hoeflerStyle: Bool = false,
+        generativeLanguage: String = "en",
+        wordDiversity: Double = 0,
+        vocabularySize: Int = 0,
+        minWordLength: Int = 1,
+        maxWordLength: Int = 0,
+        biasChars: String = "",
+        biasStrength: Double = 0
     ) -> String {
         if characterSet.isEmpty { return "" }
 
@@ -63,7 +70,11 @@ struct TextGeneration {
                 paragraphs: paragraphs,
                 fullCharacterSet: fullCharacterSet,
                 characterSet: characterSet,
-                hoeflerStyle: hoeflerStyle
+                hoeflerStyle: hoeflerStyle,
+                vocab: generativeLanguage,
+                wordDiversity: wordDiversity, vocabularySize: vocabularySize,
+                minWordLength: minWordLength, maxWordLength: maxWordLength,
+                biasChars: biasChars, biasStrength: biasStrength
             )
         }
 
@@ -73,7 +84,11 @@ struct TextGeneration {
                 paragraphs: paragraphs,
                 fullCharacterSet: fullCharacterSet,
                 characterSet: characterSet,
-                hoeflerStyle: hoeflerStyle
+                hoeflerStyle: hoeflerStyle,
+                vocab: generativeLanguage,
+                wordDiversity: wordDiversity, vocabularySize: vocabularySize,
+                minWordLength: minWordLength, maxWordLength: maxWordLength,
+                biasChars: biasChars, biasStrength: biasStrength
             )
         }
 
@@ -82,7 +97,11 @@ struct TextGeneration {
             paragraphs: paragraphs,
             fullCharacterSet: fullCharacterSet,
             characterSet: characterSet,
-            hoeflerStyle: false
+            hoeflerStyle: false,
+            vocab: generativeLanguage,
+            wordDiversity: wordDiversity, vocabularySize: vocabularySize,
+            minWordLength: minWordLength, maxWordLength: maxWordLength,
+            biasChars: biasChars, biasStrength: biasStrength
         )
     }
 
@@ -91,16 +110,25 @@ struct TextGeneration {
         paragraphs: Int,
         fullCharacterSet: String,
         characterSet: String,
-        hoeflerStyle: Bool
+        hoeflerStyle: Bool,
+        vocab: String = "en",
+        wordDiversity: Double = 0,
+        vocabularySize: Int = 0,
+        minWordLength: Int = 1,
+        maxWordLength: Int = 0,
+        biasChars: String = "",
+        biasStrength: Double = 0
     ) -> String {
         let wsv = WordSivBridge(seed: wordsivSeed)
-        let vocab = "en"
 
         let glyphs = fullCharacterSet.isEmpty ? characterSet : fullCharacterSet
         let allGlyphs = cat.uniLu + cat.uniLl + cat.uniNd + cat.uniPo + cat.uniPc + cat.uniPd + cat.uniPi + cat.uniPf + "()"
 
         if hoeflerStyle {
-            return generateHoeflerStyleText(wsv: wsv, cat: cat, glyphs: glyphs, allGlyphs: allGlyphs, paragraphs: paragraphs, vocab: vocab)
+            return generateHoeflerStyleText(wsv: wsv, cat: cat, glyphs: glyphs, allGlyphs: allGlyphs, paragraphs: paragraphs, vocab: vocab,
+                                            wordDiversity: wordDiversity, vocabularySize: vocabularySize,
+                                            minWordLength: minWordLength, maxWordLength: maxWordLength,
+                                            biasChars: biasChars, biasStrength: biasStrength)
         }
 
         var caplc: [String] = []
@@ -121,7 +149,9 @@ struct TextGeneration {
         }
 
         let caplcStr = caplc.joined()
-        let wsvText = wsv.text(glyphs: allGlyphs, paragraphs: paragraphs, numbers: 0.1, rndPunc: 0.1, vocab: vocab)
+        let wsvText = wsv.text(glyphs: allGlyphs, paragraphs: paragraphs, numbers: 0.1, rndPunc: 0.1, vocab: vocab,
+                               rnd: wordDiversity, topK: vocabularySize, minWL: minWordLength, maxWL: maxWordLength,
+                               biasChars: biasChars.isEmpty ? nil : biasChars, biasStrength: biasStrength)
 
         return caplcStr + "\n\n" + wsvText + "\n\n" + wsvText.uppercased()
     }
@@ -132,10 +162,18 @@ struct TextGeneration {
         glyphs: String,
         allGlyphs: String,
         paragraphs: Int,
-        vocab: String
+        vocab: String,
+        wordDiversity: Double = 0,
+        vocabularySize: Int = 0,
+        minWordLength: Int = 1,
+        maxWordLength: Int = 0,
+        biasChars: String = "",
+        biasStrength: Double = 0
     ) -> String {
         let ucBase = cat.uniLuBase.isEmpty ? cat.uniLu : cat.uniLuBase
-        if ucBase.isEmpty { return wsv.text(glyphs: allGlyphs, paragraphs: paragraphs, vocab: vocab) }
+        if ucBase.isEmpty { return wsv.text(glyphs: allGlyphs, paragraphs: paragraphs, vocab: vocab,
+                                            rnd: wordDiversity, topK: vocabularySize, minWL: minWordLength, maxWL: maxWordLength,
+                                            biasChars: biasChars.isEmpty ? nil : biasChars, biasStrength: biasStrength) }
 
         var lines: [String] = []
 
@@ -151,7 +189,9 @@ struct TextGeneration {
         }
 
         let structured = lines.joined(separator: " ")
-        let flowing = wsv.text(glyphs: allGlyphs, paragraphs: paragraphs, numbers: 0.1, rndPunc: 0.1, vocab: vocab)
+        let flowing = wsv.text(glyphs: allGlyphs, paragraphs: paragraphs, numbers: 0.1, rndPunc: 0.1, vocab: vocab,
+                               rnd: wordDiversity, topK: vocabularySize, minWL: minWordLength, maxWL: maxWordLength,
+                               biasChars: biasChars.isEmpty ? nil : biasChars, biasStrength: biasStrength)
         return structured + "\n\n" + flowing
     }
 

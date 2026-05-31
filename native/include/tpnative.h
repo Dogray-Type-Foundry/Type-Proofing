@@ -34,7 +34,13 @@ char *wsv_text(WordSiv *ptr,
                double numbers,
                double rnd_punc,
                const char *para_sep,
-               const char *vocab);
+               const char *vocab,
+               double rnd,
+               uint32_t top_k,
+               uint32_t min_wl,
+               uint32_t max_wl,
+               const char *bias_chars,
+               double bias_strength);
 
 char *wsv_words(WordSiv *ptr,
                 const char *glyphs,
@@ -57,6 +63,8 @@ char *wsv_top_word(WordSiv *ptr,
                    const char *vocab);
 
 void wsv_seed(WordSiv *ptr, uint64_t seed);
+
+char *wsv_list_vocabs(void);
 
 struct TPFontInfo *tp_load_font(const uint8_t *data, uintptr_t len);
 

@@ -41,14 +41,36 @@ pub unsafe extern "C" fn wsv_text(
     rnd_punc: f64,
     para_sep: *const c_char,
     vocab: *const c_char,
+    rnd: f64,
+    top_k: u32,
+    min_wl: u32,
+    max_wl: u32,
+    bias_chars: *const c_char,
+    bias_strength: f64,
 ) -> *mut c_char {
     let wsv = &mut *ptr;
+    let bias_vec = if bias_chars.is_null() {
+        vec![]
+    } else {
+        let s = CStr::from_ptr(bias_chars).to_str().unwrap_or("");
+        if s.is_empty() {
+            vec![]
+        } else {
+            s.split(',').map(|c| c.to_string()).collect()
+        }
+    };
     let params = GenParams {
         glyphs: c_str_to_option(glyphs),
         vocab: c_str_to_option(vocab),
         n_paras: n_paras as usize,
         numbers,
         rnd_punc,
+        rnd,
+        top_k: top_k as usize,
+        min_wl: min_wl as usize,
+        max_wl: if max_wl > 0 { Some(max_wl as usize) } else { None },
+        bias_chars: bias_vec,
+        bias_strength,
         para_sep: c_str_to_string(para_sep, " "),
         ..Default::default()
     };
@@ -145,6 +167,88 @@ pub unsafe extern "C" fn wsv_top_word(
 pub unsafe extern "C" fn wsv_seed(ptr: *mut WordSiv, seed: u64) {
     let wsv = &mut *ptr;
     wsv.seed(seed);
+}
+
+// ---------------------------------------------------------------------------
+// WordSiv vocab listing
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub extern "C" fn wsv_list_vocabs() -> *mut c_char {
+    let wsv = WordSiv::new(None, None, true, false, None);
+    let mut keys = wsv.list_vocabs();
+    keys.sort();
+
+    let items: Vec<String> = keys.iter().map(|k| {
+        let name = vocab_display_name(k);
+        format!("{{\"key\":\"{}\",\"name\":\"{}\"}}", k, name)
+    }).collect();
+
+    string_to_c(format!("[{}]", items.join(",")))
+}
+
+fn vocab_display_name(key: &str) -> String {
+    let name = match key {
+        "af" => "Afrikaans",
+        "ar" => "Arabic",
+        "az" => "Azerbaijani",
+        "bm" => "Bambara",
+        "ca" => "Catalan",
+        "cs" => "Czech",
+        "cy" => "Welsh",
+        "da" => "Danish",
+        "dag" => "Dagbani",
+        "de" => "German",
+        "en" => "English",
+        "eo" => "Esperanto",
+        "es" => "Spanish",
+        "et" => "Estonian",
+        "eu" => "Basque",
+        "fa" => "Farsi",
+        "ff" => "Fula",
+        "fi" => "Finnish",
+        "fr" => "French",
+        "gag" => "Gagauz",
+        "gl" => "Galician",
+        "gn" => "Guarani",
+        "ha" => "Hausa",
+        "haw" => "Hawaiian",
+        "hr" => "Croatian",
+        "hu" => "Hungarian",
+        "id" => "Indonesian",
+        "ig" => "Igbo",
+        "is" => "Icelandic",
+        "it" => "Italian",
+        "kab" => "Kabyle",
+        "kr" => "Kanuri",
+        "ln" => "Lingala",
+        "lt" => "Lithuanian",
+        "lv" => "Latvian",
+        "mad" => "Madurese",
+        "mi" => "Māori",
+        "min" => "Minangkabau",
+        "ms" => "Malay",
+        "mt" => "Maltese",
+        "nah" => "Nahuatl",
+        "nl" => "Dutch",
+        "nn" => "Norwegian Nynorsk",
+        "pl" => "Polish",
+        "pt" => "Portuguese",
+        "ro" => "Romanian",
+        "se" => "Northern Sami",
+        "sk" => "Slovak",
+        "sl" => "Slovenian",
+        "sv" => "Swedish",
+        "sw" => "Swahili",
+        "tl" => "Filipino",
+        "tr" => "Turkish",
+        "uz" => "Uzbek",
+        "vi" => "Vietnamese",
+        "xh" => "Xhosa",
+        "yo" => "Yoruba",
+        other => return other.to_string(),
+    };
+    name.to_string()
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +457,7 @@ mod tests {
             let glyphs = CString::new("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,;:!?-").unwrap();
             let sep = CString::new(" ").unwrap();
             let en = CString::new("en").unwrap();
-            let result = wsv_text(wsv, glyphs.as_ptr(), 2, 0.0, 0.0, sep.as_ptr(), en.as_ptr());
+            let result = wsv_text(wsv, glyphs.as_ptr(), 2, 0.0, 0.0, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0);
             assert!(!result.is_null());
             let text = CStr::from_ptr(result).to_str().unwrap();
             assert!(!text.is_empty());
@@ -421,13 +525,13 @@ mod tests {
             let cap = CString::new("cap").unwrap();
 
             // Warm up
-            let r = wsv_text(wsv, latin.as_ptr(), 1, 0.0, 0.0, sep.as_ptr(), en.as_ptr());
+            let r = wsv_text(wsv, latin.as_ptr(), 1, 0.0, 0.0, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0);
             wsv_free_string(r);
 
             // Bench: text generation (full charset)
             let t0 = Instant::now();
             for _ in 0..ITERS {
-                let r = wsv_text(wsv, latin.as_ptr(), 3, 0.1, 0.05, sep.as_ptr(), en.as_ptr());
+                let r = wsv_text(wsv, latin.as_ptr(), 3, 0.1, 0.05, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0);
                 wsv_free_string(r);
             }
             let text_full = t0.elapsed();
@@ -435,7 +539,7 @@ mod tests {
             // Bench: text generation (restricted charset)
             let t0 = Instant::now();
             for _ in 0..ITERS {
-                let r = wsv_text(wsv, small.as_ptr(), 3, 0.0, 0.0, sep.as_ptr(), en.as_ptr());
+                let r = wsv_text(wsv, small.as_ptr(), 3, 0.0, 0.0, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0);
                 wsv_free_string(r);
             }
             let text_small = t0.elapsed();

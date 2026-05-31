@@ -591,7 +591,7 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 [[package]]
 name = "wordsiv"
 version = "0.3.1"
-source = "git+https://github.com/Dogray-Type-Foundry/wordsiv-rs.git?branch=bitmask#5f40e339793df80b1921ff62546fdfa522244520"
+source = "git+https://github.com/Dogray-Type-Foundry/wordsiv-rs.git?branch=new-vocabs#45e98de4359c20ddd1b6db7adb0e47ec9198df7e"
 dependencies = [
  "dirs",
  "harfrust",
