@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Type Proofing - Architecture Guide</title>
+<style>
+  :root {
+    --bg: #fafaf8;
+    --fg: #1a1a1a;
+    --accent: #2563eb;
+    --accent-light: #dbeafe;
+    --accent-dim: #93c5fd;
+    --border: #e5e5e0;
+    --card-bg: #ffffff;
+    --code-bg: #f3f3ee;
+    --muted: #6b7280;
+    --rust: #dea584;
+    --rust-bg: #fdf2e9;
+    --swift: #f97316;
+    --swift-bg: #fff7ed;
+    --python: #3b82f6;
+    --python-bg: #eff6ff;
+    --green: #059669;
+    --green-bg: #ecfdf5;
+    --red: #dc2626;
+    --red-bg: #fef2f2;
+    --purple: #7c3aed;
+    --purple-bg: #f5f3ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.6;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 6rem;
+  }
+
+  h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.02em;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 650;
+    margin-top: 3rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-top: 1.8rem;
+    margin-bottom: 0.6rem;
+  }
+
+  p { margin-bottom: 1rem; }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 1.05rem;
+    margin-bottom: 2rem;
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.4rem;
+    margin-bottom: 1rem;
+  }
+
+  .card-header {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .badge-swift { background: var(--swift-bg); color: var(--swift); }
+  .badge-rust { background: var(--rust-bg); color: #b45309; }
+  .badge-python { background: var(--python-bg); color: var(--python); }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-purple { background: var(--purple-bg); color: var(--purple); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+
+  code {
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 0.85em;
+    background: var(--code-bg);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+  }
+
+  .diagram {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1.2rem 0;
+    overflow-x: auto;
+  }
+
+  .diagram pre {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
+
+  .flow-diagram {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin: 1rem 0;
+  }
+
+  .flow-box {
+    background: var(--accent-light);
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.82rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    border: 1px solid var(--accent-dim);
+    white-space: nowrap;
+  }
+
+  .flow-arrow {
+    color: var(--muted);
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.88rem;
+  }
+
+  th {
+    text-align: left;
+    font-weight: 600;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 2px solid var(--border);
+    background: var(--code-bg);
+  }
+
+  td {
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  @media (max-width: 700px) {
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+
+  .step-list {
+    counter-reset: steps;
+    list-style: none;
+    padding: 0;
+  }
+
+  .step-list li {
+    counter-increment: steps;
+    padding: 0.8rem 0 0.8rem 3rem;
+    position: relative;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .step-list li:last-child { border-bottom: none; }
+
+  .step-list li::before {
+    content: counter(steps);
+    position: absolute;
+    left: 0;
+    top: 0.75rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-light);
+    padding: 1rem 1.2rem;
+    border-radius: 0 8px 8px 0;
+    margin: 1rem 0;
+    font-size: 0.92rem;
+  }
+
+  .callout-warn {
+    border-left-color: #d97706;
+    background: #fffbeb;
+  }
+
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+
+  .toc {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem 1.5rem;
+    margin: 1.5rem 0 2rem;
+  }
+
+  .toc-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 0.6rem;
+  }
+
+  .toc ol {
+    padding-left: 1.2rem;
+    columns: 2;
+    column-gap: 2rem;
+    font-size: 0.9rem;
+  }
+
+  .toc li { padding: 0.15rem 0; break-inside: avoid; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  .layer-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 1.5rem 0;
+  }
+
+  .layer {
+    padding: 1rem 1.2rem;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .layer:first-child { border-radius: 10px 10px 0 0; }
+  .layer:last-child { border-radius: 0 0 10px 10px; }
+  .layer + .layer { border-top: none; }
+
+  .layer-label {
+    font-weight: 700;
+    font-size: 0.82rem;
+    min-width: 70px;
+    padding-top: 0.15rem;
+  }
+
+  .layer-content {
+    flex: 1;
+    font-size: 0.9rem;
+  }
+
+  .proof-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.6rem;
+    margin: 1rem 0;
+  }
+
+  .proof-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+    font-size: 0.82rem;
+  }
+
+  .proof-card .proof-name {
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+  }
+
+  .proof-card .proof-meta {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+
+  .proof-card.arabic { border-left: 3px solid var(--green); }
+  .proof-card.custom { border-left: 3px solid var(--purple); }
+  .proof-card.latin { border-left: 3px solid var(--accent); }
+
+  .file-ref {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-family: 'SF Mono', monospace;
+  }
+
+  details { margin: 0.5rem 0; }
+  details summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 0.5rem 0;
+    user-select: none;
+  }
+  details summary:hover { color: var(--accent); }
+  details[open] summary { margin-bottom: 0.5rem; }
+
+  .separator {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2rem 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>Type Proofing</h1>
+<p class="subtitle">A macOS app for generating comprehensive PDF proofing documents for fonts. Built with SwiftUI, CoreText, and a Rust native library.</p>
+
+<nav class="toc">
+  <div class="toc-title">Contents</div>
+  <ol>
+    <li><a href="#what">What It Does</a></li>
+    <li><a href="#layers">The Language Layers</a></li>
+    <li><a href="#ui">UI Layout</a></li>
+    <li><a href="#state">State Architecture</a></li>
+    <li><a href="#proofs">The Proof System</a></li>
+    <li><a href="#registry">Proof Registry (All 22 Types)</a></li>
+    <li><a href="#rendering">How a PDF Gets Rendered</a></li>
+    <li><a href="#preview">Live Preview Pipeline</a></li>
+    <li><a href="#rust">Rust Native Library</a></li>
+    <li><a href="#text">Text Generation</a></li>
+    <li><a href="#settings">Settings & Persistence</a></li>
+    <li><a href="#adding">How to Add a New Proof</a></li>
+    <li><a href="#gotchas">Gotchas & Non-Obvious Things</a></li>
+  </ol>
+</nav>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="what">1. What It Does</h2>
+
+<p>Type designers need to review their fonts in realistic typographic contexts before shipping. Type Proofing automates this: load one or more font files, pick which proof types you want (character sets, spacing tests, paragraph proofs, Arabic contextual forms, etc.), configure each proof's settings, and generate a multi-page PDF.</p>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header">Input</div>
+    <p style="margin:0; font-size:0.9rem">
+      Font files (<code>.otf</code>, <code>.ttf</code>) &mdash; static or variable.<br>
+      Per-proof settings (size, columns, OT features, text).<br>
+      Page format (A4, Letter, Legal, etc.).
+    </p>
+  </div>
+  <div class="card">
+    <div class="card-header">Output</div>
+    <p style="margin:0; font-size:0.9rem">
+      A multi-page PDF with:<br>
+      &bull; Character sets, spacing tests, paragraph proofs<br>
+      &bull; Arabic/Farsi contextual forms<br>
+      &bull; Multi-style comparison, GSUB substitution overview<br>
+      &bull; Headers, footers, baseline grid overlay
+    </p>
+  </div>
+</div>
+
+<p>The app supports <strong>variable fonts</strong> with full axis control &mdash; weight, width, optical size, slant, and custom axes. For a variable font, the app generates proof pages for every combination of selected axis values (Cartesian product).</p>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="layers">2. The Language Layers</h2>
+
+<div class="layer-stack">
+  <div class="layer" style="background: var(--swift-bg);">
+    <div class="layer-label" style="color: var(--swift);">Swift</div>
+    <div class="layer-content">
+      <strong>The active app.</strong> SwiftUI interface, state management, PDF rendering via CoreText/CoreGraphics. Calls Rust via C FFI for font analysis. This is where all UI and rendering code lives.
+    </div>
+  </div>
+  <div class="layer" style="background: var(--rust-bg);">
+    <div class="layer-label" style="color: #b45309;">Rust</div>
+    <div class="layer-content">
+      <strong>Font analysis engine.</strong> Two crates: <code>tp-fonts</code> (charset detection, axis parsing, GSUB extraction, AGL) and <code>tp-bridge</code> (C FFI + WordSiv text generation). Compiled as a universal2 static library.
+    </div>
+  </div>
+</div>
+
+<p><strong>The app is native-only.</strong> There is no Python at runtime &mdash; the shipping app is a single native Mach-O binary with no <code>Python.framework</code>. Despite its name, <code>ProofEngine.swift</code> is a native facade over <code>NativeProofOrchestrator</code>.</p>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="ui">3. UI Layout</h2>
+
+<p>The app window is a 4-panel layout. All panels are resizable via drag handles.</p>
+
+<div class="diagram">
+<pre>
+ ┌────────────────┬──────────┬─────────────────────────────────┬───────────────────┐
+ │                │          │                                 │                   │
+ │   SIDEBAR      │ THUMB-   │    MAIN CANVAS                  │   SETTINGS        │
+ │                │ NAILS    │                                 │   PANEL           │
+ │ ┌────────────┐ │          │  ┌───────────────────────────┐  │                   │
+ │ │ FONTS      │ │ ┌──┐     │  │                           │  │  Typography       │
+ │ │  Avenir    │ │ │  │     │  │     PDF Preview           │  │   Size: 12pt      │
+ │ │  Garamond  │ │ │  │     │  │     (page / grid /        │  │   Line Height     │
+ │ │            │ │ ├──┤     │  │      compare view)        │  │   Tracking        │
+ │ ├────────────┤ │ │  │     │  │                           │  │                   │
+ │ │ PROOFS     │ │ │  │     │  │                           │  │  Layout           │
+ │ │ ☑ Charset  │ │ ├──┤     │  │                           │  │   Columns: 2      │
+ │ │ ☑ Spacing  │ │ │  │     │  │                           │  │   Alignment       │
+ │ │ ☐ Arabic   │ │ │  │     │  │                           │  │                   │
+ │ ├────────────┤ │ └──┘     │  └───────────────────────────┘  │  OT Features      │
+ │ │ OUTPUT     │ │          │  ┌───────────────────────────┐  │   ☑ kern  ☑ liga  │
+ │ │ A4 Landsc. │ │          │  │ Toolbar: zoom, view mode  │  │   ☐ smcp  ☑ calt  │
+ │ ├────────────┤ │          │  └───────────────────────────┘  │                   │
+ │ │ [Generate] │ │          │                                 │  Diagnostics tab   │
+ │ └────────────┘ │          │                                 │                   │
+ └────────────────┴──────────┴─────────────────────────────────┴───────────────────┘
+</pre>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header">Sidebar <span class="file-ref">SidebarView.swift</span></div>
+    <p style="margin:0; font-size:0.88rem">
+      Three collapsible sections: <strong>Fonts</strong> (load, sort, enable/disable, variable axis sliders), <strong>Proofs</strong> (checklist with drag-reorder, add/remove instances), <strong>Output</strong> (page format, save location). Plus the Generate button.
+    </p>
+  </div>
+  <div class="card">
+    <div class="card-header">Settings Panel <span class="file-ref">SettingsPanelView.swift</span></div>
+    <p style="margin:0; font-size:0.88rem">
+      Context-sensitive inspector for the selected proof. Shows typography controls (size, line height, tracking), layout (columns, alignment, direction), category checkboxes, custom text editor, OT feature pills, and a diagnostics tab.
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="state">4. State Architecture</h2>
+
+<p>The app uses a hierarchical <code>@MainActor ObservableObject</code> pattern. <code>AppState</code> is the root, with 6 published child objects that are also injected individually into the SwiftUI environment:</p>
+
+<div class="diagram">
+<pre>
+TypeProofingApp
+  │
+  ├── ProofEngine          (Rust FFI wrapper, generation coordinator)
+  │
+  └── AppState             (root state coordinator)
+       ├── FontState       (loaded fonts, axes, styles, sort criteria)
+       ├── ProofState      (proof instances, selection, per-proof settings, registry)
+       ├── PreviewState    (preview PDF path, sections, fingerprints)
+       ├── PageState       (page format, baselines toggle, view mode)
+       ├── UIState         (panel visibility, widths, section expansion)
+       └── OutputState     (PDF output directory)
+</pre>
+</div>
+
+<div class="callout">
+  <strong>Key concept: Proof Instance vs. Proof Type</strong>
+  A proof <em>type</em> is a template defined in the registry (e.g., "spacing_proof"). A proof <em>instance</em> is a concrete item in the sidebar with its own UUID, name, and settings. You can have multiple instances of the same type with different settings (e.g., "Spacing Test" with kern on and "Spacing Test 2" with kern off).
+</div>
+
+<h3>Coordinators</h3>
+<p>Two coordinator objects sit between the state layer and the views:</p>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header">PreviewCoordinator <span class="file-ref">PreviewCoordinator.swift</span></div>
+    <p style="margin:0; font-size:0.88rem">
+      Manages live preview generation. Splits proofs into fragments, generates them in parallel, composes them into a single preview PDF. Debounces changes, caches by fingerprint, prioritizes the selected proof.
+    </p>
+  </div>
+  <div class="card">
+    <div class="card-header">PDFViewCoordinator <span class="file-ref">PDFViewerView.swift</span></div>
+    <p style="margin:0; font-size:0.88rem">
+      Manages the PDF viewer. Tracks zoom level, handles section-based navigation, syncs thumbnail sidebar, preserves viewport position across PDF reloads.
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="proofs">5. The Proof System</h2>
+
+<p>The proof system has three key concepts:</p>
+
+<ol class="step-list">
+  <li>
+    <strong>Registry</strong> &mdash; A static list of all 22 proof types with their metadata (display name, default settings, capabilities). Lives in <code>ProofRegistry.swift</code>.
+  </li>
+  <li>
+    <strong>Handlers</strong> &mdash; Classes that implement the <code>ProofHandler</code> protocol to generate PDF pages. Each proof type maps to a handler via <code>NativeProofOrchestrator.makeHandler()</code>.
+  </li>
+  <li>
+    <strong>Settings</strong> &mdash; Per-instance configuration stored in <code>ProofSettings</code>. The registry entry determines which settings controls appear in the UI.
+  </li>
+</ol>
+
+<h3>Handler Types</h3>
+
+<table>
+  <tr>
+    <th>Handler</th>
+    <th>Handles</th>
+    <th>Notes</th>
+  </tr>
+  <tr>
+    <td><code>StandardTextProofHandler</code></td>
+    <td>14 text-based proofs</td>
+    <td>Uses <code>TextProofConfig</code> to determine text source, style, language</td>
+  </tr>
+  <tr>
+    <td><code>FilteredCharacterSetHandler</code></td>
+    <td>Character Overview</td>
+    <td>Category-based, auto-size option</td>
+  </tr>
+  <tr>
+    <td><code>SpacingProofHandler</code></td>
+    <td>Spacing Test</td>
+    <td>Flanking control characters, force-disables kern</td>
+  </tr>
+  <tr>
+    <td><code>ArCharacterSetHandler</code></td>
+    <td>Ar Character Overview</td>
+    <td>Shows contextual forms (isolated, initial, medial, final)</td>
+  </tr>
+  <tr>
+    <td><code>CustomTextProofHandler</code></td>
+    <td>Custom Text</td>
+    <td>User text, markup support, "generate once" mode</td>
+  </tr>
+  <tr>
+    <td><code>SubstitutionOverviewHandler</code></td>
+    <td>Substitution Overview</td>
+    <td>Reads GSUB table, shows glyph substitution pairs</td>
+  </tr>
+  <tr>
+    <td><code>MultiStyleComparisonHandler</code></td>
+    <td>Style Comparison</td>
+    <td>Same text across all styles, one line per style</td>
+  </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="registry">6. Proof Registry (All 22 Types)</h2>
+
+<h3>Latin Proofs</h3>
+<div class="proof-grid">
+  <div class="proof-card latin">
+    <div class="proof-name">Character Overview</div>
+    <div class="proof-meta">78pt &middot; 1 col &middot; categories &middot; auto-size</div>
+  </div>
+  <div class="proof-card latin">
+    <div class="proof-name">Spacing Test</div>
+    <div class="proof-meta">14pt &middot; 2 col &middot; categories &middot; kern off</div>
+  </div>
+  <div class="proof-card latin">
+    <div class="proof-name">Structured Text - Heading</div>
+    <div class="proof-meta">28pt &middot; 1 col &middot; Hoefler-style text</div>
+  </div>
+  <div class="proof-card latin">
+    <div class="proof-name">Accented Words - Heading</div>
+    <div class="proof-meta">28pt &middot; 1 col &middot; 3 accent examples per char</div>
+  </div>
+  <div class="proof-card latin">
+    <div class="proof-name">Structured Text - Text</div>
+    <div class="proof-meta">9pt &middot; 2 col &middot; Hoefler-style text</div>
+  </div>
+  <div class="proof-card latin">
+    <div class="proof-name">Style Pairing</div>
+    <div class="proof-meta">9pt &middot; 2 col &middot; alternating regular/italic or regular/bold</div>
+  </div>
+  <div class="proof-card latin">
+    <div class="proof-name">Auto-Generated Text</div>
+    <div class="proof-meta">9pt &middot; 2 col &middot; WordSiv generated &middot; configurable paragraphs</div>
+  </div>
+  <div class="proof-card latin">
+    <div class="proof-name">Accented Words - Text</div>
+    <div class="proof-meta">9pt &middot; 2 col &middot; accented dictionary words</div>
+  </div>
+  <div class="proof-card latin">
+    <div class="proof-name">Practical Figures & Punctuation</div>
+    <div class="proof-meta">9pt &middot; 2 col &middot; injected numbers/symbols text</div>
+  </div>
+  <div class="proof-card custom">
+    <div class="proof-name">Custom Text</div>
+    <div class="proof-meta">16pt &middot; 1 col &middot; user text &middot; markup &middot; generate-once</div>
+  </div>
+  <div class="proof-card custom">
+    <div class="proof-name">Style Comparison</div>
+    <div class="proof-meta">24pt &middot; 1 col &middot; multi-style &middot; categories + custom text</div>
+  </div>
+  <div class="proof-card custom">
+    <div class="proof-name">Substitution Overview</div>
+    <div class="proof-meta">28pt &middot; 5 col &middot; GSUB display &middot; opt-in (off by default)</div>
+  </div>
+</div>
+
+<h3>Arabic Proofs</h3>
+<div class="proof-grid">
+  <div class="proof-card arabic">
+    <div class="proof-name">Ar Character Overview</div>
+    <div class="proof-meta">64pt &middot; 1 col &middot; contextual forms</div>
+  </div>
+  <div class="proof-card arabic">
+    <div class="proof-name">Ar Structured Text - Heading</div>
+    <div class="proof-meta">28pt &middot; 1 col &middot; Arabic language</div>
+  </div>
+  <div class="proof-card arabic">
+    <div class="proof-name">Fa Structured Text - Heading</div>
+    <div class="proof-meta">28pt &middot; 1 col &middot; Farsi language</div>
+  </div>
+  <div class="proof-card arabic">
+    <div class="proof-name">Ar Structured Text - Text</div>
+    <div class="proof-meta">9pt &middot; 1 col &middot; Arabic language</div>
+  </div>
+  <div class="proof-card arabic">
+    <div class="proof-name">Fa Structured Text - Text</div>
+    <div class="proof-meta">9pt &middot; 1 col &middot; Farsi language</div>
+  </div>
+  <div class="proof-card arabic">
+    <div class="proof-name">Ar Vowel Marks</div>
+    <div class="proof-meta">9pt &middot; 2 col &middot; vocalized Arabic poetry</div>
+  </div>
+  <div class="proof-card arabic">
+    <div class="proof-name">Ar-Latin Mixed</div>
+    <div class="proof-meta">9pt &middot; 2 col &middot; bilingual text</div>
+  </div>
+  <div class="proof-card arabic">
+    <div class="proof-name">Ar Numerals</div>
+    <div class="proof-meta">9pt &middot; 2 col &middot; Arabic/Farsi/Urdu digit forms</div>
+  </div>
+  <div class="proof-card arabic">
+    <div class="proof-name">Ar All Combinations</div>
+    <div class="proof-meta">9pt &middot; 2 col &middot; Hoefler-style Arabic</div>
+  </div>
+  <div class="proof-card arabic">
+    <div class="proof-name">Fa All Combinations</div>
+    <div class="proof-meta">9pt &middot; 2 col &middot; Hoefler-style Farsi</div>
+  </div>
+</div>
+
+<p class="file-ref" style="margin-top: 0.5rem">Arabic proofs appear in the UI only when at least one loaded font supports Arabic script.</p>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="rendering">7. How a PDF Gets Rendered</h2>
+
+<p>Here's the full pipeline from "Generate" button to PDF file:</p>
+
+<div class="diagram">
+<pre>
+  User clicks "Generate Final PDF"
+         │
+         ▼
+  ┌──────────────────────────────┐
+  │  AppState.buildProofConfig() │  Assembles all settings into ProofConfig
+  └──────────┬───────────────────┘
+             │
+             ▼
+  ┌──────────────────────────────┐
+  │  NativeProofOrchestrator     │  Main generation loop
+  │  .generate(config)           │
+  └──────────┬───────────────────┘
+             │
+     ┌───────┴────────────────────────────────────────────────┐
+     │  For each font file:                                   │
+     │    ├── Read font binary into Data                      │
+     │    ├── tp_get_charset() → character string (Rust FFI)  │
+     │    ├── CharacterCategorizer.categorize()               │
+     │    ├── FontLoader.register(url:)                       │
+     │    │                                                   │
+     │    ├── For each axis combination (Cartesian product):  │
+     │    │    │                                              │
+     │    │    └── For each enabled proof:                    │
+     │    │         ├── makeHandler(baseType) → handler       │
+     │    │         └── handler.generateProof(context, pdf)   │
+     │    │              │                                    │
+     │    │              ├── resolveParams() → settings       │
+     │    │              ├── Generate/load text content        │
+     │    │              ├── FontLoader.makeFont()            │
+     │    │              │    (size, OT features, axis vars)  │
+     │    │              ├── TextRenderer.makeAttributedStr() │
+     │    │              └── drawContent() → pages            │
+     │    │                   ├── PDFRenderer.beginPage()     │
+     │    │                   ├── drawFooter()                │
+     │    │                   ├── BaselineGrid (if on)        │
+     │    │                   ├── drawText() per column       │
+     │    │                   └── PDFRenderer.endPage()       │
+     │    │                                                   │
+     │    └── FontLoader.unregister(url:)                     │
+     └────────────────────────────────────────────────────────┘
+             │
+             ▼
+  ┌──────────────────────────────┐
+  │  PDFRenderer.close()         │  Finalized PDF on disk
+  └──────────────────────────────┘
+</pre>
+</div>
+
+<h3>Key rendering components</h3>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header">FontLoader <span class="badge badge-swift">CoreText</span></div>
+    <p style="margin:0; font-size:0.88rem">
+      Loads fonts from file URLs into the process scope. Creates <code>CTFont</code> instances with OpenType features (via <code>kCTFontOpenTypeFeatureTag</code>), variable axis values (via <code>kCTFontVariationAttribute</code>), and optionally hanging punctuation (AAT feature type 22).
+    </p>
+  </div>
+  <div class="card">
+    <div class="card-header">TextRenderer <span class="badge badge-swift">CoreText</span></div>
+    <p style="margin:0; font-size:0.88rem">
+      Builds <code>NSAttributedString</code> with paragraph styles (alignment, line height, indent, spacing). Two rendering paths: <strong>CTFramesetter</strong> (default) or <strong>NSLayoutManager</strong> (when hyphenation is enabled). Handles overflow for multi-page content.
+    </p>
+  </div>
+  <div class="card">
+    <div class="card-header">PageLayout <span class="badge badge-swift">Geometry</span></div>
+    <p style="margin:0; font-size:0.88rem">
+      Computes content rect (margins: 50pt vertical, 40pt horizontal), column rects with configurable gutter, RTL column ordering. Draws the footer with date, font name, proof name, axis label, page number, and OT features summary.
+    </p>
+  </div>
+  <div class="card">
+    <div class="card-header">PDFRenderer <span class="badge badge-swift">CGContext</span></div>
+    <p style="margin:0; font-size:0.88rem">
+      Thin wrapper around <code>CGContext</code> PDF creation. Manages page lifecycle (<code>beginPage</code>/<code>endPage</code>/<code>close</code>), provides drawing primitives (fill rect, stroke line, save/restore state).
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="preview">8. Live Preview Pipeline</h2>
+
+<p>The preview system generates per-proof PDF fragments and composes them into a single preview PDF. This runs continuously in the background as you change settings.</p>
+
+<div class="diagram">
+<pre>
+  Settings change (font, proof, toggle, slider...)
+         │
+         ▼ (debounce 2s)
+  ┌──────────────────────┐
+  │  invalidateAll() or  │   Marks affected proofs as needing regeneration
+  │  invalidateProof()   │
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │  Queue PreviewJobs   │   Separate queues by cost:
+  │  by cost type        │     Fast queue: charset, spacing (parallel, up to N)
+  └──────────┬───────────┘     WordSiv queue: text proofs (serial, 1 at a time)
+             │
+             ▼
+  ┌──────────────────────┐
+  │  pumpQueues()        │   Dequeues jobs, starts generation tasks
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │  generateFragment()  │   One PDF per proof, cached by SHA256 fingerprint
+  └──────────┬───────────┘   Skips if fingerprint matches existing fragment
+             │
+             ▼ (debounce 75ms)
+  ┌──────────────────────┐
+  │  composePreview()    │   Merges all ready fragments into one PDF
+  └──────────┬───────────┘   Retains last 2 composed PDFs for smooth transition
+             │
+             ▼
+  ┌──────────────────────┐
+  │  Update preview path │   PDFViewerView picks up the new PDF
+  │  + sections          │   Viewport position is preserved
+  └──────────────────────┘
+</pre>
+</div>
+
+<div class="callout">
+  <strong>Why fragments?</strong>
+  Generating the entire PDF for every settings tweak would be too slow. By splitting into fragments, only the affected proof is regenerated. Fast proofs (character set, spacing) regenerate in parallel while text-heavy proofs (WordSiv) are serialized to avoid contention.
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="rust">9. Rust Native Library</h2>
+
+<p>The <code>native/</code> directory contains a Cargo workspace with two crates:</p>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header">tp-fonts <span class="badge badge-rust">Library</span></div>
+    <p style="margin:0; font-size:0.88rem">
+      Pure Rust font analysis. Uses <code>read-fonts</code> and <code>skrifa</code> (Google Fonts libraries). Modules: <strong>charset</strong> (filtered by outline presence), <strong>axes</strong> (variable font axis values + Cartesian product), <strong>substitutions</strong> (GSUB single/ligature/contextual lookups), <strong>font_info</strong> (metadata extraction), <strong>agl</strong> (Adobe Glyph List fallback).
+    </p>
+  </div>
+  <div class="card">
+    <div class="card-header">tp-bridge <span class="badge badge-rust">FFI</span></div>
+    <p style="margin:0; font-size:0.88rem">
+      C FFI exports wrapping tp-fonts + WordSiv (a text generation library). Outputs a universal2 <code>.a</code> static library via <code>lipo</code>. The C header is auto-generated by <code>cbindgen</code>.
+    </p>
+  </div>
+</div>
+
+<h3>FFI Functions</h3>
+
+<table>
+  <tr><th>Function</th><th>Purpose</th><th>Returns</th></tr>
+  <tr>
+    <td><code>tp_load_font(data, len)</code></td>
+    <td>Parse font metadata</td>
+    <td><code>TPFontInfo*</code> with family, weight, axes JSON, features JSON</td>
+  </tr>
+  <tr>
+    <td><code>tp_get_charset(data, len)</code></td>
+    <td>Get renderable characters</td>
+    <td>String of characters with actual outlines (not just cmap entries)</td>
+  </tr>
+  <tr>
+    <td><code>tp_get_axes_json(data, len)</code></td>
+    <td>Variable font axes</td>
+    <td>JSON: <code>[{"tag":"wght","min":100,"default":400,"max":900}]</code></td>
+  </tr>
+  <tr>
+    <td><code>tp_get_substitutions_json(data, len)</code></td>
+    <td>GSUB lookup extraction</td>
+    <td>JSON: features with input/output glyph mappings</td>
+  </tr>
+  <tr>
+    <td><code>wsv_text(ptr, glyphs, ...)</code></td>
+    <td>Generate paragraph text</td>
+    <td>Text using only the provided character set</td>
+  </tr>
+  <tr>
+    <td><code>wsv_words(ptr, glyphs, ...)</code></td>
+    <td>Generate word list</td>
+    <td>Words matching constraints (case, length, contains)</td>
+  </tr>
+</table>
+
+<div class="callout callout-warn">
+  <strong>Memory convention</strong>
+  All <code>char *</code> returns from Rust are heap-allocated. The Swift caller must free them via <code>wsv_free_string()</code> or <code>tp_free_font_info()</code>. NULL means error.
+</div>
+
+<h3>Build</h3>
+<pre><code>bash native/build_rust.sh
+# 1. cargo build --release for aarch64 + x86_64
+# 2. lipo -create → universal2 libtpnative.a
+# 3. cbindgen → tpnative.h
+# Copy to TypeProofing-SwiftUI/NativeLib/</code></pre>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="text">10. Text Generation</h2>
+
+<p>Proof text comes from five sources, chosen by the handler based on the proof's <code>TextProofConfig</code>:</p>
+
+<table>
+  <tr><th>Source</th><th>When Used</th><th>How It Works</th></tr>
+  <tr>
+    <td><strong>Premade texts</strong></td>
+    <td>When font has full Latin alphabet and proof doesn't force WordSiv</td>
+    <td>Static pangrams and paragraph samples in <code>PremadeTexts.swift</code></td>
+  </tr>
+  <tr>
+    <td><strong>Accented dictionary</strong></td>
+    <td>Diacritic proofs (<code>accents &gt; 0</code>)</td>
+    <td>JSON mapping base characters to words with accented variants</td>
+  </tr>
+  <tr>
+    <td><strong>WordSiv</strong></td>
+    <td>When forced, or font lacks full alphabet</td>
+    <td>Rust library generates text constrained to font's charset. Supports English, Arabic, Farsi vocabularies. Seeded (987654) for deterministic output.</td>
+  </tr>
+  <tr>
+    <td><strong>Hoefler-style</strong></td>
+    <td>Structured text proofs with <code>hoeflerStyle: true</code></td>
+    <td>Context-aware word pairing: each character appears next to round, flat, and diagonal neighbors</td>
+  </tr>
+  <tr>
+    <td><strong>Custom text</strong></td>
+    <td>Custom Text and Style Comparison proofs</td>
+    <td>User-provided text, optionally with markup (<code>**bold**</code>, <code>*italic*</code>, <code>[text]{attrs}</code>, headings, page/column breaks)</td>
+  </tr>
+</table>
+
+<h3>Markup Language</h3>
+<p>The custom text proof supports a markup syntax for rich formatting:</p>
+
+<table>
+  <tr><th>Syntax</th><th>Effect</th></tr>
+  <tr><td><code>**text**</code></td><td>Bold (uses wght axis or finds Bold font)</td></tr>
+  <tr><td><code>*text*</code></td><td>Italic (uses ital/slnt axis or finds Italic font)</td></tr>
+  <tr><td><code>***text***</code></td><td>Bold italic</td></tr>
+  <tr><td><code># Heading</code></td><td>Heading level 1</td></tr>
+  <tr><td><code>## Heading</code></td><td>Heading level 2</td></tr>
+  <tr><td><code>[text]{wght:700, color:#ff0000}</code></td><td>Attribute span (axes, size, color, tracking, OT features)</td></tr>
+  <tr><td><code>#pagebreak()</code></td><td>Force page break</td></tr>
+  <tr><td><code>#colbreak()</code></td><td>Force column break</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="settings">11. Settings & Persistence</h2>
+
+<p>Settings auto-save to <code>~/.type-proofing-swiftui-prefs.json</code> with a 3-second debounce. Users can also export/import settings files for different projects.</p>
+
+<h3>Per-Proof Settings</h3>
+<p>Each proof instance has its own <code>ProofSettings</code> object. The available controls depend on the registry entry's flags:</p>
+
+<table>
+  <tr><th>Registry Flag</th><th>Controls Shown</th></tr>
+  <tr><td><code>hasSettings</code></td><td>Settings panel appears at all</td></tr>
+  <tr><td><code>hasParagraphs</code></td><td>Paragraph count slider (1&ndash;20)</td></tr>
+  <tr><td><code>hasCustomText</code></td><td>Text editor + markup toggle + "generate once" + presets</td></tr>
+  <tr><td><code>hasCategories</code></td><td>Category checkboxes (uppercase, lowercase, numbers, punctuation, accented)</td></tr>
+  <tr><td><code>multiStyle</code> (isMultiStyle)</td><td>Style source picker + font style list + show fallback toggle</td></tr>
+  <tr><td><code>supportsCols</code> (derived)</td><td>Columns (1&ndash;6), column gap</td></tr>
+  <tr><td><code>supportsFormatting</code> (derived)</td><td>Alignment, direction, hyphenation, hanging punctuation, paragraph indent/spacing</td></tr>
+</table>
+
+<p>All proofs also show: font size, line height, tracking, and OpenType feature toggles.</p>
+
+<h3>OT Feature Pills</h3>
+<p>The settings panel shows OpenType features as toggle pills with live preview samples. Features come from the first loaded font's GSUB + GPOS tables. Features in <code>HIDDEN_FEATURES</code> (positional Arabic features, aalt, rand) are never shown. Features in <code>DEFAULT_ON_FEATURES</code> start enabled. The spacing proof force-disables <code>kern</code>.</p>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="adding">12. How to Add a New Proof</h2>
+
+<p>Adding a new proof type requires changes in <strong>1 to 3 files</strong>, depending on whether you need custom rendering:</p>
+
+<ol class="step-list">
+  <li>
+    <strong>Register in ProofRegistry.swift</strong><br>
+    Add a <code>ProofRegistryInfo</code> entry with key, display name, default size, columns, and capability flags. Add the key to <code>defaultProofOrder</code>. The settings UI renders automatically based on the flags.
+  </li>
+  <li>
+    <strong>If standard text proof: done!</strong><br>
+    If your proof just renders text paragraphs, <code>StandardTextProofHandler</code> picks it up automatically via the <code>TextProofConfig</code>. You just need to set the right character set key, paragraph count, and text generation flags.
+  </li>
+  <li>
+    <strong>If custom rendering needed: create a handler</strong><br>
+    Implement the <code>ProofHandler</code> protocol, then add a case in <code>NativeProofOrchestrator.makeHandler()</code>. Use the shared utilities (<code>resolveParams</code>, <code>drawContent</code>, <code>FontLoader.makeFont</code>, <code>TextRenderer</code>) for common operations.
+  </li>
+</ol>
+
+<div class="callout">
+  <strong>No UI code needed</strong>
+  The settings panel automatically renders the right controls based on the registry entry's flags (<code>hasSettings</code>, <code>hasParagraphs</code>, <code>hasCustomText</code>, <code>hasCategories</code>, <code>multiStyle</code>). You only need to touch <code>SettingsPanelView.swift</code> if your proof needs a completely novel control type.
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="gotchas">13. Gotchas & Non-Obvious Things</h2>
+
+<div class="card" style="margin-top: 1rem;">
+  <div class="card-header">Settings key derivation is name-based, not type-based</div>
+  <p style="margin:0; font-size:0.88rem">
+    The flattened settings key for a proof instance comes from its <em>display name</em> (lowercased, non-alphanumeric &rarr; underscores), not from the registry key. "Spacing Test 2" becomes <code>spacing_test_2_fontSize</code>, <code>otf_spacing_test_2_kern</code>, etc.
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-header">Charset detection filters by outline presence</div>
+  <p style="margin:0; font-size:0.88rem">
+    <code>tp_get_charset()</code> doesn't just read the cmap. It verifies each mapped glyph has actual outlines (contours in glyf, or CFF paths). This filters out empty glyphs, synthesized glyphs, and cmap-only entries. If cmap is empty (rare bitmap fonts), it falls back to the Adobe Glyph List.
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-header">Variable font axis values produce a Cartesian product</div>
+  <p style="margin:0; font-size:0.88rem">
+    If a font has <code>wght: [100, 400, 900]</code> and <code>opsz: [8, 32]</code>, that's 6 axis combinations. Each combination generates its own set of proof pages. This can multiply page count quickly.
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-header">Preview uses fragment composition, not monolithic generation</div>
+  <p style="margin:0; font-size:0.88rem">
+    The live preview doesn't regenerate the entire PDF on every change. Each proof gets its own fragment PDF, cached by SHA256 fingerprint. Only changed fragments regenerate. The fragments are then composed into a single preview PDF.
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-header">CoreText has two rendering paths</div>
+  <p style="margin:0; font-size:0.88rem">
+    Default rendering uses <code>CTFramesetter</code>. When hyphenation is enabled, it switches to <code>NSLayoutManager</code> (TextKit). For strings over 2000 characters, unbounded layout is enabled to prevent CoreText truncation.
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-header">Arabic proofs auto-show based on charset</div>
+  <p style="margin:0; font-size:0.88rem">
+    Arabic proof types appear in the sidebar only when at least one loaded font has Arabic characters in its charset. The check looks for a small set of core Arabic characters.
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-header">XcodeGen generates the project &mdash; don't edit .xcodeproj</div>
+  <p style="margin:0; font-size:0.88rem">
+    The Xcode project is generated from <code>TypeProofing-SwiftUI/project.yml</code>. After adding or removing source files, run <code>xcodegen generate</code>. The pre-build script auto-builds Rust if <code>libtpnative.a</code> is missing.
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-header">Hanging punctuation uses AAT, not OpenType</div>
+  <p style="margin:0; font-size:0.88rem">
+    Hanging punctuation is implemented via Apple Advanced Typography feature type 22 (optical bounds), not OpenType. Only fonts with the <code>opbd</code> table support it. <code>FontLoader.fontSupportsOpbd()</code> checks this.
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-header">WordSiv is charset-constrained</div>
+  <p style="margin:0; font-size:0.88rem">
+    The WordSiv text generator produces words using <em>only</em> characters available in the loaded font. This means a font missing certain letters will still get readable text, just with a restricted vocabulary. Seed 987654 makes output deterministic.
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-header">"Generate Once" prevents duplicate rendering</div>
+  <p style="margin:0; font-size:0.88rem">
+    The Custom Text proof with <code>generateOnce: true</code> renders the text exactly once using a specified default font, rather than once per loaded font. A static set tracks which instances have already generated within a session.
+  </p>
+</div>
+
+<hr class="separator">
+
+<p style="color: var(--muted); font-size: 0.85rem; text-align: center;">
+  Type Proofing &middot; Dogray Type Foundry &middot; v2.0.0<br>
+  Architecture documentation generated from codebase analysis
+</p>
+
+</body>
+</html>

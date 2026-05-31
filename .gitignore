@@ -1,10 +1,6 @@
 # Build artifacts
 /build
 /dist
-__pycache__/
-*.pyc
-*.egg-info/
-.eggs
 
 # IDE / editor
 .DS_Store
@@ -18,24 +14,15 @@ xcuserdata/
 **/DerivedData/
 **/.spm-cache/
 **/build-release/
-**/python-packages/
-TypeProofing-SwiftUI/PythonRuntime/Python.framework/
-TypeProofing-SwiftUI/PythonRuntime/build/
-TypeProofing-SwiftUI/PythonRuntime/src/
-TypeProofing-SwiftUI/PythonRuntime/stage/
 
 # Project-specific
 /icon
 _releases
 build_app_local.sh
-.python-version
-.pytest_cache/
-**/.pytest_cache/
 
 # Fonts / output (local only)
 *.ttf
 *.otf
-!**/AdobeBlank.otf
 *.pdf
 *.json
 

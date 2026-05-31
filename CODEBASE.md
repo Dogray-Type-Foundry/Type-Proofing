@@ -23,7 +23,7 @@ The app supports:
 
 ## 2. High-Level Architecture
 
-Three language layers coexist:
+Two language layers:
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -37,15 +37,10 @@ Three language layers coexist:
 │  - GSUB substitution extraction                 │
 │  - WordSiv text generation (separate crate)     │
 │  - Compiled as universal2 static lib            │
-├─────────────────────────────────────────────────┤
-│  Python (python/ directory) — LEGACY            │
-│  - Original proof engine using DrawBot          │
-│  - No longer called at runtime                  │
-│  - Source of truth for some proof logic patterns │
 └─────────────────────────────────────────────────┘
 ```
 
-**The active pipeline is Swift + Rust.** Python is legacy code kept as reference. `ProofEngine.swift` is the only file that historically bridged to Python (via PythonKit), but the current renderer is fully native.
+**The app is native-only: Swift + Rust.** There is no Python at runtime — the shipping app is a single native Mach-O binary with no `Python.framework`. Despite its name, `ProofEngine.swift` is a native facade over `NativeProofOrchestrator`.
 
 ---
 
@@ -58,9 +53,7 @@ TypeProofing-SwiftUI/
 │   ├── libtpnative.a             # Compiled Rust static library (universal2, gitignored)
 │   └── include/tpnative.h        # Auto-generated C header (cbindgen)
 ├── Scripts/
-│   ├── build_release.sh           # Signed DMG creation
-│   ├── bundle_python_packages.sh  # Legacy: bundle Python deps
-│   └── copy_python_sources.sh     # Legacy: copy Python to bundle
+│   └── build_release.sh           # Signed DMG creation
 ├── TypeProofing/
 │   ├── Sources/
 │   │   ├── TypeProofingApp.swift         # @main, creates ProofEngine + AppState, injects into environment
@@ -71,7 +64,6 @@ TypeProofing-SwiftUI/
 │   │   ├── SettingsPanelView.swift        # Right panel: per-proof settings inspector (1265 lines)
 │   │   ├── PDFViewerView.swift           # PDF display + thumbnails + grid/compare views (903 lines)
 │   │   ├── PreviewCoordinator.swift       # Async preview generation pipeline (497 lines)
-│   │   ├── AppFont.swift                 # Custom app font (SetsGroteskVF)
 │   │   ├── FontsSection.swift            # Font list UI + drag/drop
 │   │   ├── FontAxesView.swift            # Variable font axis sliders
 │   │   ├── FontStyleSelectionViews.swift  # Default font picker, multi-style font list
@@ -122,23 +114,6 @@ native/
 │   └── agl.rs                     # Adobe Glyph List name→Unicode mapping
 └── tp-bridge/src/
     └── lib.rs                     # C FFI exports (tp_load_font, tp_get_charset, wsv_*, etc.)
-
-python/                            # LEGACY — not called at runtime
-├── engine.py                      # Headless proof generation entry point
-├── proof.py                       # Proof handler classes (2974 lines)
-├── config.py                      # Proof registry, page formats, constants
-├── fonts.py                       # Font analysis utilities
-├── settings.py                    # Settings persistence
-├── sample_texts.py                # Premade Latin text samples
-├── script_texts.py                # Arabic/Farsi text samples
-├── accented_dictionary.py         # Character → accented word mapping
-├── text_generators.py             # Text generation helpers
-├── markup_parser.py               # Markup parsing
-├── opentype_substitutions.py      # GSUB extraction
-├── generation_config.py           # Typed generation config
-├── diagnostics.py                 # Diagnostic event collection
-├── pdf_manager.py                 # PDF output management
-└── worker.py                      # Background worker process
 ```
 
 ---
@@ -771,14 +746,8 @@ The `CustomTextProofHandler` with `generateOnce: true` renders the custom text e
 ## 16. Testing
 
 ```bash
-# Python unit tests (mocked, no external deps)
-python3 -m pytest tests/ -v
-
-# Python integration tests (real fonts + DrawBot)
-python3 -m pytest tests_integration/ -v
-
-# Swift unit + UI tests
-xcodebuild -project TypeProofing-SwiftUI/TypeProofing.xcodeproj -scheme TypeProofing test
+# Swift unit tests (the UI test target drives the screen — run it separately)
+xcodebuild -project TypeProofing-SwiftUI/TypeProofing.xcodeproj -scheme TypeProofing -only-testing:TypeProofingTests test
 ```
 
-Swift test files cover: markup parsing, category-based proofs, native library FFI, renderer output, proof key generation, standard text handler, diagnostics.
+Swift test files cover: markup parsing, category-based proofs, native library FFI, renderer output, proof key generation, and the standard text handler.

@@ -33,10 +33,8 @@ struct StylePairing {
 
     static func loadFontMeta(path: String) -> FontMeta? {
         if let cached = metaCache[path] { return cached }
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
-        return data.withUnsafeBytes { buffer -> FontMeta? in
-            guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return nil }
-            guard let infoPtr = tp_load_font(ptr, UInt(buffer.count)) else { return nil }
+        return FontLoader.withFontBytes(path: path, fallback: nil) { ptr, len -> FontMeta? in
+            guard let infoPtr = tp_load_font(ptr, len) else { return nil }
             defer { tp_free_font_info(infoPtr) }
             let info = infoPtr.pointee
 

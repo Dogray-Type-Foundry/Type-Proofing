@@ -157,7 +157,7 @@ struct MultiStyleComparisonHandler: ProofHandler {
     private func buildMergedCategories(fontPaths: [String]) -> CharacterCategories {
         var merged = CharacterCategories()
         for fontPath in fontPaths {
-            guard let fontData = try? Data(contentsOf: URL(fileURLWithPath: fontPath)) else { continue }
+            guard let fontData = FontLoader.fontData(path: fontPath) else { continue }
             let charset = fontData.withUnsafeBytes { buffer -> String in
                 guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return "" }
                 guard let charsetPtr = tp_get_charset(ptr, UInt(buffer.count)) else { return "" }
@@ -194,7 +194,7 @@ struct MultiStyleComparisonHandler: ProofHandler {
         var styleIndex = 0
 
         for fontPath in allFonts {
-            guard let fontData = try? Data(contentsOf: URL(fileURLWithPath: fontPath)) else {
+            guard let fontData = FontLoader.fontData(path: fontPath) else {
                 if isStyleEnabled(styleIndex, settings: context.proofSettings) {
                     let displayName = URL(fileURLWithPath: fontPath).deletingPathExtension().lastPathComponent
                     styles.append(StyleEntry(fontPath: fontPath, variations: nil, label: displayName))

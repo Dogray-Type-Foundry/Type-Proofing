@@ -78,20 +78,6 @@ struct TextGeneration {
             )
         }
 
-        if !cat.uppercaseOnly && !cat.lowercaseOnly {
-            return generateWordsivText(
-                cat: cat,
-                paragraphs: paragraphs,
-                fullCharacterSet: fullCharacterSet,
-                characterSet: characterSet,
-                hoeflerStyle: hoeflerStyle,
-                vocab: generativeLanguage,
-                wordDiversity: wordDiversity, vocabularySize: vocabularySize,
-                minWordLength: minWordLength, maxWordLength: maxWordLength,
-                biasChars: biasChars, biasStrength: biasStrength
-            )
-        }
-
         return generateWordsivText(
             cat: cat,
             paragraphs: paragraphs,

@@ -22,10 +22,8 @@ struct SubstitutionBridge {
     }
 
     static func getSubstitutions(fontPath: String) -> [Feature] {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: fontPath)) else { return [] }
-        return data.withUnsafeBytes { buffer -> [Feature] in
-            guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return [] }
-            guard let jsonPtr = tp_get_substitutions_json(ptr, UInt(buffer.count)) else { return [] }
+        return FontLoader.withFontBytes(path: fontPath, fallback: []) { ptr, len -> [Feature] in
+            guard let jsonPtr = tp_get_substitutions_json(ptr, len) else { return [] }
             defer { wsv_free_string(jsonPtr) }
             let jsonStr = String(cString: jsonPtr)
             guard let jsonData = jsonStr.data(using: .utf8),

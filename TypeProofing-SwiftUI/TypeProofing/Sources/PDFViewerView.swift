@@ -132,7 +132,6 @@ class PDFViewCoordinator: ObservableObject {
                     x: min(max(savedOrigin.x, 0), maxScroll.x),
                     y: min(max(savedOrigin.y, 0), maxScroll.y)
                 )
-                NSLog("[Viewport] restore scroll to \(origin) (saved=\(savedOrigin), max=\(maxScroll), docBounds=\(docView.bounds))")
                 scrollView.contentView.scroll(to: origin)
                 scrollView.reflectScrolledClipView(scrollView.contentView)
             }
@@ -200,15 +199,7 @@ struct PDFCanvasView: NSViewRepresentable {
             if let document = documentChanged ? PDFDocument(url: url) : pdfView.document {
                 if documentChanged {
                     if pdfCoordinator.pendingAnchor == nil {
-                        let anchor = pdfCoordinator.currentAnchor()
-                        pdfCoordinator.pendingAnchor = anchor
-                        if let a = anchor {
-                            NSLog("[Viewport] captured anchor: page=\(a.absolutePage) section=\(a.sectionName ?? "nil") scale=\(a.scaleFactor) scroll=\(a.scrollOrigin)")
-                        } else {
-                            NSLog("[Viewport] captured anchor: nil")
-                        }
-                    } else {
-                        NSLog("[Viewport] reusing pending anchor (page=\(pdfCoordinator.pendingAnchor!.absolutePage))")
+                        pdfCoordinator.pendingAnchor = pdfCoordinator.currentAnchor()
                     }
                     pdfView.document = document
                     pdfCoordinator.lastLoadedPDFPath = path

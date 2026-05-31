@@ -138,43 +138,6 @@ struct DiagnosticEvent: Identifiable, Equatable {
     let proofName: String?
     let details: [String: String]
     let timestamp: String
-
-    static func fromDictionary(_ dict: [String: Any]) -> DiagnosticEvent? {
-        guard let level = dict["level"] as? String,
-              let category = dict["category"] as? String,
-              let message = dict["message"] as? String else { return nil }
-        let rawDetails = dict["details"] as? [String: Any] ?? [:]
-        return DiagnosticEvent(
-            level: level,
-            category: category,
-            message: message,
-            fontPath: dict["font_path"] as? String,
-            proofName: dict["proof_name"] as? String,
-            details: rawDetails.mapValues(Self.stringifyDetailValue),
-            timestamp: dict["timestamp"] as? String ?? ""
-        )
-    }
-
-    private static func stringifyDetailValue(_ value: Any) -> String {
-        if let string = value as? String {
-            return string
-        }
-        if value is NSNull {
-            return "null"
-        }
-        if let number = value as? NSNumber {
-            if CFGetTypeID(number) == CFBooleanGetTypeID() {
-                return number.boolValue ? "true" : "false"
-            }
-            return number.stringValue
-        }
-        if JSONSerialization.isValidJSONObject(value),
-           let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
-           let string = String(data: data, encoding: .utf8) {
-            return string
-        }
-        return String(describing: value)
-    }
 }
 
 struct ProofRunSummary: Equatable {
@@ -187,20 +150,6 @@ struct ProofRunSummary: Equatable {
     var outputDir: String = ""
     var showBaselines: Bool = false
     var warnings: [String] = []
-
-    static func fromDictionary(_ dict: [String: Any]) -> ProofRunSummary {
-        ProofRunSummary(
-            fontCount: dict["font_count"] as? Int ?? 0,
-            enabledProofCount: dict["enabled_proof_count"] as? Int ?? 0,
-            enabledProofs: dict["enabled_proofs"] as? [String] ?? [],
-            totalAxisInstances: dict["total_axis_instances"] as? Int ?? 0,
-            estimatedWorkItems: dict["estimated_work_items"] as? Int ?? 0,
-            pageFormat: dict["page_format"] as? String ?? "",
-            outputDir: dict["output_dir"] as? String ?? "",
-            showBaselines: dict["show_baselines"] as? Bool ?? false,
-            warnings: dict["warnings"] as? [String] ?? []
-        )
-    }
 }
 
 struct GenerationProgress: Equatable {
@@ -253,10 +202,6 @@ struct ProofConfig {
         ]
     }
 
-    func toJSONData() throws -> Data {
-        try JSONSerialization.data(withJSONObject: toDictionary(), options: [])
-    }
-
     func fingerprint() -> String {
         guard let data = try? JSONSerialization.data(
             withJSONObject: toDictionary(),
@@ -298,9 +243,8 @@ final class ProofEngine: ObservableObject {
     @Published var proofRunSummary: ProofRunSummary?
     @Published var debugMode = false
     @Published private(set) var proofRegistryCount = 0
-    var usesWorkerGeneration = true
 
-    private var generationTask: Task<Void, Never>?
+    private var generationTask: Task<(result: NativeProofOrchestrator.Result?, diagnostics: [DiagnosticEvent]), Never>?
 
     // ── Lifecycle ───────────────────────────────────────────────────────
 
@@ -328,7 +272,7 @@ final class ProofEngine: ObservableObject {
         var config = config
         config.debugMode = debugMode
 
-        let output = await Task.detached(priority: .userInitiated) {
+        let task = Task.detached(priority: .userInitiated) {
             NativeProofOrchestrator.generate(
                 config: config,
                 progress: { progress in
@@ -336,12 +280,16 @@ final class ProofEngine: ObservableObject {
                 },
                 isCancelled: { Task.isCancelled }
             )
-        }.value
+        }
+        generationTask = task
+        let output = await task.value
+        let wasCancelled = task.isCancelled
+        generationTask = nil
 
         diagnostics.append(contentsOf: output.diagnostics)
 
         guard let result = output.result else {
-            if !Task.isCancelled {
+            if !wasCancelled {
                 errorMessage = output.diagnostics.first(where: { $0.level == "error" })?.message
                     ?? "Proof generation produced no output"
             }
@@ -422,13 +370,8 @@ final class ProofEngine: ObservableObject {
 
     // MARK: - Font Queries
 
-    private var fontInfoCache: [String: (info: TPFontInfo, charset: String, axesJSON: String)] = [:]
-
     private func loadFontData(path: String) -> (info: UnsafeMutablePointer<TPFontInfo>, charset: String, axesJSON: String)? {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
-        return data.withUnsafeBytes { buffer -> (UnsafeMutablePointer<TPFontInfo>, String, String)? in
-            guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return nil }
-            let len = UInt(buffer.count)
+        FontLoader.withFontBytes(path: path, fallback: nil) { ptr, len -> (UnsafeMutablePointer<TPFontInfo>, String, String)? in
             guard let infoPtr = tp_load_font(ptr, len) else { return nil }
 
             let charsetPtr = tp_get_charset(ptr, len)
@@ -495,10 +438,8 @@ final class ProofEngine: ObservableObject {
     }
 
     func getFontAxes(path: String) -> [FontAxis] {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return [] }
-        return data.withUnsafeBytes { buffer -> [FontAxis] in
-            guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return [] }
-            guard let infoPtr = tp_load_font(ptr, UInt(buffer.count)) else { return [] }
+        FontLoader.withFontBytes(path: path, fallback: []) { ptr, len -> [FontAxis] in
+            guard let infoPtr = tp_load_font(ptr, len) else { return [] }
             defer { tp_free_font_info(infoPtr) }
             let info = infoPtr.pointee
             guard let json = info.axes_json else { return [] }
@@ -517,10 +458,8 @@ final class ProofEngine: ObservableObject {
     }
 
     func getAvailableOTFeatures(path: String) -> [String] {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return [] }
-        return data.withUnsafeBytes { buffer -> [String] in
-            guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return [] }
-            guard let infoPtr = tp_load_font(ptr, UInt(buffer.count)) else { return [] }
+        FontLoader.withFontBytes(path: path, fallback: []) { ptr, len -> [String] in
+            guard let infoPtr = tp_load_font(ptr, len) else { return [] }
             defer { tp_free_font_info(infoPtr) }
             guard let json = infoPtr.pointee.features_json else { return [] }
             let jsonStr = String(cString: json)
@@ -590,7 +529,7 @@ final class ProofEngine: ObservableObject {
         var globalIndex = 0
 
         for path in paths {
-            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { continue }
+            guard let data = FontLoader.fontData(path: path) else { continue }
             let rustInfo: (familyName: String, subfamilyName: String, isVariable: Bool) = data.withUnsafeBytes { buffer in
                 guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self),
                       let infoPtr = tp_load_font(ptr, UInt(buffer.count)) else {

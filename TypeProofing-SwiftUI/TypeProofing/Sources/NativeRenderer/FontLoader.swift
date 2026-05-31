@@ -193,4 +193,40 @@ struct FontLoader {
         ]
         return String(bytes.map { Character(UnicodeScalar($0)) })
     }
+
+    // MARK: - Cached font bytes
+
+    private static let fontDataCache = NSCache<NSString, NSData>()
+
+    /// Reads the font file at `path`, caching the bytes keyed by path + modification
+    /// date + size so repeated metadata queries for the same unchanged file read disk
+    /// only once. A changed file (different mtime/size) produces a new key, so stale
+    /// bytes are never served.
+    static func fontData(path: String) -> Data? {
+        let key = fontCacheKey(for: path) as NSString
+        if let cached = fontDataCache.object(forKey: key) {
+            return cached as Data
+        }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
+        fontDataCache.setObject(data as NSData, forKey: key)
+        return data
+    }
+
+    private static func fontCacheKey(for path: String) -> String {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: path)
+        let mtime = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        let size = (attrs?[.size] as? Int) ?? 0
+        return "\(path)|\(mtime)|\(size)"
+    }
+
+    /// Centralizes the `Data.withUnsafeBytes { ... }` pointer dance used to pass font
+    /// bytes to the Rust FFI. Exposes the bytes as a (pointer, length) pair to `body`,
+    /// returning `fallback` when the file can't be read.
+    static func withFontBytes<T>(path: String, fallback: T, _ body: (UnsafePointer<UInt8>, UInt) -> T) -> T {
+        guard let data = fontData(path: path) else { return fallback }
+        return data.withUnsafeBytes { buffer -> T in
+            guard let base = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return fallback }
+            return body(base, UInt(buffer.count))
+        }
+    }
 }

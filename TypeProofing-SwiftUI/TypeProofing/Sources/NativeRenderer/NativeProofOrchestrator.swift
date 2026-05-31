@@ -47,7 +47,7 @@ struct NativeProofOrchestrator {
         for (fontIndex, fontPath) in config.fontPaths.enumerated() {
             if isCancelled() { break }
 
-            guard let fontData = try? Data(contentsOf: URL(fileURLWithPath: fontPath)) else { continue }
+            guard let fontData = FontLoader.fontData(path: fontPath) else { continue }
             let charset = fontData.withUnsafeBytes { buffer -> String in
                 guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return "" }
                 guard let charsetPtr = tp_get_charset(ptr, UInt(buffer.count)) else { return "" }
@@ -153,7 +153,7 @@ struct NativeProofOrchestrator {
         for fontPath in config.fontPaths {
             if isCancelled() { break }
 
-            guard let fontData = try? Data(contentsOf: URL(fileURLWithPath: fontPath)) else {
+            guard let fontData = FontLoader.fontData(path: fontPath) else {
                 collector.error("Failed to read font file",
                                fontPath: fontPath, proofName: config.targetProofName)
                 continue

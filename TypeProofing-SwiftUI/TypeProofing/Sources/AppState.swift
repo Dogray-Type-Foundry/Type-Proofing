@@ -336,9 +336,7 @@ final class AppState: ObservableObject {
                     fonts.loadedFonts = engine.getFontMetadata(paths: fonts.fontPaths)
                     applySortCriteria()
                     refreshFontStyles(engine: engine)
-                    let allFeatures = engine.getAvailableOTFeatures(path: fonts.fontPaths[0])
-                    fonts.availableOTFeatures = allFeatures.filter { !HIDDEN_FEATURES.contains($0) }
-                    fonts.availableSubstitutionFeatures = engine.getAvailableSubstitutionFeatures(path: fonts.fontPaths[0])
+                    applyAvailableFontFeatures(engine: engine)
                     if output.outputDirectory.isEmpty {
                         output.outputDirectory = (fonts.fontPaths[0] as NSString).deletingLastPathComponent
                     }
@@ -468,27 +466,40 @@ final class AppState: ObservableObject {
             output.outputDirectory = (first as NSString).deletingLastPathComponent
         }
 
-        if let firstPath = fonts.fontPaths.first {
-            let allFeatures = engine.getAvailableOTFeatures(path: firstPath)
-            fonts.availableOTFeatures = allFeatures.filter { !HIDDEN_FEATURES.contains($0) }
-            fonts.availableSubstitutionFeatures = engine.getAvailableSubstitutionFeatures(path: firstPath)
-            fonts.anyFontSupportsOpbd = fonts.fontPaths.contains { FontLoader.fontSupportsOpbd(path: $0) }
-
-            for (name, _) in proofs.proofSettingsByProof {
-                let baseType = proofs.proofOptions.first(where: { $0.name == name })?.baseType
-                proofs.proofSettingsByProof[name]?.otFeatures = syncOTFeatures(
-                    existing: proofs.proofSettingsByProof[name]?.otFeatures ?? [],
-                    available: fonts.availableOTFeatures,
-                    baseType: baseType
-                )
-                if proofs.proofSettingsByProof[name]?.substitutionFeatures.isEmpty ?? true {
-                    proofs.proofSettingsByProof[name]?.substitutionFeatures = buildDefaultSubstitutionFeatures(for: baseType)
-                }
-            }
-        }
+        applyAvailableFontFeatures(engine: engine)
 
         refreshFontStyles(engine: engine)
         schedulePersist()
+    }
+
+    /// Derives the available OT + substitution features from the first loaded font,
+    /// the opbd-support flag across all loaded fonts, and reconciles each proof's
+    /// OT/substitution feature lists against what the fonts actually support.
+    /// Call after `fonts.fontPaths` and `fonts.loadedFonts` have been updated.
+    func applyAvailableFontFeatures(engine: ProofEngine) {
+        guard let firstPath = fonts.fontPaths.first else {
+            fonts.availableOTFeatures = []
+            fonts.availableSubstitutionFeatures = []
+            fonts.anyFontSupportsOpbd = false
+            return
+        }
+
+        let allFeatures = engine.getAvailableOTFeatures(path: firstPath)
+        fonts.availableOTFeatures = allFeatures.filter { !HIDDEN_FEATURES.contains($0) }
+        fonts.availableSubstitutionFeatures = engine.getAvailableSubstitutionFeatures(path: firstPath)
+        fonts.anyFontSupportsOpbd = fonts.fontPaths.contains { FontLoader.fontSupportsOpbd(path: $0) }
+
+        for (name, _) in proofs.proofSettingsByProof {
+            let baseType = proofs.proofOptions.first(where: { $0.name == name })?.baseType
+            proofs.proofSettingsByProof[name]?.otFeatures = syncOTFeatures(
+                existing: proofs.proofSettingsByProof[name]?.otFeatures ?? [],
+                available: fonts.availableOTFeatures,
+                baseType: baseType
+            )
+            if proofs.proofSettingsByProof[name]?.substitutionFeatures.isEmpty ?? true {
+                proofs.proofSettingsByProof[name]?.substitutionFeatures = buildDefaultSubstitutionFeatures(for: baseType)
+            }
+        }
     }
 
     func refreshFontStyles(engine: ProofEngine) {
@@ -919,14 +930,6 @@ final class AppState: ObservableObject {
         }
         clearGeneratedOutput()
         persistState()
-    }
-
-    func setAvailableOTFeatures(_ features: [String]) {
-        fonts.availableOTFeatures = features
-    }
-
-    func setAvailableSubstitutionFeatures(_ features: [String]) {
-        fonts.availableSubstitutionFeatures = features
     }
 }
 

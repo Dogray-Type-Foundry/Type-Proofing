@@ -231,10 +231,7 @@ struct ContentView: View {
                 fonts.fontPaths = validPaths
                 fonts.loadedFonts = engine.getFontMetadata(paths: validPaths)
                 state.output.outputDirectory = (validPaths[0] as NSString).deletingLastPathComponent
-
-                let allFeatures = engine.getAvailableOTFeatures(path: validPaths[0])
-                state.setAvailableOTFeatures(allFeatures.filter { !HIDDEN_FEATURES.contains($0) })
-                state.setAvailableSubstitutionFeatures(engine.getAvailableSubstitutionFeatures(path: validPaths[0]))
+                state.applyAvailableFontFeatures(engine: engine)
             }
         }
 
