@@ -26,6 +26,7 @@
 		5C2C5BB759A10148FDA051E1 /* ProofKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA3DEF34F455645E68CFC17 /* ProofKeyTests.swift */; };
 		5F2F26533D430C28E37DDC07 /* NativeLibTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E1E4B6126B6875A3B0B8A4 /* NativeLibTests.swift */; };
 		6253C1D975968BD80E841073 /* FontLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DACA62EBD634A63F96866A5 /* FontLoader.swift */; };
+		63081DDFBF2C49E5041ECDA9 /* LiquidGlassCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2723D207810936F919D684A9 /* LiquidGlassCompat.swift */; };
 		66DD1E15762DD3C09DA6AA64 /* MarkupRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B81305C0FA41A952118E025 /* MarkupRenderer.swift */; };
 		715D052D7C5F69805DE3672A /* TypeProofing.icon in Resources */ = {isa = PBXBuildFile; fileRef = C4D7DBC1455476D39F561233 /* TypeProofing.icon */; };
 		71A67F205B144DEFBCBD821B /* MarkupParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 637D42E4A5FDEB7E3048C469 /* MarkupParser.swift */; };
@@ -94,6 +95,7 @@
 		20072FA10054DB4F8288FFD8 /* StandardTextProofHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandardTextProofHandlerTests.swift; sourceTree = "<group>"; };
 		20244E9C11E156EFEECBE024 /* FontStyleSelectionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontStyleSelectionViews.swift; sourceTree = "<group>"; };
 		26064D6ECE40BB87275C3984 /* TypeProofingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TypeProofingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2723D207810936F919D684A9 /* LiquidGlassCompat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassCompat.swift; sourceTree = "<group>"; };
 		273F6D02473AD733F5E06051 /* FontsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontsSection.swift; sourceTree = "<group>"; };
 		287884EA51D43FCCCEAB6F84 /* ProofRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofRegistry.swift; sourceTree = "<group>"; };
 		2EB15D5BCE44AC7E010EE7F9 /* NativeRendererVisualTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeRendererVisualTest.swift; sourceTree = "<group>"; };
@@ -174,6 +176,7 @@
 				273F6D02473AD733F5E06051 /* FontsSection.swift */,
 				20244E9C11E156EFEECBE024 /* FontStyleSelectionViews.swift */,
 				9149A97ACE7210EC141D56B7 /* HoverComponents.swift */,
+				2723D207810936F919D684A9 /* LiquidGlassCompat.swift */,
 				E8FB027921231229D0CEAE7D /* PDFViewerView.swift */,
 				DF0A080F064F287805B720FC /* PreviewCoordinator.swift */,
 				8FD87BE6E04F0FA9E7911E43 /* ProofEngine.swift */,
@@ -435,6 +438,7 @@
 				82C4CA005FD6D556C4B9743E /* FontStyleSelectionViews.swift in Sources */,
 				95D0EB1AEABF12F46DCC7153 /* FontsSection.swift in Sources */,
 				2D1FC97C23A2CF0042055394 /* HoverComponents.swift in Sources */,
+				63081DDFBF2C49E5041ECDA9 /* LiquidGlassCompat.swift in Sources */,
 				71A67F205B144DEFBCBD821B /* MarkupParser.swift in Sources */,
 				66DD1E15762DD3C09DA6AA64 /* MarkupRenderer.swift in Sources */,
 				BB22BF8CA14517A1807EDC8B /* MultiStyleComparisonHandler.swift in Sources */,
@@ -517,7 +521,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/NativeLib",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ltpnative",
@@ -549,7 +553,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/NativeLib",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 2.0.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -616,7 +620,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -644,7 +648,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/NativeLib",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 2.0.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -671,7 +675,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dograytype.TypeProofingUITests;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
@@ -690,7 +694,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dograytype.TypeProofingUITests;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
@@ -713,7 +717,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/NativeLib",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ltpnative",
@@ -774,7 +778,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

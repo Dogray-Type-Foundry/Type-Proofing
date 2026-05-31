@@ -101,7 +101,7 @@ struct ContentView: View {
             if ui.showSidebar {
                 SidebarView()
                     .frame(width: ui.sidebarWidth)
-                    .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 12))
+                    .liquidGlassRect(cornerRadius: 12)
                     .transition(.move(edge: .leading))
                 PanelDragHandle(
                     width: $ui.sidebarWidth,
@@ -115,7 +115,7 @@ struct ContentView: View {
                     pdfCoordinator: pdfCoordinator
                 )
                 .frame(width: ui.thumbnailStripWidth)
-                .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 12))
+                .liquidGlassRect(cornerRadius: 12)
                 .transition(.move(edge: .leading))
                 PanelDragHandle(
                     width: $ui.thumbnailStripWidth,
@@ -163,7 +163,7 @@ struct ContentView: View {
                 )
                 SettingsPanelView()
                     .frame(width: ui.inspectorWidth)
-                    .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 12))
+                    .liquidGlassRect(cornerRadius: 12)
                     .transition(.move(edge: .trailing))
             }
         }
@@ -195,7 +195,7 @@ struct ContentView: View {
                     .help("Version history (coming soon)")
                     .disabled(true)
                 }
-                .glassEffect(.regular, in: .capsule)
+                .liquidGlassCapsule()
             }
         }
     }
@@ -266,7 +266,7 @@ struct FloatingToolbar: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .glassEffect(.regular, in: .capsule)
+            .liquidGlassCapsule()
 
             HStack(spacing: 2) {
                 toolbarButton("doc.richtext", active: page.viewMode == .page, help: "Page view") {
@@ -302,7 +302,7 @@ struct FloatingToolbar: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .glassEffect(.regular, in: .capsule)
+            .liquidGlassCapsule()
 
             HStack(spacing: 2) {
                 Button { zoom(by: -0.1) } label: {
@@ -356,7 +356,7 @@ struct FloatingToolbar: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .glassEffect(.regular, in: .capsule)
+            .liquidGlassCapsule()
         }
         .padding(.top, 10)
     }

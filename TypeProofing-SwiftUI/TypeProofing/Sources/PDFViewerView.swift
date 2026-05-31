@@ -316,7 +316,7 @@ struct GridViewCanvas: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .scrollEdgeEffectStyle(.soft, for: .all)
+        .softScrollEdgeEffect()
         .onAppear { loadDocument() }
         .onChange(of: pdfPath) { _ in loadDocument() }
     }

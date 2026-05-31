@@ -400,7 +400,7 @@ struct SettingsPanelView: View {
                 }
             }
         }
-        .scrollEdgeEffectStyle(.soft, for: .all)
+        .softScrollEdgeEffect()
     }
 }
 
@@ -455,7 +455,7 @@ private struct DiagnosticsPanelView: View {
                     }
                     .padding(.vertical, 4)
                 }
-                .scrollEdgeEffectStyle(.soft, for: .all)
+                .softScrollEdgeEffect()
             }
         }
         .padding()

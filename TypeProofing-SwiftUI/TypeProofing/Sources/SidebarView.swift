@@ -19,7 +19,7 @@ struct SidebarView: View {
                 }
                 .padding(.horizontal, 4)
             }
-            .scrollEdgeEffectStyle(.soft, for: .all)
+            .softScrollEdgeEffect()
 
             Divider()
             outputSection
@@ -104,7 +104,7 @@ struct SidebarView: View {
                 .frame(maxWidth: .infinity)
             }
             .controlSize(.large)
-            .buttonStyle(.glassProminent)
+            .glassProminentButtonStyle()
             .tint(state.isFinalPDFStale ? .orange : .dograyPurple)
             .help(state.isFinalPDFStale ? "Final PDF is out of sync with current settings" : "Generate Final PDF")
             .disabled(engine.isGenerating || fonts.enabledFontPaths.isEmpty)
