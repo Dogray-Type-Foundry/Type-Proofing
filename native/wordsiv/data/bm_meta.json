@@ -1,0 +1,10 @@
+{
+    "name": "bm",
+    "lang": "bm",
+    "bicameral": "True",
+    "description": "Bambara word frequency list",
+    "author": "Jose Sole",
+    "author_email": "type@jmsole.cl",
+    "author_url": "https://github.com/jmsole",
+    "license": "See data source"
+}

@@ -1,0 +1,10 @@
+{
+    "name": "af",
+    "lang": "af",
+    "bicameral": "True",
+    "description": "Afrikaans word frequency list",
+    "author": "Jose Sole",
+    "author_email": "type@jmsole.cl",
+    "author_url": "https://github.com/jmsole",
+    "license": "See data source"
+}

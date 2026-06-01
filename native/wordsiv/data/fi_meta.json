@@ -1,0 +1,10 @@
+{
+    "name": "fi",
+    "lang": "fi",
+    "bicameral": "True",
+    "description": "Finnish word frequency list",
+    "author": "Jose Sole",
+    "author_email": "type@jmsole.cl",
+    "author_url": "https://github.com/jmsole",
+    "license": "See data source"
+}

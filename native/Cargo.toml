@@ -1,5 +1,5 @@
 [workspace]
-members = ["tp-fonts", "tp-bridge"]
+members = ["tp-fonts", "tp-bridge", "wordsiv"]
 resolver = "2"
 
 [workspace.dependencies]

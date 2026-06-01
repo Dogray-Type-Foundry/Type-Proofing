@@ -14,6 +14,8 @@ xcuserdata/
 **/DerivedData/
 **/.spm-cache/
 **/build-release/
+**/build-release-*/
+**/build_measure/
 
 # Project-specific
 /icon

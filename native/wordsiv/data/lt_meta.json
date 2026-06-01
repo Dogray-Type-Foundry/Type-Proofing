@@ -1,0 +1,10 @@
+{
+    "name": "lt",
+    "lang": "lt",
+    "bicameral": "True",
+    "description": "Lithuanian word frequency list",
+    "author": "Jose Sole",
+    "author_email": "type@jmsole.cl",
+    "author_url": "https://github.com/jmsole",
+    "license": "See data source"
+}

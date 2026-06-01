@@ -1,0 +1,3 @@
+# Vendored wordsiv vocab metadata is required source data; override the
+# repo-wide "*.json" ignore so these get committed.
+!*_meta.json
