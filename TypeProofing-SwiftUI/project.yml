@@ -49,6 +49,8 @@ targets:
         CFBundleIconFile: TypeProofing
         CFBundleIconName: TypeProofing
         CFBundleDisplayName: "Type Proofing"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: "public.app-category.graphics-design"
     settings:
       base:
