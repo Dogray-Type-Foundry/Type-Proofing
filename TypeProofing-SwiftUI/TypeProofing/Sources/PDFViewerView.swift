@@ -513,7 +513,10 @@ private final class SyncedCompareContainer: NSView {
         guard index != shown else { return }
 
         let singleDoc = PDFDocument()
-        if let page = document.page(at: index) {
+        // Insert a *copy* of the page: inserting the original re-parents it away
+        // from the shared `document`, leaving a dangling PDFPage that PDFView's
+        // mouse tracking can later touch (use-after-free crash on hover).
+        if let page = document.page(at: index)?.copy() as? PDFPage {
             singleDoc.insert(page, at: 0)
         }
 
