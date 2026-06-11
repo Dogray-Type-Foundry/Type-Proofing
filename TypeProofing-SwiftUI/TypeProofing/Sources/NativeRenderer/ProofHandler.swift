@@ -93,6 +93,14 @@ final class DiagnosticCollector: @unchecked Sendable {
     }
 }
 
+/// Mutable state scoped to a single document or fragment generation run.
+/// "Generate once" proofs track which instances they've already rendered so
+/// the per-font/per-axis loop doesn't repeat them. Must never be shared
+/// across runs: previews generate fragments concurrently.
+final class ProofRunState {
+    var generatedOnce: Set<String> = []
+}
+
 struct ProofContext {
     let fullCharacterSet: String
     let indFont: String
@@ -106,6 +114,7 @@ struct ProofContext {
     let allFontPaths: [String]
     let axisValuesByFont: [String: [String: [Double]]]
     let diagnostics: DiagnosticCollector
+    var runState = ProofRunState()
 }
 
 struct ProofParams {
@@ -258,6 +267,7 @@ extension ProofHandler {
         var overflow: NSAttributedString? = attrString
 
         while overflow != nil {
+            let lengthBefore = overflow?.length ?? 0
             renderer.beginPage()
             PageLayout.drawFooter(
                 context: renderer.context,
@@ -302,6 +312,14 @@ extension ProofHandler {
             }
 
             renderer.endPage()
+
+            // A page pass that consumes no characters (e.g. column too small
+            // for a single line) would otherwise loop forever.
+            if let remaining = overflow, remaining.length >= lengthBefore {
+                context.diagnostics.error("Text does not fit the column layout — output truncated",
+                                          proofName: proofName)
+                break
+            }
         }
     }
 }

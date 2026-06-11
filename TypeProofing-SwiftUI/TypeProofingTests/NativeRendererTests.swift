@@ -8,7 +8,7 @@ final class NativeRendererTests: XCTestCase {
     func testPDFCreation() throws {
         let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_pdf_creation.pdf")
         let pageSize = CGSize(width: 842, height: 595)
-        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))
+        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))!
 
         renderer.beginPage()
         renderer.fillRect(CGRect(x: 50, y: 50, width: 100, height: 100), color: CGColor(red: 1, green: 0, blue: 0, alpha: 1))
@@ -92,7 +92,7 @@ final class NativeRendererTests: XCTestCase {
         )
 
         let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_overflow.pdf")
-        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: CGSize(width: 842, height: 595)))
+        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: CGSize(width: 842, height: 595)))!
 
         renderer.beginPage()
         let smallBox = CGRect(x: 50, y: 50, width: 300, height: 150)
@@ -142,7 +142,7 @@ final class NativeRendererTests: XCTestCase {
 
         let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("smoke_test.pdf")
         let pageSize = PageLayout.pageDimensions["A4Landscape"]!
-        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))
+        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))!
 
         let text = "The quick brown fox jumps over the lazy dog. " +
             String(repeating: "Pack my box with five dozen liquor jugs. ", count: 20)

@@ -107,9 +107,13 @@ struct SubstitutionOverviewHandler: ProofHandler {
         let black = CGColor(gray: 0, alpha: 1)
         let gray = CGColor(gray: 0.4, alpha: 1)
 
+        // renderer.pageCount is global across the document — other proofs may
+        // already have rendered (and closed) pages, so track our own open page.
+        var hasOpenPage = false
         func newPage() {
-            if renderer.pageCount > 0 { renderer.endPage() }
+            if hasOpenPage { renderer.endPage() }
             renderer.beginPage()
+            hasOpenPage = true
             var sectionName = "\(proofName) - \(Int(fontSize))pt"
             if !suffix.isEmpty { sectionName += " - \(suffix)" }
             PageLayout.drawFooter(

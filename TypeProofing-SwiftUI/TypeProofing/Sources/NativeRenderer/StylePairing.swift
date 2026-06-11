@@ -25,14 +25,22 @@ struct StylePairing {
         let hasWghtAxis: Bool
     }
 
+    // Accessed from concurrent preview fragment generations — guard every
+    // read/write with the lock.
     private static var metaCache: [String: FontMeta] = [:]
+    private static let metaCacheLock = NSLock()
 
     static func resetCache() {
+        metaCacheLock.lock()
         metaCache.removeAll()
+        metaCacheLock.unlock()
     }
 
     static func loadFontMeta(path: String) -> FontMeta? {
-        if let cached = metaCache[path] { return cached }
+        metaCacheLock.lock()
+        let cached = metaCache[path]
+        metaCacheLock.unlock()
+        if let cached = cached { return cached }
         return FontLoader.withFontBytes(path: path, fallback: nil) { ptr, len -> FontMeta? in
             guard let infoPtr = tp_load_font(ptr, len) else { return nil }
             defer { tp_free_font_info(infoPtr) }
@@ -61,7 +69,9 @@ struct StylePairing {
                 weight: Int(info.weight), isItalic: isItalic, isVariable: isVariable,
                 hasItalAxis: hasItal, hasWghtAxis: hasWght
             )
+            metaCacheLock.lock()
             metaCache[path] = meta
+            metaCacheLock.unlock()
             return meta
         }
     }

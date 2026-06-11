@@ -113,6 +113,11 @@ build_and_package() {
     # ── Confirm the binary is truly single-slice ─────────────────────
     echo "  Architectures: $(lipo -archs "${OUT_APP}/Contents/MacOS/${APP_NAME}")"
 
+    # ── Strip symbols (shrinks __LINKEDIT; must run before signing) ───
+    echo "Stripping symbols…"
+    strip -rSTx "${OUT_APP}/Contents/MacOS/${APP_NAME}"
+    echo "✓ Stripped"
+
     # ── Code signing ─────────────────────────────────────────────────
     echo "Signing (${ARCH})…"
     local SIGN_OPTS=(--force --sign "${CODESIGN_ID}" --options runtime --timestamp)

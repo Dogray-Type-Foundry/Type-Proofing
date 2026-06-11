@@ -7,19 +7,13 @@ struct MultiStyleComparisonHandler: ProofHandler {
     let proofName: String
     let proofKey: String
 
-    private static var generatedInstances: Set<String> = []
-
-    static func resetGenerated() {
-        generatedInstances = []
-    }
-
     func generateProof(context: ProofContext, renderer: PDFRenderer) {
-        if MultiStyleComparisonHandler.generatedInstances.contains(proofName) {
+        if context.runState.generatedOnce.contains(proofName) {
             context.diagnostics.debug("Already generated, skipping duplicate",
                                       proofName: proofName)
             return
         }
-        MultiStyleComparisonHandler.generatedInstances.insert(proofName)
+        context.runState.generatedOnce.insert(proofName)
 
         let params = resolveParams(from: context, defaultCols: 1)
 

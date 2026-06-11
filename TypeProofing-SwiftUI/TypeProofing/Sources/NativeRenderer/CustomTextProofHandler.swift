@@ -6,12 +6,6 @@ struct CustomTextProofHandler: ProofHandler {
     let proofName: String
     let proofKey: String
 
-    private static var generatedInstances: Set<String> = []
-
-    static func resetGenerated() {
-        generatedInstances = []
-    }
-
     func generateProof(context: ProofContext, renderer: PDFRenderer) {
         let customTextKey = makeSettingsKey("customText")
         guard let customText = context.proofSettings[customTextKey] as? String,
@@ -24,10 +18,10 @@ struct CustomTextProofHandler: ProofHandler {
         let generateOnce = context.proofSettings[generateOnceKey] as? Bool ?? false
 
         if generateOnce {
-            if CustomTextProofHandler.generatedInstances.contains(proofName) {
+            if context.runState.generatedOnce.contains(proofName) {
                 return
             }
-            CustomTextProofHandler.generatedInstances.insert(proofName)
+            context.runState.generatedOnce.insert(proofName)
         }
 
         let defaultFontPath: String
@@ -146,7 +140,14 @@ struct CustomTextProofHandler: ProofHandler {
                             showPageNumber: true
                         )
                     }
+                    let lengthBefore = overflow!.length
                     overflow = TextRenderer.drawText(overflow!, in: colRects[colIdx], context: renderer.context)
+                    // A column pass that consumes no characters would loop forever.
+                    if let remaining = overflow, remaining.length >= lengthBefore {
+                        context.diagnostics.error("Text does not fit the column layout — output truncated",
+                                                  proofName: proofName)
+                        overflow = nil
+                    }
                     colIdx += 1
 
                     if colIdx >= colRects.count && overflow != nil {

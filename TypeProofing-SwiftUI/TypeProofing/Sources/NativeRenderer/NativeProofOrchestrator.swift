@@ -16,8 +16,7 @@ struct NativeProofOrchestrator {
     ) -> (result: Result?, diagnostics: [DiagnosticEvent]) {
         let collector = DiagnosticCollector()
         collector.debugMode = config.debugMode
-        MultiStyleComparisonHandler.resetGenerated()
-        CustomTextProofHandler.resetGenerated()
+        let runState = ProofRunState()
         let enabledProofs = config.proofOptions.filter(\.enabled)
         guard !config.fontPaths.isEmpty, !enabledProofs.isEmpty else {
             if config.fontPaths.isEmpty {
@@ -39,14 +38,29 @@ struct NativeProofOrchestrator {
         let pageSize = PageLayout.pageDimensions[config.pageFormat]
             ?? PageLayout.pageDimensions["A4Landscape"]!
         let mediaBox = CGRect(origin: .zero, size: pageSize)
-        let renderer = PDFRenderer(url: URL(fileURLWithPath: pdfPath), mediaBox: mediaBox)
+        guard let renderer = PDFRenderer(url: URL(fileURLWithPath: pdfPath), mediaBox: mediaBox) else {
+            collector.error("Could not create PDF file at \(pdfPath)")
+            return (nil, collector.collected)
+        }
 
         var sections: [ProofSection] = []
         let fontCount = config.fontPaths.count
 
+        // Precompute per-font data once so we can iterate proofs in the outer
+        // loop. This makes the PDF page order match the preview, which groups
+        // pages by proof (each proof section shows all styles consecutively)
+        // rather than by font style.
+        struct FontRenderData {
+            let fontPath: String
+            let fontIndex: Int
+            let charset: String
+            let cat: CharacterCategories
+            let axisCombinations: [[String: Double]]
+        }
+
+        var fontDataList: [FontRenderData] = []
         for (fontIndex, fontPath) in config.fontPaths.enumerated() {
             if isCancelled() { break }
-
             guard let fontData = FontLoader.fontData(path: fontPath) else { continue }
             let charset = fontData.withUnsafeBytes { buffer -> String in
                 guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return "" }
@@ -55,53 +69,63 @@ struct NativeProofOrchestrator {
                 return String(cString: charsetPtr)
             }
             let cat = CharacterCategorizer.categorize(charset: charset)
-
             let axisCombinations = buildAxisCombinations(config: config, fontPath: fontPath)
+            fontDataList.append(FontRenderData(
+                fontPath: fontPath, fontIndex: fontIndex,
+                charset: charset, cat: cat, axisCombinations: axisCombinations
+            ))
+        }
 
-            for axisValues in axisCombinations {
+        let globalFeatures = buildGlobalOTFeatures(config: config)
+
+        for (proofIndex, option) in enabledProofs.enumerated() {
+            if isCancelled() { break }
+
+            let proofKey = settingsKey(for: option)
+            let perProofFeatures = extractOTFeatures(proofKey: proofKey, settings: config.proofSettings)
+            let otFeatures = perProofFeatures.isEmpty ? globalFeatures : perProofFeatures
+            let proofPagesBefore = renderer.pageCount
+
+            for fontData in fontDataList {
                 if isCancelled() { break }
 
-                let globalFeatures = buildGlobalOTFeatures(config: config)
+                progress(GenerationProgress(
+                    proofName: option.name,
+                    proofIndex: proofIndex,
+                    proofCount: enabledProofs.count,
+                    fontPath: fontData.fontPath,
+                    fontIndex: fontData.fontIndex,
+                    fontCount: fontCount
+                ))
 
-                for (proofIndex, option) in enabledProofs.enumerated() {
+                for axisValues in fontData.axisCombinations {
                     if isCancelled() { break }
 
-                    progress(GenerationProgress(
-                        proofName: option.name,
-                        proofIndex: proofIndex,
-                        proofCount: enabledProofs.count,
-                        fontPath: fontPath,
-                        fontIndex: fontIndex,
-                        fontCount: fontCount
-                    ))
-
-                    let proofKey = settingsKey(for: option)
-                    let perProofFeatures = extractOTFeatures(proofKey: proofKey, settings: config.proofSettings)
-                    let otFeatures = perProofFeatures.isEmpty ? globalFeatures : perProofFeatures
-
                     let proofContext = ProofContext(
-                        fullCharacterSet: charset,
-                        indFont: fontPath,
+                        fullCharacterSet: fontData.charset,
+                        indFont: fontData.fontPath,
                         axisValues: axisValues.isEmpty ? nil : axisValues,
                         otFeatures: otFeatures,
-                        cat: cat,
+                        cat: fontData.cat,
                         pageFormat: config.pageFormat,
                         proofSettings: config.proofSettings,
                         showBaselines: config.showBaselines,
-                        allAxisValues: config.axisValuesByFont[fontPath],
+                        allAxisValues: config.axisValuesByFont[fontData.fontPath],
                         allFontPaths: config.fontPaths,
                         axisValuesByFont: config.axisValuesByFont,
-                        diagnostics: collector
+                        diagnostics: collector,
+                        runState: runState
                     )
 
-                    let pagesBefore = renderer.pageCount
                     if let handler = makeHandler(proofName: option.name, proofKey: proofKey, baseType: option.baseType) {
                         handler.generateProof(context: proofContext, renderer: renderer)
                     }
-                    if renderer.pageCount > pagesBefore {
-                        sections.append(ProofSection(name: option.name, firstPage: pagesBefore))
-                    }
                 }
+            }
+
+            // One section per proof, matching the preview's section model.
+            if renderer.pageCount > proofPagesBefore {
+                sections.append(ProofSection(name: option.name, firstPage: proofPagesBefore))
             }
         }
 
@@ -126,8 +150,7 @@ struct NativeProofOrchestrator {
             return (nil, collector.collected)
         }
 
-        MultiStyleComparisonHandler.resetGenerated()
-        CustomTextProofHandler.resetGenerated()
+        let runState = ProofRunState()
 
         let outputDir = config.fragmentOutputDir.isEmpty
             ? FileManager.default.temporaryDirectory.path
@@ -137,7 +160,11 @@ struct NativeProofOrchestrator {
         let pageSize = PageLayout.pageDimensions[config.pageFormat]
             ?? PageLayout.pageDimensions["A4Landscape"]!
         let mediaBox = CGRect(origin: .zero, size: pageSize)
-        let renderer = PDFRenderer(url: URL(fileURLWithPath: pdfPath), mediaBox: mediaBox)
+        guard let renderer = PDFRenderer(url: URL(fileURLWithPath: pdfPath), mediaBox: mediaBox) else {
+            collector.error("Could not create PDF file at \(pdfPath)",
+                            proofName: config.targetProofName)
+            return (nil, collector.collected)
+        }
 
         let proofKey = settingsKey(for: config.targetProofName, baseType: config.targetProofBaseType)
         let globalFeatures = buildGlobalOTFeatures(config: config)
@@ -183,7 +210,8 @@ struct NativeProofOrchestrator {
                     allAxisValues: config.axisValuesByFont[fontPath],
                     allFontPaths: config.fontPaths,
                     axisValuesByFont: config.axisValuesByFont,
-                    diagnostics: collector
+                    diagnostics: collector,
+                    runState: runState
                 )
 
                 let pagesBefore = renderer.pageCount

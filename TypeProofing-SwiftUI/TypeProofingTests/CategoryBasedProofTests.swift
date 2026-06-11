@@ -91,7 +91,7 @@ final class CategoryBasedProofTests: XCTestCase {
 
         let url = URL(fileURLWithPath: outputDir).appendingPathComponent("Phase3_FilteredCharset.pdf")
         let pageSize = PageLayout.pageDimensions["A4Landscape"]!
-        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))
+        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))!
 
         let charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,;:!?-'\"()+=$€ÀÁÂÃÄÅàáâãäå"
         let cat = CharacterCategorizer.categorize(charset: charset)
@@ -165,7 +165,7 @@ final class CategoryBasedProofTests: XCTestCase {
 
         let url = URL(fileURLWithPath: outputDir).appendingPathComponent("Phase3_SpacingProof.pdf")
         let pageSize = PageLayout.pageDimensions["A4Landscape"]!
-        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))
+        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))!
 
         let charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
         let cat = CharacterCategorizer.categorize(charset: charset)

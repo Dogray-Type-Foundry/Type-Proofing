@@ -13,7 +13,7 @@ final class NativeRendererVisualTest: XCTestCase {
 
         let url = URL(fileURLWithPath: outputDir).appendingPathComponent("Phase2_Visual_Test.pdf")
         let pageSize = PageLayout.pageDimensions["A4Landscape"]!
-        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))
+        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))!
         let black = CGColor(gray: 0, alpha: 1)
         let gray = CGColor(gray: 0.6, alpha: 1)
         let content = PageLayout.contentRect(pageFormat: "A4Landscape")

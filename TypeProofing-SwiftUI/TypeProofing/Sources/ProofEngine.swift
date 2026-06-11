@@ -356,14 +356,19 @@ final class ProofEngine: ObservableObject {
     }
 
     func generatePreviewFragment(config: ProofConfig, timeoutSeconds: TimeInterval) async -> (fragment: PreviewFragmentResult?, diagnostics: [DiagnosticEvent]) {
+        // The detached worker doesn't inherit the caller's cancellation, so
+        // forward it explicitly — `isCancelled` checks the worker's own flag.
+        let worker = Task.detached(priority: .userInitiated) {
+            NativeProofOrchestrator.generateFragment(
+                config: config,
+                isCancelled: { Task.isCancelled }
+            )
+        }
         let output = await withTaskCancellationHandler(operation: {
-            await Task.detached(priority: .userInitiated) {
-                NativeProofOrchestrator.generateFragment(
-                    config: config,
-                    isCancelled: { Task.isCancelled }
-                )
-            }.value
-        }, onCancel: { })
+            await worker.value
+        }, onCancel: {
+            worker.cancel()
+        })
 
         return (output.fragment, output.diagnostics)
     }

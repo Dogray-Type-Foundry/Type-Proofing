@@ -299,6 +299,15 @@ final class AppState: ObservableObject {
             self?.previewCoordinator?.proofSettingsChanged(proofID: proofID)
             self?.schedulePersist(notifyPreview: false)
         }
+        // Persistence is debounced by 3s — flush on quit so recent changes
+        // aren't lost.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.flushPendingPersist()
+        }
     }
 
     // MARK: - Cross-Cutting Computed
@@ -849,6 +858,13 @@ final class AppState: ObservableObject {
 
     func schedulePersistPublic(notifyPreview: Bool = true) {
         schedulePersist(notifyPreview: notifyPreview)
+    }
+
+    private func flushPendingPersist() {
+        guard persistTimer?.isValid == true else { return }
+        persistTimer?.invalidate()
+        persistTimer = nil
+        persistState()
     }
 
     func persistState() {

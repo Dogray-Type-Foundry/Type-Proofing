@@ -6,10 +6,10 @@ class PDFRenderer {
     let url: URL
     private(set) var pageCount: Int = 0
 
-    init(url: URL, mediaBox: CGRect) {
+    init?(url: URL, mediaBox: CGRect) {
         var box = mediaBox
         guard let ctx = CGContext(url as CFURL, mediaBox: &box, nil) else {
-            fatalError("Failed to create PDF context at \(url.path)")
+            return nil
         }
         self.context = ctx
         self.url = url

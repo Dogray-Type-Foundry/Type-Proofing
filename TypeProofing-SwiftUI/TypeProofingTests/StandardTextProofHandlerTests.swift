@@ -49,7 +49,7 @@ final class StandardTextProofHandlerTests: XCTestCase {
 
         let url = URL(fileURLWithPath: outputDir).appendingPathComponent("Phase3_BasicParagraphSmall.pdf")
         let pageSize = PageLayout.pageDimensions["A4Landscape"]!
-        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))
+        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))!
 
         let handler = StandardTextProofHandler(proofName: "Structured Text (Text)", proofKey: "basic_paragraph_small")
         let context = makeContext()
@@ -69,7 +69,7 @@ final class StandardTextProofHandlerTests: XCTestCase {
 
         let url = URL(fileURLWithPath: outputDir).appendingPathComponent("Phase3_BasicParagraphLarge.pdf")
         let pageSize = PageLayout.pageDimensions["A4Landscape"]!
-        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))
+        let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))!
 
         let handler = StandardTextProofHandler(proofName: "Structured Text (Heading)", proofKey: "basic_paragraph_large")
         var context = makeContext(fontSize: 28)
