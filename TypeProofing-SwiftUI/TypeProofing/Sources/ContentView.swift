@@ -46,7 +46,7 @@ struct ContentView: View {
         }
         .onChange(of: fonts.axisValuesByFont) { _ in
             if fonts.styleSourceMode == .customPositions {
-                state.refreshFontStyles(engine: engine)
+                state.scheduleRefreshFontStyles(engine: engine)
             }
         }
         .background(ProofSelectionRelay(coordinator: previewCoordinator))

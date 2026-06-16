@@ -128,9 +128,14 @@ class PDFViewCoordinator: ObservableObject {
                     x: max(docView.bounds.width - scrollView.contentView.bounds.width, 0),
                     y: max(docView.bounds.height - scrollView.contentView.bounds.height, 0)
                 )
+                // When the content is smaller than the viewport on an axis
+                // (zoomed out), PDFKit centers it with a negative clip origin;
+                // clamping that to 0 shoves the page to the edge. Leave such
+                // axes untouched so the centering is preserved.
+                let current = scrollView.contentView.bounds.origin
                 let origin = CGPoint(
-                    x: min(max(savedOrigin.x, 0), maxScroll.x),
-                    y: min(max(savedOrigin.y, 0), maxScroll.y)
+                    x: maxScroll.x > 0 ? min(max(savedOrigin.x, 0), maxScroll.x) : current.x,
+                    y: maxScroll.y > 0 ? min(max(savedOrigin.y, 0), maxScroll.y) : current.y
                 )
                 scrollView.contentView.scroll(to: origin)
                 scrollView.reflectScrolledClipView(scrollView.contentView)

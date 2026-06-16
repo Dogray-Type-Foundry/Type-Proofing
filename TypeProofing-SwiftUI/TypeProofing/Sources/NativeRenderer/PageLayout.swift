@@ -74,7 +74,8 @@ struct PageLayout {
         tracking: CGFloat,
         pageNumber: Int,
         showPageNumber: Bool,
-        lineHeight: CGFloat? = nil
+        lineHeight: CGFloat? = nil,
+        footerNote: String? = nil
     ) {
         let width = pageSize.width - marginHorizontal * 2
         let formatter = DateFormatter()
@@ -138,6 +139,13 @@ struct PageLayout {
                 secondLineText = lhStr
             } else {
                 secondLineText += " | " + lhStr
+            }
+        }
+        if let note = footerNote, !note.isEmpty {
+            if secondLineText.isEmpty {
+                secondLineText = note
+            } else {
+                secondLineText += " | " + note
             }
         }
         if !secondLineText.isEmpty {

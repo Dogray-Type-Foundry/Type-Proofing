@@ -199,11 +199,9 @@ private struct SidebarProofsSection: View {
                                 onRename: { newName in
                                     proofs.proofOptions[index].name = newName
                                     state.schedulePersistPublic()
-                                }
+                                },
+                                dragProvider: { NSItemProvider(object: option.id.uuidString as NSString) }
                             )
-                            .onDrag {
-                                NSItemProvider(object: option.id.uuidString as NSString)
-                            }
                             .onDrop(of: [.text], delegate: ProofDropDelegate(
                                 state: state,
                                 targetIndex: index

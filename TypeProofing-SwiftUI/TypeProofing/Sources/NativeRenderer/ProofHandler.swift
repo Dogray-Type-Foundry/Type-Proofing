@@ -251,7 +251,8 @@ extension ProofHandler {
         context: ProofContext,
         renderer: PDFRenderer,
         lineHeight footerLineHeight: CGFloat? = nil,
-        columnGap: CGFloat? = nil
+        columnGap: CGFloat? = nil,
+        footerNote: String? = nil
     ) {
         let pageSize = PageLayout.pageDimensions[context.pageFormat]
             ?? PageLayout.pageDimensions["A4Landscape"]!
@@ -278,7 +279,8 @@ extension ProofHandler {
                 tracking: tracking,
                 pageNumber: renderer.pageCount,
                 showPageNumber: true,
-                lineHeight: footerLineHeight
+                lineHeight: footerLineHeight,
+                footerNote: footerNote
             )
 
             if context.showBaselines, let remaining = overflow {

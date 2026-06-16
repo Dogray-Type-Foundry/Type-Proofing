@@ -382,6 +382,14 @@ struct SettingsPanelView: View {
                             Divider()
                         }
 
+                        if option.baseType == "paired_styles_paragraph_small" {
+                            StylePairingSection(
+                                pairingMode: settings.pairingMode,
+                                manualPairings: settings.manualPairings
+                            )
+                            Divider()
+                        }
+
                         if option.baseType != "substitution_overview" {
                             OTFeaturesSection(
                                 features: settings.otFeatures,

@@ -3,6 +3,22 @@ import CoreText
 import Foundation
 import TPNative
 
+/// One style participating in a user-defined pairing. Referenced by font path
+/// plus axis coordinates (not style index) so it survives font list reordering.
+struct PairingStyleRef: Codable, Equatable, Identifiable {
+    var id: UUID = UUID()
+    var fontPath: String = ""
+    var coordinates: [String: Double]? = nil
+    var weight: Double = 50
+    var label: String = ""
+}
+
+/// A user-defined mix of 2–4 styles for the Style Pairing proof's manual mode.
+struct ManualPairing: Codable, Equatable, Identifiable {
+    var id: UUID = UUID()
+    var styles: [PairingStyleRef] = []
+}
+
 struct StylePairing {
 
     private static let dualStyleSeed: UInt64 = 12345
@@ -11,6 +27,7 @@ struct StylePairing {
         case staticUprightItalic(upright: String, italic: String)
         case staticRegularBold(regular: String, bold: String)
         case variableItal(upright: Double, italic: Double)
+        case variableSlnt(upright: Double, italic: Double)
         case variableWght(regular: Double, bold: Double)
     }
 
@@ -23,22 +40,22 @@ struct StylePairing {
         let isVariable: Bool
         let hasItalAxis: Bool
         let hasWghtAxis: Bool
+        let hasSlntAxis: Bool
+        /// The slanted end of the slnt axis (usually the negative extreme).
+        let slntItalicValue: Double
     }
 
     // Accessed from concurrent preview fragment generations — guard every
-    // read/write with the lock.
+    // read/write with the lock. Keyed on path + mtime + size (via
+    // FontLoader.fontCacheKey) so re-exporting a font over an existing path
+    // produces a new key and auto-misses, never serving stale metadata.
     private static var metaCache: [String: FontMeta] = [:]
     private static let metaCacheLock = NSLock()
 
-    static func resetCache() {
-        metaCacheLock.lock()
-        metaCache.removeAll()
-        metaCacheLock.unlock()
-    }
-
     static func loadFontMeta(path: String) -> FontMeta? {
+        let key = FontLoader.fontCacheKey(for: path)
         metaCacheLock.lock()
-        let cached = metaCache[path]
+        let cached = metaCache[key]
         metaCacheLock.unlock()
         if let cached = cached { return cached }
         return FontLoader.withFontBytes(path: path, fallback: nil) { ptr, len -> FontMeta? in
@@ -53,6 +70,8 @@ struct StylePairing {
 
             var hasItal = false
             var hasWght = false
+            var hasSlnt = false
+            var slntItalicValue: Double = 0
             if let axesJSON = info.axes_json != nil ? String(cString: info.axes_json) : nil,
                let axesData = axesJSON.data(using: .utf8),
                let axes = try? JSONSerialization.jsonObject(with: axesData) as? [[String: Any]] {
@@ -60,6 +79,12 @@ struct StylePairing {
                     if let tag = axis["tag"] as? String {
                         if tag == "ital" { hasItal = true }
                         if tag == "wght" { hasWght = true }
+                        if tag == "slnt" {
+                            hasSlnt = true
+                            let minVal = axis["min"] as? Double ?? 0
+                            let maxVal = axis["max"] as? Double ?? 0
+                            slntItalicValue = minVal < 0 ? minVal : maxVal
+                        }
                     }
                 }
             }
@@ -67,10 +92,11 @@ struct StylePairing {
             let meta = FontMeta(
                 path: path, familyName: familyName, subfamilyName: subfamilyName,
                 weight: Int(info.weight), isItalic: isItalic, isVariable: isVariable,
-                hasItalAxis: hasItal, hasWghtAxis: hasWght
+                hasItalAxis: hasItal, hasWghtAxis: hasWght,
+                hasSlntAxis: hasSlnt, slntItalicValue: slntItalicValue
             )
             metaCacheLock.lock()
-            metaCache[path] = meta
+            metaCache[key] = meta
             metaCacheLock.unlock()
             return meta
         }
@@ -79,7 +105,8 @@ struct StylePairing {
     static func detectPairing(
         fontPath: String,
         axisValues: [String: Double]?,
-        allFontPaths: [String]
+        allFontPaths: [String],
+        allAxisValues: [String: [Double]]? = nil
     ) -> Pairing? {
         guard let currentMeta = loadFontMeta(path: fontPath) else { return nil }
 
@@ -121,19 +148,50 @@ struct StylePairing {
             }
         }
 
-        // 3) Variable font ital axis
+        // 3) Variable font at an explicitly italic/slanted position: pair the
+        // upright with this position (generated from the italic side).
         if currentMeta.hasItalAxis {
             let italVal = axisValues?["ital"] ?? 0
             if italVal != 0 {
-                return .variableItal(upright: 0, italic: 1)
+                return .variableItal(upright: 0, italic: italVal)
+            }
+        }
+        if currentMeta.hasSlntAxis {
+            let slntVal = axisValues?["slnt"] ?? 0
+            if slntVal != 0 {
+                return .variableSlnt(upright: 0, italic: slntVal)
             }
         }
 
-        // 4) Variable font wght axis (when at bold weight)
+        // 4) Variable font wght axis at a Bold-like position (600–800): pair
+        // only with a regular-ish weight the user actually selected — never
+        // fabricate one. Heavier weights (Black etc.) get no regular pairing.
         if currentMeta.hasWghtAxis {
             let wghtVal = axisValues?["wght"] ?? 400
-            if wghtVal >= 600 {
-                return .variableWght(regular: 400, bold: wghtVal)
+            if wghtVal >= 600 && wghtVal <= 800 {
+                let selectedWghts = allAxisValues?["wght"] ?? []
+                let regularish = selectedWghts
+                    .filter { $0 >= 300 && $0 <= 500 }
+                    .min(by: { abs($0 - 400) < abs($1 - 400) })
+                if let regular = regularish {
+                    return .variableWght(regular: regular, bold: wghtVal)
+                }
+            }
+        }
+
+        // 5) Variable font upright with an italic/slant axis: pair with the
+        // italic end — unless the user selected an italic position, in which
+        // case that combination generates the pairing (case 3).
+        if currentMeta.hasItalAxis {
+            let selectedItals = allAxisValues?["ital"] ?? []
+            if !selectedItals.contains(where: { $0 != 0 }) {
+                return .variableItal(upright: 0, italic: 1)
+            }
+        }
+        if currentMeta.hasSlntAxis, currentMeta.slntItalicValue != 0 {
+            let selectedSlnts = allAxisValues?["slnt"] ?? []
+            if !selectedSlnts.contains(where: { $0 != 0 }) {
+                return .variableSlnt(upright: 0, italic: currentMeta.slntItalicValue)
             }
         }
 
@@ -194,6 +252,33 @@ struct StylePairing {
         let result = NSMutableAttributedString()
         let kernDisabled = otFeatures?["kern"] == false
 
+        // A pairing only ever uses two fonts (primary + alternate). Resolve them
+        // once here instead of re-creating a CTFont per word — makeFont re-parses
+        // the font file from disk, so per-word creation made every page O(words)
+        // disk reads when only two fonts are needed.
+        func styleFont(alternate: Bool) -> CTFont? {
+            switch pairing {
+            case .staticUprightItalic(let upright, let italic):
+                return FontLoader.makeFont(path: alternate ? italic : upright, size: fontSize, features: otFeatures, variations: nil)
+            case .staticRegularBold(let regular, let bold):
+                return FontLoader.makeFont(path: alternate ? bold : regular, size: fontSize, features: otFeatures, variations: nil)
+            case .variableItal(let uprightVal, let italicVal):
+                var v = baseVariations ?? [:]
+                v["ital"] = alternate ? italicVal : uprightVal
+                return FontLoader.makeFont(path: fontPath, size: fontSize, features: otFeatures, variations: v)
+            case .variableSlnt(let uprightVal, let italicVal):
+                var v = baseVariations ?? [:]
+                v["slnt"] = alternate ? italicVal : uprightVal
+                return FontLoader.makeFont(path: fontPath, size: fontSize, features: otFeatures, variations: v)
+            case .variableWght(let regularVal, let boldVal):
+                var v = baseVariations ?? [:]
+                v["wght"] = alternate ? boldVal : regularVal
+                return FontLoader.makeFont(path: fontPath, size: fontSize, features: otFeatures, variations: v)
+            }
+        }
+        let primaryFont = styleFont(alternate: false)
+        let alternateFont = styleFont(alternate: true)
+
         var useAlternate = false
         var nextSwitch = Int.random(in: 1...4, using: &rng)
         var wordCount = 0
@@ -201,28 +286,7 @@ struct StylePairing {
         for word in words {
             let wordStr = String(word) + " "
 
-            let font: CTFont?
-            switch pairing {
-            case .staticUprightItalic(let upright, let italic):
-                let path = useAlternate ? italic : upright
-                font = FontLoader.makeFont(path: path, size: fontSize, features: otFeatures, variations: nil)
-
-            case .staticRegularBold(let regular, let bold):
-                let path = useAlternate ? bold : regular
-                font = FontLoader.makeFont(path: path, size: fontSize, features: otFeatures, variations: nil)
-
-            case .variableItal(let uprightVal, let italicVal):
-                var v = baseVariations ?? [:]
-                v["ital"] = useAlternate ? italicVal : uprightVal
-                font = FontLoader.makeFont(path: fontPath, size: fontSize, features: otFeatures, variations: v)
-
-            case .variableWght(let regularVal, let boldVal):
-                var v = baseVariations ?? [:]
-                v["wght"] = useAlternate ? boldVal : regularVal
-                font = FontLoader.makeFont(path: fontPath, size: fontSize, features: otFeatures, variations: v)
-            }
-
-            guard let resolvedFont = font else { continue }
+            guard let resolvedFont = useAlternate ? alternateFont : primaryFont else { continue }
 
             TextRenderer.appendText(
                 to: result,
@@ -245,6 +309,93 @@ struct StylePairing {
         }
 
         return result
+    }
+
+    /// Human-readable summary of a detected pairing for the page footer.
+    static func describe(pairing: Pairing) -> String {
+        func fmt(_ v: Double) -> String {
+            v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v)
+        }
+        switch pairing {
+        case .staticUprightItalic(let upright, let italic):
+            let up = loadFontMeta(path: upright)?.subfamilyName ?? "Upright"
+            let it = loadFontMeta(path: italic)?.subfamilyName ?? "Italic"
+            return "\(up) + \(it)"
+        case .staticRegularBold(let regular, let bold):
+            let reg = loadFontMeta(path: regular)?.subfamilyName ?? "Regular"
+            let bld = loadFontMeta(path: bold)?.subfamilyName ?? "Bold"
+            return "\(reg) + \(bld)"
+        case .variableItal(let upright, let italic):
+            return "ital \(fmt(upright)) + ital \(fmt(italic))"
+        case .variableSlnt(let upright, let italic):
+            return "slnt \(fmt(upright)) + slnt \(fmt(italic))"
+        case .variableWght(let regular, let bold):
+            return "wght \(fmt(regular)) + wght \(fmt(bold))"
+        }
+    }
+
+    static func decodeManualPairings(json: String) -> [ManualPairing] {
+        guard !json.isEmpty, let data = json.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([ManualPairing].self, from: data)) ?? []
+    }
+
+    static func buildWeightedMixedAttributedString(
+        text: String,
+        styles: [(font: CTFont, weight: Double)],
+        fontSize: CGFloat,
+        alignment: CTTextAlignment,
+        tracking: CGFloat,
+        lineHeight: CGFloat?,
+        otFeatures: [String: Bool]?
+    ) -> NSMutableAttributedString {
+        var rng = SeededRNG(seed: dualStyleSeed)
+        let words = text.split(separator: " ", omittingEmptySubsequences: false)
+        let result = NSMutableAttributedString()
+        let kernDisabled = otFeatures?["kern"] == false
+
+        // All-zero weights would make every style unreachable — treat as equal.
+        let weights = styles.map(\.weight).reduce(0, +) > 0
+            ? styles.map(\.weight)
+            : Array(repeating: 1.0, count: styles.count)
+
+        var currentIndex = pickWeightedIndex(weights: weights, using: &rng)
+        var nextSwitch = Int.random(in: 1...4, using: &rng)
+        var wordCount = 0
+
+        for word in words {
+            let wordStr = String(word) + " "
+
+            TextRenderer.appendText(
+                to: result,
+                text: wordStr,
+                font: styles[currentIndex].font,
+                fontSize: fontSize,
+                alignment: alignment,
+                tracking: tracking,
+                lineHeight: lineHeight,
+                foregroundColor: CGColor(gray: 0, alpha: 1),
+                kernDisabled: kernDisabled
+            )
+
+            wordCount += 1
+            if wordCount >= nextSwitch {
+                currentIndex = pickWeightedIndex(weights: weights, using: &rng)
+                wordCount = 0
+                nextSwitch = Int.random(in: 1...4, using: &rng)
+            }
+        }
+
+        return result
+    }
+
+    private static func pickWeightedIndex(weights: [Double], using rng: inout SeededRNG) -> Int {
+        let total = weights.reduce(0, +)
+        var remaining = Double.random(in: 0..<total, using: &rng)
+        for (i, weight) in weights.enumerated() {
+            remaining -= weight
+            if remaining < 0 { return i }
+        }
+        return weights.count - 1
     }
 }
 

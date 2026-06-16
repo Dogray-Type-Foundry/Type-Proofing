@@ -18,6 +18,10 @@ struct PreviewFragment {
     var status: PreviewFragmentStatus
     var generationToken: UUID
     var cost: ProofCost
+    /// Last successfully rendered PDF for this proof — shown while a
+    /// replacement regenerates so the composed preview doesn't collapse to a
+    /// placeholder page (which shifts pages and loses the scroll position).
+    var lastReadyPath: String?
 }
 
 private enum PreviewPriority {
@@ -50,6 +54,7 @@ final class PreviewCoordinator: ObservableObject {
     private var globalDebounceTask: Task<Void, Never>?
     private var composeTask: Task<Void, Never>?
     private var generationPaused = false
+    private var lastComposeKey: String?
 
     private let sessionDirectory = FileManager.default.temporaryDirectory
         .appendingPathComponent("type-proofing-preview")
@@ -191,6 +196,11 @@ final class PreviewCoordinator: ObservableObject {
 
         let token = UUID()
         let cost = state.proofs.registryByKey[option.baseType]?.previewCost ?? .fast
+        let carriedReadyPath: String? = {
+            guard let existing = fragments[option.id] else { return nil }
+            if case .ready(let path, _, _) = existing.status { return path }
+            return existing.lastReadyPath
+        }()
         fragments[option.id] = PreviewFragment(
             proofID: option.id,
             proofName: option.name,
@@ -198,7 +208,8 @@ final class PreviewCoordinator: ObservableObject {
             fingerprint: fingerprint,
             status: .queued,
             generationToken: token,
-            cost: cost
+            cost: cost,
+            lastReadyPath: carriedReadyPath
         )
 
         let job = PreviewJob(
@@ -337,20 +348,30 @@ final class PreviewCoordinator: ObservableObject {
             case .failed(let msg):
                 entries.append((option.name, nil, msg))
             case .generating:
-                entries.append((option.name, nil, "Generating preview..."))
+                entries.append((option.name, fragments[option.id]?.lastReadyPath, "Generating preview..."))
             case .queued:
-                entries.append((option.name, nil, "Queued for preview..."))
+                entries.append((option.name, fragments[option.id]?.lastReadyPath, "Queued for preview..."))
             case .empty:
                 entries.append((option.name, nil, "Waiting for preview..."))
             }
         }
         let dims = currentPageDimensions()
+
+        // Recomposing identical content would still produce a new file and
+        // force a document reload in the viewer — skip the no-op.
+        let composeKey = entries.map { "\($0.name)|\($0.readyPath ?? "placeholder:\($0.message)")" }
+            .joined(separator: "\n") + "\n\(dims.width)x\(dims.height)"
+        if composeKey == lastComposeKey, state.preview.previewPDFPath != nil {
+            return
+        }
+
         let outDir = composedDirectory()
 
         let result = await Self.performCompose(entries: entries, pageWidth: dims.width, pageHeight: dims.height, outputDir: outDir)
 
         guard !Task.isCancelled else { return }
         if let (url, sections) = result {
+            lastComposeKey = composeKey
             state.preview.previewPDFPath = url.path
             state.preview.previewSections = sections
             retainComposedURL(url)

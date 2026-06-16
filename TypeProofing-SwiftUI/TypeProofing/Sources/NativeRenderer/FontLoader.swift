@@ -212,7 +212,7 @@ struct FontLoader {
         return data
     }
 
-    private static func fontCacheKey(for path: String) -> String {
+    static func fontCacheKey(for path: String) -> String {
         let attrs = try? FileManager.default.attributesOfItem(atPath: path)
         let mtime = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
         let size = (attrs?[.size] as? Int) ?? 0

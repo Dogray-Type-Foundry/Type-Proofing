@@ -8,6 +8,14 @@ struct TextGeneration {
     private static let upperTemplate = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
     private static let lowerTemplate = Set("abcdefghijklmnopqrstuvwxyz")
 
+    // Generated text is deterministic (fixed wordsivSeed + deterministic reseeds),
+    // so cache it keyed on the inputs that actually affect output. This avoids
+    // re-running the expensive wordsiv FFI when a setting that only affects
+    // rendering (font size, tracking, alignment, columns, OT features, axis
+    // values, style-pairing weights) changes. NSCache auto-evicts under memory
+    // pressure and is thread-safe for the concurrent preview queue.
+    private static let textCache = NSCache<NSString, NSString>()
+
     static func generateTextProofString(
         characterSet: String,
         paragraphs: Int = 2,
@@ -26,6 +34,48 @@ struct TextGeneration {
     ) -> String {
         if characterSet.isEmpty { return "" }
 
+        // `cat` is derived deterministically from `fullCharacterSet` via
+        // CharacterCategorizer.categorize, so the charset alone covers it.
+        let cacheKey = [
+            characterSet, fullCharacterSet, language ?? "",
+            generativeLanguage, biasChars,
+            String(paragraphs), String(forceWordsiv), String(hoeflerStyle),
+            String(wordDiversity), String(vocabularySize),
+            String(minWordLength), String(maxWordLength), String(biasStrength)
+        ].joined(separator: "\u{1}") as NSString
+
+        if let cached = textCache.object(forKey: cacheKey) {
+            return cached as String
+        }
+
+        let result = computeTextProofString(
+            characterSet: characterSet, paragraphs: paragraphs, forceWordsiv: forceWordsiv,
+            cat: cat, fullCharacterSet: fullCharacterSet, language: language,
+            hoeflerStyle: hoeflerStyle, generativeLanguage: generativeLanguage,
+            wordDiversity: wordDiversity, vocabularySize: vocabularySize,
+            minWordLength: minWordLength, maxWordLength: maxWordLength,
+            biasChars: biasChars, biasStrength: biasStrength
+        )
+        textCache.setObject(result as NSString, forKey: cacheKey)
+        return result
+    }
+
+    private static func computeTextProofString(
+        characterSet: String,
+        paragraphs: Int,
+        forceWordsiv: Bool,
+        cat: CharacterCategories,
+        fullCharacterSet: String,
+        language: String?,
+        hoeflerStyle: Bool,
+        generativeLanguage: String,
+        wordDiversity: Double,
+        vocabularySize: Int,
+        minWordLength: Int,
+        maxWordLength: Int,
+        biasChars: String,
+        biasStrength: Double
+    ) -> String {
         if let lang = language, (lang == "ar" || lang == "fa") {
             if hoeflerStyle {
                 return generateHoeflerStyleArabicText(

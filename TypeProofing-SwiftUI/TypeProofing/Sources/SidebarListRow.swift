@@ -11,6 +11,8 @@ struct SidebarListRow<Detail: View>: View {
     let onRemove: () -> Void
     let onTap: (() -> Void)?
     let onRename: ((String) -> Void)?
+    /// When set, dragging the grip handle starts a reorder drag with this item.
+    let dragProvider: (() -> NSItemProvider)?
     @ViewBuilder let detail: () -> Detail
 
     @State private var isEditing = false
@@ -28,6 +30,7 @@ struct SidebarListRow<Detail: View>: View {
         onRemove: @escaping () -> Void,
         onTap: (() -> Void)? = nil,
         onRename: ((String) -> Void)? = nil,
+        dragProvider: (() -> NSItemProvider)? = nil,
         @ViewBuilder detail: @escaping () -> Detail = { EmptyView() }
     ) {
         self.name = name
@@ -38,6 +41,7 @@ struct SidebarListRow<Detail: View>: View {
         self.onRemove = onRemove
         self.onTap = onTap
         self.onRename = onRename
+        self.dragProvider = dragProvider
         self.detail = detail
     }
 
@@ -45,9 +49,7 @@ struct SidebarListRow<Detail: View>: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Image(systemName: "line.3.horizontal")
-                        .foregroundStyle(.tertiary)
-                        .font(.caption)
+                    grip
 
                     Toggle("", isOn: $enabled)
                         .toggleStyle(.checkbox)
@@ -118,6 +120,21 @@ struct SidebarListRow<Detail: View>: View {
             if !isLast {
                 Divider()
             }
+        }
+    }
+
+    /// Reorder drag handle. Dragging is scoped to this grip so dragging elsewhere
+    /// on the row (e.g. the expanded variable-font controls) doesn't start a drag.
+    @ViewBuilder
+    private var grip: some View {
+        let icon = Image(systemName: "line.3.horizontal")
+            .foregroundStyle(.tertiary)
+            .font(.caption)
+            .contentShape(Rectangle())
+        if let dragProvider {
+            icon.onDrag(dragProvider).help("Drag to reorder")
+        } else {
+            icon
         }
     }
 

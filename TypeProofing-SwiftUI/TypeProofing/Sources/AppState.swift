@@ -78,6 +78,8 @@ struct ProofSettings: Codable {
     var maxWordLength: Int = 0
     var biasChars: String = ""
     var biasStrength: Double = 0
+    var pairingMode: String = "automatic"
+    var manualPairings: [ManualPairing] = []
 
     init() {}
 
@@ -91,6 +93,7 @@ struct ProofSettings: Codable {
         case hyphenation, hangingPunctuation, generativeLanguage
         case wordDiversity, vocabularySize, minWordLength, maxWordLength
         case biasChars, biasStrength
+        case pairingMode, manualPairings
     }
 
     init(from decoder: Decoder) throws {
@@ -125,6 +128,8 @@ struct ProofSettings: Codable {
         maxWordLength = try container.decodeIfPresent(Int.self, forKey: .maxWordLength) ?? 0
         biasChars = try container.decodeIfPresent(String.self, forKey: .biasChars) ?? ""
         biasStrength = try container.decodeIfPresent(Double.self, forKey: .biasStrength) ?? 0
+        pairingMode = try container.decodeIfPresent(String.self, forKey: .pairingMode) ?? "automatic"
+        manualPairings = try container.decodeIfPresent([ManualPairing].self, forKey: .manualPairings) ?? []
     }
 }
 
@@ -291,6 +296,7 @@ final class AppState: ObservableObject {
     }()
 
     private var persistTimer: Timer?
+    private var fontStylesRefreshTimer: Timer?
     weak var previewCoordinator: PreviewCoordinator?
     weak var pdfCoordinator: PDFViewCoordinator?
 
@@ -517,6 +523,18 @@ final class AppState: ObservableObject {
             mode: fonts.styleSourceMode,
             axisValuesByFont: fonts.axisValuesByFont
         )
+    }
+
+    /// Debounced variant for high-frequency callers like axis-slider drags, where
+    /// `refreshFontStyles` (which re-reads every font from disk via FFI) would
+    /// otherwise run on every tick and make dragging choppy.
+    func scheduleRefreshFontStyles(engine: ProofEngine) {
+        fontStylesRefreshTimer?.invalidate()
+        fontStylesRefreshTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshFontStyles(engine: engine)
+            }
+        }
     }
 
     private func buildDefaultOTFeatures(for baseType: String?) -> [OTFeature] {
@@ -822,6 +840,16 @@ final class AppState: ObservableObject {
                 flat["\(settingsKey)_styleSourceMode"] = fonts.styleSourceMode.rawValue
                 for (indexStr, enabled) in settings.enabledStyleIndices {
                     flat["\(settingsKey)_style_\(indexStr)"] = enabled
+                }
+            }
+
+            if option.baseType == "paired_styles_paragraph_small" {
+                flat["\(settingsKey)_pairingMode"] = settings.pairingMode
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys]
+                if let data = try? encoder.encode(settings.manualPairings),
+                   let json = String(data: data, encoding: .utf8) {
+                    flat["\(settingsKey)_manualPairings"] = json
                 }
             }
 

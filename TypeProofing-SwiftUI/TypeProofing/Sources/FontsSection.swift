@@ -35,6 +35,7 @@ struct FontsSection: View {
                             state.removeFont(at: IndexSet(integer: idx), engine: engine)
                         }
                     },
+                    dragProvider: { NSItemProvider(object: font.id as NSString) },
                     detail: {
                         if font.isVariable {
                             FontAxesView(
@@ -50,9 +51,6 @@ struct FontsSection: View {
                         }
                     }
                 )
-                .onDrag {
-                    NSItemProvider(object: font.id as NSString)
-                }
                 .onDrop(of: [.fileURL, .text], delegate: FontDropDelegate(
                     state: state, engine: engine,
                     targetIndex: index
