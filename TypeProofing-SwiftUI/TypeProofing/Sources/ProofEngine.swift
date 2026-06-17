@@ -49,6 +49,7 @@ struct ProofRegistryEntry {
     let hasSettings: Bool
     let defaultColumns: Int
     let hasParagraphs: Bool
+    let defaultParagraphs: Int
     let defaultFontSize: Int
     let hasCustomText: Bool
     let hasCategories: Bool
@@ -493,6 +494,7 @@ final class ProofEngine: ObservableObject {
                 hasSettings: info.hasSettings,
                 defaultColumns: info.defaultCols,
                 hasParagraphs: info.hasParagraphs,
+                defaultParagraphs: info.textConfig?.defaultParagraphs ?? (info.hasParagraphs ? 5 : 2),
                 defaultFontSize: info.defaultSize,
                 hasCustomText: info.hasCustomText,
                 hasCategories: info.hasCategories,
@@ -519,10 +521,50 @@ final class ProofEngine: ObservableObject {
         ProofRegistry.defaultProofOrder(includeArabic: includeArabic)
     }
 
-    func generateWordomat(fontPath: String, paragraphs: Int = 3) -> String {
+    func generateRandomWords(fontPath: String, paragraphs: Int = 3) -> String {
         guard let (_, charset, _) = loadFontData(path: fontPath) else { return "" }
         let bridge = WordSivBridge(seed: UInt64.random(in: 0..<UInt64.max))
         return bridge.text(glyphs: charset, paragraphs: paragraphs)
+    }
+
+    /// Fetches the plain-text extract of a random Wikipedia article in the given
+    /// language (e.g. "en", "ar", "fa"). Returns nil on any network/parse error.
+    /// Capped to a few paragraphs so a single proof doesn't balloon.
+    func fetchWikipediaText(language: String) async -> String? {
+        let lang = language.isEmpty ? "en" : language
+        var components = URLComponents(string: "https://\(lang).wikipedia.org/w/api.php")
+        components?.queryItems = [
+            URLQueryItem(name: "action", value: "query"),
+            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "generator", value: "random"),
+            URLQueryItem(name: "grnnamespace", value: "0"),
+            URLQueryItem(name: "grnlimit", value: "1"),
+            URLQueryItem(name: "prop", value: "extracts"),
+            URLQueryItem(name: "explaintext", value: "1"),
+            URLQueryItem(name: "exsectionformat", value: "plain"),
+        ]
+        guard let url = components?.url else { return nil }
+
+        var request = URLRequest(url: url)
+        request.setValue("TypeProofing/2.0 (type@jmsole.cl)", forHTTPHeaderField: "User-Agent")
+
+        guard let (data, _) = try? await URLSession.shared.data(for: request),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let query = json["query"] as? [String: Any],
+              let pages = query["pages"] as? [String: Any],
+              let page = pages.values.first as? [String: Any],
+              let extract = page["extract"] as? String else {
+            return nil
+        }
+
+        let trimmed = extract.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        if trimmed.count <= 1800 { return trimmed }
+        let clipped = trimmed.prefix(1800)
+        if let lastSpace = clipped.lastIndex(of: " ") {
+            return String(clipped[..<lastSpace])
+        }
+        return String(clipped)
     }
 
     func getFontStyles(

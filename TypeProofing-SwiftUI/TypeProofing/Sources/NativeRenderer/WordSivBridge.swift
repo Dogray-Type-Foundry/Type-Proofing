@@ -38,11 +38,13 @@ final class WordSivBridge {
 
     func text(glyphs: String, paragraphs: Int = 2, numbers: Double = 0, rndPunc: Double = 0, paraSep: String = " ", vocab: String? = nil,
               rnd: Double = 0, topK: Int = 0, minWL: Int = 1, maxWL: Int = 0,
-              biasChars: String? = nil, biasStrength: Double = 0) -> String {
+              biasChars: String? = nil, biasStrength: Double = 0,
+              wordsPerSentence: Int = 0, sentencesPerParagraph: Int = 0) -> String {
         guard let h = handle else { return "" }
         guard let result = wsv_text(h, glyphs, UInt32(paragraphs), numbers, rndPunc, paraSep, vocab,
                                     rnd, UInt32(topK), UInt32(minWL), UInt32(maxWL),
-                                    biasChars, biasStrength) else { return "" }
+                                    biasChars, biasStrength,
+                                    UInt32(wordsPerSentence), UInt32(sentencesPerParagraph)) else { return "" }
         let str = String(cString: result)
         wsv_free_string(result)
         return str

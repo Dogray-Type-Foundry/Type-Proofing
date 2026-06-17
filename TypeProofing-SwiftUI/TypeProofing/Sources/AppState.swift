@@ -78,8 +78,11 @@ struct ProofSettings: Codable {
     var maxWordLength: Int = 0
     var biasChars: String = ""
     var biasStrength: Double = 0
+    var wordsPerSentence: Int = 15
+    var sentencesPerParagraph: Int = 4
     var pairingMode: String = "automatic"
     var manualPairings: [ManualPairing] = []
+    var baselineFontPath: String = ""
 
     init() {}
 
@@ -93,7 +96,9 @@ struct ProofSettings: Codable {
         case hyphenation, hangingPunctuation, generativeLanguage
         case wordDiversity, vocabularySize, minWordLength, maxWordLength
         case biasChars, biasStrength
+        case wordsPerSentence, sentencesPerParagraph
         case pairingMode, manualPairings
+        case baselineFontPath
     }
 
     init(from decoder: Decoder) throws {
@@ -128,8 +133,11 @@ struct ProofSettings: Codable {
         maxWordLength = try container.decodeIfPresent(Int.self, forKey: .maxWordLength) ?? 0
         biasChars = try container.decodeIfPresent(String.self, forKey: .biasChars) ?? ""
         biasStrength = try container.decodeIfPresent(Double.self, forKey: .biasStrength) ?? 0
+        wordsPerSentence = try container.decodeIfPresent(Int.self, forKey: .wordsPerSentence) ?? 15
+        sentencesPerParagraph = try container.decodeIfPresent(Int.self, forKey: .sentencesPerParagraph) ?? 4
         pairingMode = try container.decodeIfPresent(String.self, forKey: .pairingMode) ?? "automatic"
         manualPairings = try container.decodeIfPresent([ManualPairing].self, forKey: .manualPairings) ?? []
+        baselineFontPath = try container.decodeIfPresent(String.self, forKey: .baselineFontPath) ?? ""
     }
 }
 
@@ -383,7 +391,7 @@ final class AppState: ObservableObject {
         settings.fontSize = Double(entry.defaultFontSize)
         settings.columns = entry.defaultColumns
         settings.alignment = entry.isArabic ? "right" : "left"
-        settings.paragraphs = entry.hasParagraphs ? 5 : 2
+        settings.paragraphs = entry.defaultParagraphs
         proofs.proofSettingsByProof[option.name] = settings
     }
 
@@ -795,7 +803,7 @@ final class AppState: ObservableObject {
                 flat["\(settingsKey)_hangingPunctuation"] = settings.hangingPunctuation
             }
 
-            if entry.hasParagraphs {
+            if entry.hasParagraphs || entry.hasTextConfig {
                 flat["\(settingsKey)_para"] = settings.paragraphs
             }
 
@@ -807,6 +815,8 @@ final class AppState: ObservableObject {
                 flat["\(settingsKey)_maxWordLength"] = settings.maxWordLength
                 flat["\(settingsKey)_biasChars"] = settings.biasChars
                 flat["\(settingsKey)_biasStrength"] = settings.biasStrength
+                flat["\(settingsKey)_wordsPerSentence"] = settings.wordsPerSentence
+                flat["\(settingsKey)_sentencesPerParagraph"] = settings.sentencesPerParagraph
             }
 
             if entry.hasCategories {
@@ -851,6 +861,11 @@ final class AppState: ObservableObject {
                    let json = String(data: data, encoding: .utf8) {
                     flat["\(settingsKey)_manualPairings"] = json
                 }
+            }
+
+            if option.baseType == "version_comparison" {
+                flat["\(settingsKey)_baselineFontPath"] = settings.baselineFontPath
+                flat["\(settingsKey)_customText"] = settings.customText
             }
 
             if option.baseType == "filtered_character_set" || entry.isMultiStyle {

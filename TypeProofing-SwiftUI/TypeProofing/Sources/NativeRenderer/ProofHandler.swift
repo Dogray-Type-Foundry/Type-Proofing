@@ -138,6 +138,8 @@ struct ProofParams {
     let maxWordLength: Int
     let biasChars: String
     let biasStrength: Double
+    let wordsPerSentence: Int
+    let sentencesPerParagraph: Int
 }
 
 protocol ProofHandler {
@@ -190,6 +192,8 @@ extension ProofHandler {
         let maxWordLength = settingsValue(makeSettingsKey("maxWordLength"), default: 0, from: settings) as Int
         let biasChars = settingsValue(makeSettingsKey("biasChars"), default: "", from: settings) as String
         let biasStrength = settingsValue(makeSettingsKey("biasStrength"), default: 0.0, from: settings) as Double
+        let wordsPerSentence = settingsValue(makeSettingsKey("wordsPerSentence"), default: 15, from: settings) as Int
+        let sentencesPerParagraph = settingsValue(makeSettingsKey("sentencesPerParagraph"), default: 4, from: settings) as Int
 
         let prefix = "otf_\(proofKey)_"
         var features: [String: Bool] = [:]
@@ -223,7 +227,9 @@ extension ProofHandler {
             minWordLength: minWordLength,
             maxWordLength: maxWordLength,
             biasChars: biasChars,
-            biasStrength: biasStrength
+            biasStrength: biasStrength,
+            wordsPerSentence: wordsPerSentence,
+            sentencesPerParagraph: sentencesPerParagraph
         )
     }
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - PlainTextEditor (no smart quotes/dashes)
 
@@ -266,6 +267,32 @@ struct SettingsPanelView: View {
                             }
                             .labelsHidden()
 
+                            // The Paragraph group already exposes this for proofs
+                            // that have it; show it here for the rest so every
+                            // text proof can control how much text is generated.
+                            if !(entry?.hasParagraphs ?? false) {
+                                NumericSetting(
+                                    label: "Length (paragraphs)",
+                                    value: settings.paragraphs,
+                                    range: 1...20,
+                                    step: 1
+                                )
+                            }
+
+                            GenerationSlider(
+                                label: "Sentence Length",
+                                leading: "short", trailing: "long",
+                                value: settings.wordsPerSentence,
+                                range: 5...30
+                            )
+
+                            GenerationSlider(
+                                label: "Paragraph Density",
+                                leading: "sparse", trailing: "dense",
+                                value: settings.sentencesPerParagraph,
+                                range: 1...10
+                            )
+
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
                                     Text("Word Diversity")
@@ -351,9 +378,17 @@ struct SettingsPanelView: View {
                             Divider()
                         }
 
+                        if option.baseType == "version_comparison" {
+                            BaselineFontSection(baselineFontPath: settings.baselineFontPath)
+                            Divider()
+                            TextPresetsSection(customText: settings.customText, language: settings.generativeLanguage.wrappedValue)
+                            VersionCustomTextSection(text: settings.customText)
+                            Divider()
+                        }
+
                         if entry?.hasCustomText ?? false {
                             if option.baseType == "custom_text" {
-                                TextPresetsSection(customText: settings.customText)
+                                TextPresetsSection(customText: settings.customText, language: settings.generativeLanguage.wrappedValue)
                             }
 
                             CustomTextSection(
@@ -595,6 +630,75 @@ struct PDFOutputSection: View {
     }
 }
 
+// MARK: - BaselineFontSection
+
+struct BaselineFontSection: View {
+    @EnvironmentObject var state: AppState
+    @Binding var baselineFontPath: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Baseline Font (old version)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text(baselineFontPath.isEmpty ? "No font selected" : (baselineFontPath as NSString).lastPathComponent)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(baselineFontPath.isEmpty ? .tertiary : .primary)
+                    .font(.caption)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Browse…", action: browse)
+                    .controlSize(.small)
+            }
+
+            Text("Old in red, new in blue; matching outlines read near-black.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func browse() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "otf") ?? .data,
+            UTType(filenameExtension: "ttf") ?? .data,
+            UTType(filenameExtension: "ttc") ?? .data,
+        ]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        _ = url.startAccessingSecurityScopedResource()
+        baselineFontPath = url.path
+        state.schedulePersistPublic()
+    }
+}
+
+// MARK: - VersionCustomTextSection
+
+/// Text input for the Version Comparison proof: a plain editor with the
+/// "Sample Text" presets above it. Leaving it empty falls back to
+/// auto-generated text. No markup (a two-font overlay has no single font for
+/// inline style switches).
+struct VersionCustomTextSection: View {
+    @Binding var text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Custom Text")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            PlainTextEditor(text: $text)
+                .frame(minHeight: 120)
+                .border(Color.secondary.opacity(0.3))
+            Text("Leave empty to auto-generate text.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+}
+
 // MARK: - NumericSetting
 
 struct NumericSetting: View {
@@ -747,12 +851,72 @@ struct AlignmentPicker: View {
     }
 }
 
+// MARK: - GenerationSlider
+
+/// An integer-backed slider with end captions, matching the Word Diversity
+/// control's look in the Text Generation group.
+struct GenerationSlider: View {
+    let label: String
+    let leading: String
+    let trailing: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(label)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(value)")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+            HStack(spacing: 6) {
+                Text(leading)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                Slider(
+                    value: Binding(
+                        get: { Double(value) },
+                        set: { value = Int($0.rounded()) }
+                    ),
+                    in: Double(range.lowerBound)...Double(range.upperBound),
+                    step: 1
+                )
+                .controlSize(.small)
+                Text(trailing)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+}
+
 // MARK: - TextPresetsSection
 
 struct TextPresetsSection: View {
     @Binding var customText: String
+    var language: String = "en"
     @EnvironmentObject var engine: ProofEngine
     @EnvironmentObject var fonts: FontState
+    @State private var fetchingWikipedia = false
+
+    private static let kerningPairs = """
+    AV AW AY Av Aw Ay Ke Ko KO LT LV LW LY Ly Pa Pe Po P. P,
+    Ta Te To Tr Ts Tw Ty T. T, Va Ve Vo V. V, Wa We Wo Ya Ye Yo
+    f. f, ff fi fl r. r, rn ry v. v, w. y. “A” ‘y’ (j) [Q] {g}
+    To wave the Yacht away. Affluent fjords; Pavlov's TV. 7/8 1.5
+    """
+
+    private static let numerals = """
+    0123456789 0123456789
+    1,234,567.89  $1,234.56  €9.99  £42  ¥1000  №7  100%  3.14159
+    ½ ⅓ ¼ ⅔ ¾ ⅛ ⅜ ⅝ ⅞  1/2 3/4  2³ x² H₂O  10⁶  -40°C +98.6°F
+    (012) 345-6789  ID #00427  Vol. 12, No. 3, pp. 45–67  2024–2026
+    a¹ b² c³  MMXXIV  0O1lI  8B 5S 2Z 6G  $0.00 0.00€
+    """
 
     private static let pangrams = """
     The quick brown fox jumps over the lazy dog.
@@ -781,11 +945,22 @@ struct TextPresetsSection: View {
                 .foregroundStyle(.secondary)
             FlowLayout(spacing: 4) {
                 presetButton("Pangrams") { customText = Self.pangrams }
+                presetButton("Kerning") { customText = Self.kerningPairs }
+                presetButton("Numerals") { customText = Self.numerals }
                 presetButton("Punctuation") { customText = PremadeTexts.additionalSmallText }
                 presetButton("Diacritics") { customText = Self.diacritics }
-                presetButton("Word-o-mat") {
+                presetButton("Random Words") {
                     guard let path = fonts.enabledFontPaths.first else { return }
-                    customText = engine.generateWordomat(fontPath: path)
+                    customText = engine.generateRandomWords(fontPath: path)
+                }
+                presetButton(fetchingWikipedia ? "Fetching…" : "Wikipedia") {
+                    guard !fetchingWikipedia else { return }
+                    fetchingWikipedia = true
+                    Task {
+                        let text = await engine.fetchWikipediaText(language: language)
+                        if let text { customText = text }
+                        fetchingWikipedia = false
+                    }
                 }
                 presetButton("Clipboard") {
                     if let str = NSPasteboard.general.string(forType: .string) {

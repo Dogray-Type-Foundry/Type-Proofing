@@ -47,6 +47,8 @@ pub unsafe extern "C" fn wsv_text(
     max_wl: u32,
     bias_chars: *const c_char,
     bias_strength: f64,
+    words_per_sentence: u32,
+    sentences_per_paragraph: u32,
 ) -> *mut c_char {
     let wsv = &mut *ptr;
     let bias_vec = if bias_chars.is_null() {
@@ -59,7 +61,7 @@ pub unsafe extern "C" fn wsv_text(
             s.split(',').map(|c| c.to_string()).collect()
         }
     };
-    let params = GenParams {
+    let mut params = GenParams {
         glyphs: c_str_to_option(glyphs),
         vocab: c_str_to_option(vocab),
         n_paras: n_paras as usize,
@@ -74,6 +76,20 @@ pub unsafe extern "C" fn wsv_text(
         para_sep: c_str_to_string(para_sep, " "),
         ..Default::default()
     };
+    // 0 means "leave the engine default". Otherwise center a small spread on the
+    // requested value so sentences/paragraphs vary naturally instead of being
+    // uniform. The default UI values (15 words, 4 sentences) reproduce the
+    // engine defaults (10..20 words, 3..5 sentences) exactly.
+    if words_per_sentence > 0 {
+        let v = words_per_sentence as usize;
+        params.min_n_words = v.saturating_sub(5).max(1);
+        params.max_n_words = v + 5;
+    }
+    if sentences_per_paragraph > 0 {
+        let v = sentences_per_paragraph as usize;
+        params.min_n_sents = v.saturating_sub(1).max(1);
+        params.max_n_sents = v + 1;
+    }
     match wsv.text(None, &params) {
         Ok(s) => string_to_c(s),
         Err(_) => ptr::null_mut(),

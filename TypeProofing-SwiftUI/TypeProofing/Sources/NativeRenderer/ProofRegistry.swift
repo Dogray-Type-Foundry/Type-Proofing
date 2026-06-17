@@ -60,6 +60,7 @@ struct ProofRegistry {
 		"misc_paragraph_small",
 		"custom_text",
 		"multi_style_comparison",
+		"version_comparison",
 		"substitution_overview",
 		"ar_character_set",
 		"ar_paragraph_large",
@@ -126,6 +127,10 @@ struct ProofRegistry {
 		add(
 			"multi_style_comparison", "Style Comparison", cols: 1, size: 24,
 			customText: true, categories: true, multiStyle: true)
+		add(
+			"version_comparison", "Version Comparison", cols: 1, size: 18, enabled: false,
+			text: TextProofConfig(
+				characterSetKey: "base_letters", defaultParagraphs: 4, forceWordsiv: true))
 		add("substitution_overview", "Substitution Overview", cols: 5, size: 28, enabled: false)
 
 		// Arabic/Farsi proofs

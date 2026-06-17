@@ -30,7 +30,9 @@ struct TextGeneration {
         minWordLength: Int = 1,
         maxWordLength: Int = 0,
         biasChars: String = "",
-        biasStrength: Double = 0
+        biasStrength: Double = 0,
+        wordsPerSentence: Int = 0,
+        sentencesPerParagraph: Int = 0
     ) -> String {
         if characterSet.isEmpty { return "" }
 
@@ -41,7 +43,8 @@ struct TextGeneration {
             generativeLanguage, biasChars,
             String(paragraphs), String(forceWordsiv), String(hoeflerStyle),
             String(wordDiversity), String(vocabularySize),
-            String(minWordLength), String(maxWordLength), String(biasStrength)
+            String(minWordLength), String(maxWordLength), String(biasStrength),
+            String(wordsPerSentence), String(sentencesPerParagraph)
         ].joined(separator: "\u{1}") as NSString
 
         if let cached = textCache.object(forKey: cacheKey) {
@@ -54,7 +57,8 @@ struct TextGeneration {
             hoeflerStyle: hoeflerStyle, generativeLanguage: generativeLanguage,
             wordDiversity: wordDiversity, vocabularySize: vocabularySize,
             minWordLength: minWordLength, maxWordLength: maxWordLength,
-            biasChars: biasChars, biasStrength: biasStrength
+            biasChars: biasChars, biasStrength: biasStrength,
+            wordsPerSentence: wordsPerSentence, sentencesPerParagraph: sentencesPerParagraph
         )
         textCache.setObject(result as NSString, forKey: cacheKey)
         return result
@@ -74,7 +78,9 @@ struct TextGeneration {
         minWordLength: Int,
         maxWordLength: Int,
         biasChars: String,
-        biasStrength: Double
+        biasStrength: Double,
+        wordsPerSentence: Int,
+        sentencesPerParagraph: Int
     ) -> String {
         if let lang = language, (lang == "ar" || lang == "fa") {
             if hoeflerStyle {
@@ -124,7 +130,8 @@ struct TextGeneration {
                 vocab: generativeLanguage,
                 wordDiversity: wordDiversity, vocabularySize: vocabularySize,
                 minWordLength: minWordLength, maxWordLength: maxWordLength,
-                biasChars: biasChars, biasStrength: biasStrength
+                biasChars: biasChars, biasStrength: biasStrength,
+                wordsPerSentence: wordsPerSentence, sentencesPerParagraph: sentencesPerParagraph
             )
         }
 
@@ -137,7 +144,8 @@ struct TextGeneration {
             vocab: generativeLanguage,
             wordDiversity: wordDiversity, vocabularySize: vocabularySize,
             minWordLength: minWordLength, maxWordLength: maxWordLength,
-            biasChars: biasChars, biasStrength: biasStrength
+            biasChars: biasChars, biasStrength: biasStrength,
+            wordsPerSentence: wordsPerSentence, sentencesPerParagraph: sentencesPerParagraph
         )
     }
 
@@ -153,7 +161,9 @@ struct TextGeneration {
         minWordLength: Int = 1,
         maxWordLength: Int = 0,
         biasChars: String = "",
-        biasStrength: Double = 0
+        biasStrength: Double = 0,
+        wordsPerSentence: Int = 0,
+        sentencesPerParagraph: Int = 0
     ) -> String {
         let wsv = WordSivBridge(seed: wordsivSeed)
 
@@ -164,7 +174,8 @@ struct TextGeneration {
             return generateHoeflerStyleText(wsv: wsv, cat: cat, glyphs: glyphs, allGlyphs: allGlyphs, paragraphs: paragraphs, vocab: vocab,
                                             wordDiversity: wordDiversity, vocabularySize: vocabularySize,
                                             minWordLength: minWordLength, maxWordLength: maxWordLength,
-                                            biasChars: biasChars, biasStrength: biasStrength)
+                                            biasChars: biasChars, biasStrength: biasStrength,
+                                            wordsPerSentence: wordsPerSentence, sentencesPerParagraph: sentencesPerParagraph)
         }
 
         var caplc: [String] = []
@@ -187,7 +198,8 @@ struct TextGeneration {
         let caplcStr = caplc.joined()
         let wsvText = wsv.text(glyphs: allGlyphs, paragraphs: paragraphs, numbers: 0.1, rndPunc: 0.1, vocab: vocab,
                                rnd: wordDiversity, topK: vocabularySize, minWL: minWordLength, maxWL: maxWordLength,
-                               biasChars: biasChars.isEmpty ? nil : biasChars, biasStrength: biasStrength)
+                               biasChars: biasChars.isEmpty ? nil : biasChars, biasStrength: biasStrength,
+                               wordsPerSentence: wordsPerSentence, sentencesPerParagraph: sentencesPerParagraph)
 
         return caplcStr + "\n\n" + wsvText + "\n\n" + wsvText.uppercased()
     }
@@ -204,12 +216,15 @@ struct TextGeneration {
         minWordLength: Int = 1,
         maxWordLength: Int = 0,
         biasChars: String = "",
-        biasStrength: Double = 0
+        biasStrength: Double = 0,
+        wordsPerSentence: Int = 0,
+        sentencesPerParagraph: Int = 0
     ) -> String {
         let ucBase = cat.uniLuBase.isEmpty ? cat.uniLu : cat.uniLuBase
         if ucBase.isEmpty { return wsv.text(glyphs: allGlyphs, paragraphs: paragraphs, vocab: vocab,
                                             rnd: wordDiversity, topK: vocabularySize, minWL: minWordLength, maxWL: maxWordLength,
-                                            biasChars: biasChars.isEmpty ? nil : biasChars, biasStrength: biasStrength) }
+                                            biasChars: biasChars.isEmpty ? nil : biasChars, biasStrength: biasStrength,
+                                            wordsPerSentence: wordsPerSentence, sentencesPerParagraph: sentencesPerParagraph) }
 
         var lines: [String] = []
 
@@ -227,7 +242,8 @@ struct TextGeneration {
         let structured = lines.joined(separator: " ")
         let flowing = wsv.text(glyphs: allGlyphs, paragraphs: paragraphs, numbers: 0.1, rndPunc: 0.1, vocab: vocab,
                                rnd: wordDiversity, topK: vocabularySize, minWL: minWordLength, maxWL: maxWordLength,
-                               biasChars: biasChars.isEmpty ? nil : biasChars, biasStrength: biasStrength)
+                               biasChars: biasChars.isEmpty ? nil : biasChars, biasStrength: biasStrength,
+                               wordsPerSentence: wordsPerSentence, sentencesPerParagraph: sentencesPerParagraph)
         return structured + "\n\n" + flowing
     }
 

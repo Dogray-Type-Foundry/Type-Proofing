@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01D7394CB1127DDAFAE38060 /* SettingsPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B4B0E69F25CBAFA4C0B8F6E /* SettingsPanelView.swift */; };
+		022B89E1C3CA29E726AFD4A3 /* VersionComparisonHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CE1621E1570A223720B47D /* VersionComparisonHandler.swift */; };
 		06E133A552895E1560263B62 /* TextGeneration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFE39EB2F60EB64E5190D0E /* TextGeneration.swift */; };
 		0E9398AE32C814E4C7DEF9CB /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = E493E6A783430EC1B5DCD13C /* README.md */; };
 		124D5468383A95000BA16898 /* TextRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05376B8902F7416C8F3FFD22 /* TextRenderer.swift */; };
@@ -104,6 +105,7 @@
 		484CD527A6DEB09611556AC5 /* StylePairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylePairing.swift; sourceTree = "<group>"; };
 		48C400F557AD777FB0D600E6 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		637D42E4A5FDEB7E3048C469 /* MarkupParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupParser.swift; sourceTree = "<group>"; };
+		63CE1621E1570A223720B47D /* VersionComparisonHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionComparisonHandler.swift; sourceTree = "<group>"; };
 		65794A061E53E1ACC420FDF0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6D94825326F627660F1F94DA /* CharacterCategorizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterCategorizer.swift; sourceTree = "<group>"; };
 		7B4B0E69F25CBAFA4C0B8F6E /* SettingsPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanelView.swift; sourceTree = "<group>"; };
@@ -213,6 +215,7 @@
 				9E79E8F173A51D991F7E11D0 /* SubstitutionOverviewHandler.swift */,
 				9DFE39EB2F60EB64E5190D0E /* TextGeneration.swift */,
 				05376B8902F7416C8F3FFD22 /* TextRenderer.swift */,
+				63CE1621E1570A223720B47D /* VersionComparisonHandler.swift */,
 				001D9684F32482754BB7F203 /* WordSivBridge.swift */,
 			);
 			path = NativeRenderer;
@@ -460,6 +463,7 @@
 				06E133A552895E1560263B62 /* TextGeneration.swift in Sources */,
 				124D5468383A95000BA16898 /* TextRenderer.swift in Sources */,
 				2E1F606AC843602F4C5E60CA /* TypeProofingApp.swift in Sources */,
+				022B89E1C3CA29E726AFD4A3 /* VersionComparisonHandler.swift in Sources */,
 				CEDF4B94D516B35C8E407464 /* WordSivBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

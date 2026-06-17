@@ -259,6 +259,8 @@ struct NativeProofOrchestrator {
             return SubstitutionOverviewHandler(proofName: proofName, proofKey: proofKey)
         case "multi_style_comparison":
             return MultiStyleComparisonHandler(proofName: proofName, proofKey: proofKey)
+        case "version_comparison":
+            return VersionComparisonHandler(proofName: proofName, proofKey: proofKey)
         default:
             if ProofRegistry.entry(forKey: baseType)?.textConfig != nil {
                 return StandardTextProofHandler(proofName: proofName, proofKey: proofKey)

@@ -67,7 +67,9 @@ struct StandardTextProofHandler: ProofHandler {
                 minWordLength: params.minWordLength,
                 maxWordLength: params.maxWordLength,
                 biasChars: params.biasChars,
-                biasStrength: params.biasStrength
+                biasStrength: params.biasStrength,
+                wordsPerSentence: params.wordsPerSentence,
+                sentencesPerParagraph: params.sentencesPerParagraph
             )
         }
 
@@ -189,7 +191,9 @@ struct StandardTextProofHandler: ProofHandler {
             minWordLength: params.minWordLength,
             maxWordLength: params.maxWordLength,
             biasChars: params.biasChars,
-            biasStrength: params.biasStrength
+            biasStrength: params.biasStrength,
+            wordsPerSentence: params.wordsPerSentence,
+            sentencesPerParagraph: params.sentencesPerParagraph
         )
         if textContent.isEmpty {
             context.diagnostics.debug("Text generation produced empty content",

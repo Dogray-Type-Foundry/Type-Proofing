@@ -40,7 +40,9 @@ char *wsv_text(WordSiv *ptr,
                uint32_t min_wl,
                uint32_t max_wl,
                const char *bias_chars,
-               double bias_strength);
+               double bias_strength,
+               uint32_t words_per_sentence,
+               uint32_t sentences_per_paragraph);
 
 char *wsv_words(WordSiv *ptr,
                 const char *glyphs,
