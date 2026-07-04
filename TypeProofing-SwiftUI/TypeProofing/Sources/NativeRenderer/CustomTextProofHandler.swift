@@ -129,16 +129,18 @@ struct CustomTextProofHandler: ProofHandler {
                 while overflow != nil && colIdx < colRects.count {
                     if colIdx == 0 || overflow === segment {
                         renderer.beginPage()
-                        PageLayout.drawFooter(
-                            context: renderer.context,
-                            pageSize: pageSize,
-                            title: sectionName,
-                            fontName: fontName,
-                            otFeatures: params.otFeatures.isEmpty ? nil : params.otFeatures,
-                            tracking: params.tracking,
-                            pageNumber: renderer.pageCount,
-                            showPageNumber: true
-                        )
+                        if context.showFooter {
+                            PageLayout.drawFooter(
+                                context: renderer.context,
+                                pageSize: pageSize,
+                                title: sectionName,
+                                fontName: fontName,
+                                otFeatures: params.otFeatures.isEmpty ? nil : params.otFeatures,
+                                tracking: params.tracking,
+                                pageNumber: renderer.pageCount,
+                                showPageNumber: true
+                            )
+                        }
                     }
                     let lengthBefore = overflow!.length
                     overflow = TextRenderer.drawText(overflow!, in: colRects[colIdx], context: renderer.context)

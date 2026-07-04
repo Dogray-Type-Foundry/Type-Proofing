@@ -157,6 +157,8 @@ private struct SidebarProofsSection: View {
     @EnvironmentObject var fonts: FontState
     @EnvironmentObject var state: AppState
     @EnvironmentObject var ui: UIState
+    @State private var dragSourceIndex: Int?
+    @State private var dropTargetIndex: Int?
 
     private var visibleProofs: [ProofOption] {
         if fonts.anyFontSupportsArabic { return proofs.proofOptions }
@@ -200,11 +202,16 @@ private struct SidebarProofsSection: View {
                                     proofs.proofOptions[index].name = newName
                                     state.schedulePersistPublic()
                                 },
-                                dragProvider: { NSItemProvider(object: option.id.uuidString as NSString) }
+                                dragProvider: {
+                                    dragSourceIndex = index
+                                    return NSItemProvider(object: option.id.uuidString as NSString)
+                                }
                             )
+                            .reorderDropIndicator(index: index, source: dragSourceIndex, target: dropTargetIndex)
                             .onDrop(of: [.text], delegate: ProofDropDelegate(
                                 state: state,
-                                targetIndex: index
+                                targetIndex: index,
+                                dropTargetIndex: $dropTargetIndex
                             ))
                         }
                     }
@@ -324,8 +331,20 @@ private struct GenerationProgressView: View {
 struct ProofDropDelegate: DropDelegate {
     let state: AppState
     let targetIndex: Int
+    let dropTargetIndex: Binding<Int?>
+
+    func dropEntered(info: DropInfo) {
+        dropTargetIndex.wrappedValue = targetIndex
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTargetIndex.wrappedValue == targetIndex {
+            dropTargetIndex.wrappedValue = nil
+        }
+    }
 
     func performDrop(info: DropInfo) -> Bool {
+        dropTargetIndex.wrappedValue = nil
         let providers = info.itemProviders(for: [.text])
         guard let provider = providers.first else { return false }
         provider.loadObject(ofClass: NSString.self) { item, _ in

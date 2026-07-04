@@ -5,6 +5,8 @@ struct FontsSection: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var engine: ProofEngine
     @EnvironmentObject var fonts: FontState
+    @State private var dragSourceIndex: Int?
+    @State private var dropTargetIndex: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -35,7 +37,10 @@ struct FontsSection: View {
                             state.removeFont(at: IndexSet(integer: idx), engine: engine)
                         }
                     },
-                    dragProvider: { NSItemProvider(object: font.id as NSString) },
+                    dragProvider: {
+                        dragSourceIndex = index
+                        return NSItemProvider(object: font.id as NSString)
+                    },
                     detail: {
                         if font.isVariable {
                             FontAxesView(
@@ -51,9 +56,11 @@ struct FontsSection: View {
                         }
                     }
                 )
+                .reorderDropIndicator(index: index, source: dragSourceIndex, target: dropTargetIndex)
                 .onDrop(of: [.fileURL, .text], delegate: FontDropDelegate(
                     state: state, engine: engine,
-                    targetIndex: index
+                    targetIndex: index,
+                    dropTargetIndex: $dropTargetIndex
                 ))
             }
 
@@ -115,8 +122,22 @@ struct FontDropDelegate: DropDelegate {
     let state: AppState
     let engine: ProofEngine
     let targetIndex: Int
+    let dropTargetIndex: Binding<Int?>
+
+    func dropEntered(info: DropInfo) {
+        // Only reorder drags (not file drops from Finder) show the insertion line.
+        guard !info.hasItemsConforming(to: [.fileURL]) else { return }
+        dropTargetIndex.wrappedValue = targetIndex
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTargetIndex.wrappedValue == targetIndex {
+            dropTargetIndex.wrappedValue = nil
+        }
+    }
 
     func performDrop(info: DropInfo) -> Bool {
+        dropTargetIndex.wrappedValue = nil
         // Check for file URLs first (external drag from Finder)
         if info.hasItemsConforming(to: [.fileURL]) {
             let providers = info.itemProviders(for: [.fileURL])

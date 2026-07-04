@@ -5,10 +5,13 @@ import SwiftUI
 // so the app keeps the full glass look where available without dropping older OSes.
 extension View {
     /// Liquid-glass background in a rounded rectangle on macOS 26+, material fallback otherwise.
+    /// The glass is applied as a background layer, not wrapped around the content:
+    /// `glassEffect` on a container breaks all SwiftUI drop targets inside it
+    /// (drags start but validateDrop/performDrop never fire).
     @ViewBuilder
     func liquidGlassRect(cornerRadius: CGFloat) -> some View {
         if #available(macOS 26, *) {
-            glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: cornerRadius))
+            background(Color.clear.glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: cornerRadius)))
         } else {
             background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
         }

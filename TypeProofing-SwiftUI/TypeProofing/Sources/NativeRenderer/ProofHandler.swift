@@ -110,6 +110,7 @@ struct ProofContext {
     let pageFormat: String
     let proofSettings: [String: Any]
     let showBaselines: Bool
+    let showFooter: Bool
     let allAxisValues: [String: [Double]]?
     let allFontPaths: [String]
     let axisValuesByFont: [String: [String: [Double]]]
@@ -276,18 +277,20 @@ extension ProofHandler {
         while overflow != nil {
             let lengthBefore = overflow?.length ?? 0
             renderer.beginPage()
-            PageLayout.drawFooter(
-                context: renderer.context,
-                pageSize: pageSize,
-                title: fullTitle,
-                fontName: fontName,
-                otFeatures: otFeatures.isEmpty ? nil : otFeatures,
-                tracking: tracking,
-                pageNumber: renderer.pageCount,
-                showPageNumber: true,
-                lineHeight: footerLineHeight,
-                footerNote: footerNote
-            )
+            if context.showFooter {
+                PageLayout.drawFooter(
+                    context: renderer.context,
+                    pageSize: pageSize,
+                    title: fullTitle,
+                    fontName: fontName,
+                    otFeatures: otFeatures.isEmpty ? nil : otFeatures,
+                    tracking: tracking,
+                    pageNumber: renderer.pageCount,
+                    showPageNumber: true,
+                    lineHeight: footerLineHeight,
+                    footerNote: footerNote
+                )
+            }
 
             if context.showBaselines, let remaining = overflow {
                 let actualBaselines = TextRenderer.baselineOrigins(for: remaining, in: colRects[0])

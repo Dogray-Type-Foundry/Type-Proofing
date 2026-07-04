@@ -116,16 +116,18 @@ struct SubstitutionOverviewHandler: ProofHandler {
             hasOpenPage = true
             var sectionName = "\(proofName) - \(Int(fontSize))pt"
             if !suffix.isEmpty { sectionName += " - \(suffix)" }
-            PageLayout.drawFooter(
-                context: renderer.context,
-                pageSize: pageSize,
-                title: sectionName,
-                fontName: fontName,
-                otFeatures: nil,
-                tracking: 0,
-                pageNumber: renderer.pageCount,
-                showPageNumber: true
-            )
+            if context.showFooter {
+                PageLayout.drawFooter(
+                    context: renderer.context,
+                    pageSize: pageSize,
+                    title: sectionName,
+                    fontName: fontName,
+                    otFeatures: nil,
+                    tracking: 0,
+                    pageNumber: renderer.pageCount,
+                    showPageNumber: true
+                )
+            }
             colIdx = 0
             yTop = colRects[0].maxY
         }

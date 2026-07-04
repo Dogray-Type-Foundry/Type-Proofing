@@ -48,7 +48,38 @@ struct SidebarListRow<Detail: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
+                headerRow
+                detail()
+            }
+            .padding(.vertical, 3)
+            .padding(.horizontal, 12)
+            .contentShape(Rectangle())
+            .background(
+                isSelected ? Color.accentColor.opacity(0.15) :
+                isRowHovered ? Color.primary.opacity(0.04) : Color.clear
+            )
+            .cornerRadius(4)
+            .onHover { isRowHovered = $0 }
+            .onTapGesture {
+                if isEditing { commitEditing() }
+                onTap?()
+            }
+            .onChange(of: isSelected) { selected in
+                if !selected && isEditing { commitEditing() }
+            }
+
+            if !isLast {
+                Divider()
+            }
+        }
+    }
+
+    /// The row's top line. The whole line is the reorder drag source (the grip
+    /// is just the visual affordance); the detail area below is excluded so
+    /// dragging the variable-font sliders never starts a reorder.
+    @ViewBuilder
+    private var headerRow: some View {
+        let header = HStack(spacing: 8) {
                     grip
 
                     Toggle("", isOn: $enabled)
@@ -96,52 +127,47 @@ struct SidebarListRow<Detail: View>: View {
                     }
                     .buttonStyle(.plain)
                     .onHover { isRemoveHovered = $0 }
-                }
+        }
+        .contentShape(Rectangle())
 
-                detail()
-            }
-            .padding(.vertical, 5)
-            .padding(.horizontal, 12)
-            .contentShape(Rectangle())
-            .background(
-                isSelected ? Color.accentColor.opacity(0.15) :
-                isRowHovered ? Color.primary.opacity(0.04) : Color.clear
-            )
-            .cornerRadius(4)
-            .onHover { isRowHovered = $0 }
-            .onTapGesture {
-                if isEditing { commitEditing() }
-                onTap?()
-            }
-            .onChange(of: isSelected) { selected in
-                if !selected && isEditing { commitEditing() }
-            }
-
-            if !isLast {
-                Divider()
-            }
+        if let dragProvider {
+            header.onDrag(dragProvider)
+        } else {
+            header
         }
     }
 
-    /// Reorder drag handle. Dragging is scoped to this grip so dragging elsewhere
-    /// on the row (e.g. the expanded variable-font controls) doesn't start a drag.
-    @ViewBuilder
     private var grip: some View {
-        let icon = Image(systemName: "line.3.horizontal")
+        Image(systemName: "line.3.horizontal")
             .foregroundStyle(.tertiary)
             .font(.caption)
-            .contentShape(Rectangle())
-        if let dragProvider {
-            icon.onDrag(dragProvider).help("Drag to reorder")
-        } else {
-            icon
-        }
+            .help("Drag to reorder")
     }
 
     private func commitEditing() {
         let trimmed = editText.trimmingCharacters(in: .whitespaces)
         if !trimmed.isEmpty { onRename?(trimmed) }
         isEditing = false
+    }
+}
+
+/// Insertion indicator for sidebar reorder drags: while a drag started at
+/// `source` hovers over the row at `target`, draws an accent line on this row
+/// showing where the item lands on drop — above when dragging up, below when
+/// dragging down (mirroring the toOffset adjustment in the drop delegates).
+extension View {
+    @ViewBuilder
+    func reorderDropIndicator(index: Int, source: Int?, target: Int?) -> some View {
+        let line = Capsule()
+            .fill(Color.accentColor)
+            .frame(height: 2)
+            .padding(.horizontal, 2)
+        overlay(alignment: .top) {
+            if let source, let target, target == index, target < source { line }
+        }
+        .overlay(alignment: .bottom) {
+            if let source, let target, target == index, target > source { line }
+        }
     }
 }
 

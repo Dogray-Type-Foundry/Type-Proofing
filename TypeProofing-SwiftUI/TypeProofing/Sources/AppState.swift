@@ -254,6 +254,7 @@ final class PageState: ObservableObject {
     @Published var pageFormat: String = "A4Landscape"
     @Published var pageFormats: [String] = []
     @Published var showBaselines: Bool = false
+    @Published var showFooter: Bool = true
     @Published var viewMode: ViewMode = .page
     @Published var compareVertical: Bool = false
 }
@@ -698,7 +699,8 @@ final class AppState: ObservableObject {
             proofSettings: pySettings,
             pageFormat: page.pageFormat,
             outputDir: outDir,
-            showBaselines: page.showBaselines
+            showBaselines: page.showBaselines,
+            showFooter: page.showFooter
         )
     }
 
@@ -731,6 +733,7 @@ final class AppState: ObservableObject {
             "proof_settings": filtered,
             "page_format": page.pageFormat,
             "show_baselines": page.showBaselines,
+            "show_footer": page.showFooter,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else {
             return UUID().uuidString
@@ -770,6 +773,7 @@ final class AppState: ObservableObject {
             pageFormat: page.pageFormat,
             outputDir: outputDir,
             showBaselines: page.showBaselines,
+            showFooter: page.showFooter,
             warnings: warnings
         )
     }
@@ -923,6 +927,7 @@ final class AppState: ObservableObject {
             proofSettingsByProof: proofs.proofSettingsByProof,
             pageFormat: page.pageFormat,
             showBaselines: page.showBaselines,
+            showFooter: page.showFooter,
             useCustomOutputLocation: output.useCustomOutputLocation,
             customOutputLocation: output.customOutputLocation
         )
@@ -951,6 +956,7 @@ final class AppState: ObservableObject {
             fonts.styleSourceMode = data.styleSourceMode ?? .namedInstances
             page.pageFormat = data.pageFormat
             page.showBaselines = data.showBaselines
+            page.showFooter = data.showFooter ?? true
             output.useCustomOutputLocation = data.useCustomOutputLocation
             output.customOutputLocation = data.customOutputLocation
 
@@ -979,6 +985,7 @@ final class AppState: ObservableObject {
 
         resetProofDefaults()
         page.showBaselines = false
+        page.showFooter = true
         page.pageFormat = page.pageFormats.contains("A4Landscape") ? "A4Landscape" : (page.pageFormats.first ?? "A4Landscape")
         output.useCustomOutputLocation = false
         output.customOutputLocation = ""
@@ -1011,6 +1018,7 @@ struct PersistedState: Codable {
     let proofSettingsByProof: [String: ProofSettings]
     let pageFormat: String
     let showBaselines: Bool
+    let showFooter: Bool?
     let useCustomOutputLocation: Bool
     let customOutputLocation: String
 }

@@ -131,11 +131,13 @@ struct VersionComparisonHandler: ProofHandler {
         while overflow != nil {
             let lengthBefore = overflow?.length ?? 0
             renderer.beginPage()
-            PageLayout.drawFooter(
-                context: renderer.context, pageSize: pageSize, title: fullTitle,
-                fontName: fontName, otFeatures: params.otFeatures.isEmpty ? nil : params.otFeatures,
-                tracking: params.tracking, pageNumber: renderer.pageCount,
-                showPageNumber: true, lineHeight: params.lineHeight, footerNote: footerNote)
+            if context.showFooter {
+                PageLayout.drawFooter(
+                    context: renderer.context, pageSize: pageSize, title: fullTitle,
+                    fontName: fontName, otFeatures: params.otFeatures.isEmpty ? nil : params.otFeatures,
+                    tracking: params.tracking, pageNumber: renderer.pageCount,
+                    showPageNumber: true, lineHeight: params.lineHeight, footerNote: footerNote)
+            }
 
             for colRect in colRects {
                 guard let remaining = overflow else { break }

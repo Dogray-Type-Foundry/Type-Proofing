@@ -40,6 +40,9 @@ struct ContentView: View {
         .onChange(of: page.showBaselines) { _ in
             state.schedulePersistPublic()
         }
+        .onChange(of: page.showFooter) { _ in
+            state.schedulePersistPublic()
+        }
         .onChange(of: fonts.styleSourceMode) { _ in
             state.refreshFontStyles(engine: engine)
             state.schedulePersistPublic()
@@ -298,6 +301,9 @@ struct FloatingToolbar: View {
 
                 toolbarButton("line.3.horizontal", active: page.showBaselines, help: "Baseline grid") {
                     page.showBaselines.toggle()
+                }
+                toolbarButton("text.append", active: page.showFooter, help: page.showFooter ? "Hide footer" : "Show footer") {
+                    page.showFooter.toggle()
                 }
             }
             .padding(.horizontal, 8)

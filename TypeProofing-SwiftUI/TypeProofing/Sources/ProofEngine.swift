@@ -150,6 +150,7 @@ struct ProofRunSummary: Equatable {
     var pageFormat: String = ""
     var outputDir: String = ""
     var showBaselines: Bool = false
+    var showFooter: Bool = true
     var warnings: [String] = []
 }
 
@@ -172,6 +173,7 @@ struct ProofConfig {
     var pageFormat: String
     var outputDir: String
     var showBaselines: Bool = false
+    var showFooter: Bool = true
     var debugMode: Bool = false
     var previewMode: Bool = false
     var targetProofName: String = ""
@@ -195,6 +197,7 @@ struct ProofConfig {
             "page_format": pageFormat,
             "output_dir": outputDir,
             "show_baselines": showBaselines,
+            "show_footer": showFooter,
             "debug_mode": debugMode,
             "preview_mode": previewMode,
             "target_proof_name": targetProofName,
