@@ -201,6 +201,13 @@ type FilterCacheVal = Arc<Vec<(String, u64)>>;
 type SamplingCacheKey = (String, FilterParams, u64, usize, Option<String>, u64, Vec<String>, u64);
 type SamplingCacheVal = Arc<SamplingDist>;
 
+/// Cap on the global filter/sampling caches. Each entry can hold a filtered
+/// copy of an entire vocabulary, and the keys embed the full charset string —
+/// without a bound, every dragged-in font and variable instance grows memory
+/// for the rest of the session. On overflow the cache is cleared wholesale
+/// (crude, but the handful of live keys repopulate in one call each).
+const MAX_GLOBAL_CACHE_ENTRIES: usize = 64;
+
 static FILTER_CACHE: OnceLock<Mutex<HashMap<FilterCacheKey, FilterCacheVal>>> = OnceLock::new();
 static SAMPLING_CACHE: OnceLock<Mutex<HashMap<SamplingCacheKey, SamplingCacheVal>>> = OnceLock::new();
 
@@ -464,6 +471,9 @@ impl WordSiv {
         };
         {
             let mut cache = global_filter_cache().lock().unwrap();
+            if cache.len() >= MAX_GLOBAL_CACHE_ENTRIES {
+                cache.clear();
+            }
             cache.insert(cache_key, Arc::clone(&result));
         }
         if result.is_empty() {
@@ -560,6 +570,9 @@ impl WordSiv {
         let dist = Arc::new(SamplingDist::new(wc, params.rnd, &params.bias_chars, params.bias_strength));
         {
             let mut cache = global_sampling_cache().lock().unwrap();
+            if cache.len() >= MAX_GLOBAL_CACHE_ENTRIES {
+                cache.clear();
+            }
             cache.insert(cache_key, Arc::clone(&dist));
         }
         Ok(dist)

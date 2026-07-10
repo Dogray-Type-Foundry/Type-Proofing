@@ -10,3 +10,4 @@ crate-type = ["staticlib", "rlib"]
 [dependencies]
 tp-fonts = { path = "../tp-fonts" }
 wordsiv = { path = "../wordsiv", default-features = false, features = ["shaping", "semantic"] }
+serde_json = "1"

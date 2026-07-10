@@ -74,6 +74,7 @@ pub fn get_font_substitutions(data: &[u8]) -> Vec<SubstitutionFeature> {
                     idx,
                     &glyph_to_char,
                     &glyph_to_name,
+                    0,
                 );
                 entries_by_tag
                     .entry(tag.clone())
@@ -103,6 +104,12 @@ pub fn get_font_substitutions(data: &[u8]) -> Vec<SubstitutionFeature> {
         .collect()
 }
 
+/// Chain-context lookups can reference other lookups, including (in a
+/// malformed font) cyclically: A→B→A. The `source_index` skip only catches
+/// direct self-reference, so a depth cap bounds the recursion — real fonts
+/// nest one or two levels deep.
+const MAX_NESTED_LOOKUP_DEPTH: usize = 8;
+
 fn extract_lookup_entries(
     lookup: &read_fonts::tables::gsub::SubstitutionLookup,
     tag: &str,
@@ -110,9 +117,14 @@ fn extract_lookup_entries(
     source_index: usize,
     glyph_to_char: &HashMap<u16, char>,
     glyph_to_name: &HashMap<u16, String>,
+    depth: usize,
 ) -> Vec<SubstitutionEntry> {
     use read_fonts::tables::gsub::SubstitutionSubtables;
     let mut entries = Vec::new();
+
+    if depth > MAX_NESTED_LOOKUP_DEPTH {
+        return entries;
+    }
 
     let subtables = match lookup.subtables() {
         Ok(s) => s,
@@ -139,7 +151,7 @@ fn extract_lookup_entries(
                 if let Ok(chain) = subtable {
                     extract_chain_context(
                         &chain, tag, lookup_list, source_index,
-                        glyph_to_char, glyph_to_name, &mut entries,
+                        glyph_to_char, glyph_to_name, &mut entries, depth,
                     );
                 }
             }
@@ -162,12 +174,13 @@ fn extract_chain_context(
     glyph_to_char: &HashMap<u16, char>,
     glyph_to_name: &HashMap<u16, String>,
     entries: &mut Vec<SubstitutionEntry>,
+    depth: usize,
 ) {
     use read_fonts::tables::layout::ChainedSequenceContext;
 
     match chain {
         ChainedSequenceContext::Format1(f) => {
-            extract_chain_format1_records(f, lookup_list, tag, source_index, glyph_to_char, glyph_to_name, entries);
+            extract_chain_format1_records(f, lookup_list, tag, source_index, glyph_to_char, glyph_to_name, entries, depth);
         }
         ChainedSequenceContext::Format2(_) => {}
         ChainedSequenceContext::Format3(f) => {
@@ -183,7 +196,7 @@ fn extract_chain_context(
             collect_nested_entries_fmt3(
                 f.seq_lookup_records(), tag, lookup_list, source_index,
                 glyph_to_char, glyph_to_name,
-                &bt_cov_gids, &la_cov_gids, entries,
+                &bt_cov_gids, &la_cov_gids, entries, depth,
             );
         }
     }
@@ -219,6 +232,7 @@ fn collect_nested_entries_fmt3(
     bt_cov_gids: &[Vec<u16>],
     la_cov_gids: &[Vec<u16>],
     entries: &mut Vec<SubstitutionEntry>,
+    depth: usize,
 ) {
     for record in records {
         let nested_idx = record.lookup_list_index() as usize;
@@ -226,7 +240,7 @@ fn collect_nested_entries_fmt3(
         if let Ok(nested_lookup) = lookup_list.lookups().get(nested_idx) {
             let nested = extract_lookup_entries(
                 &nested_lookup, tag, lookup_list, nested_idx,
-                glyph_to_char, glyph_to_name,
+                glyph_to_char, glyph_to_name, depth + 1,
             );
             for mut e in nested {
                 e.kind = match e.kind {
@@ -253,6 +267,7 @@ fn collect_nested_entries(
     backtrack_text: &str,
     lookahead_text: &str,
     entries: &mut Vec<SubstitutionEntry>,
+    depth: usize,
 ) {
     for record in records {
         let nested_idx = record.lookup_list_index() as usize;
@@ -262,7 +277,7 @@ fn collect_nested_entries(
         if let Ok(nested_lookup) = lookup_list.lookups().get(nested_idx) {
             let nested = extract_lookup_entries(
                 &nested_lookup, tag, lookup_list, nested_idx,
-                glyph_to_char, glyph_to_name,
+                glyph_to_char, glyph_to_name, depth + 1,
             );
             for mut e in nested {
                 e.kind = match e.kind {
@@ -286,6 +301,7 @@ fn extract_chain_format1_records(
     glyph_to_char: &HashMap<u16, char>,
     glyph_to_name: &HashMap<u16, String>,
     entries: &mut Vec<SubstitutionEntry>,
+    depth: usize,
 ) {
     let coverage_gids: Vec<u16> = match f1.coverage() {
         Ok(cov) => cov.iter().map(|g| g.to_u32() as u16).collect(),
@@ -319,7 +335,7 @@ fn extract_chain_format1_records(
 
             collect_nested_entries(
                 rule.seq_lookup_records(), tag, lookup_list, source_index,
-                glyph_to_char, glyph_to_name, &bt, &la, entries,
+                glyph_to_char, glyph_to_name, &bt, &la, entries, depth,
             );
         }
     }
@@ -463,9 +479,12 @@ fn build_glyph_to_char(font: &FontRef) -> HashMap<u16, char> {
         if let Some((_, _, subtable)) = cmap.best_subtable() {
             for (codepoint, glyph_id) in subtable.iter() {
                 let gid = glyph_id.to_u32() as u16;
-                map.entry(gid).or_insert_with(|| {
-                    char::from_u32(codepoint).unwrap_or('\0')
-                });
+                // Skip unmappable codepoints instead of storing '\0' — a NUL
+                // reaching an input_text string breaks CString::new at the FFI
+                // boundary and silently drops the whole payload.
+                if let Some(ch) = char::from_u32(codepoint) {
+                    map.entry(gid).or_insert(ch);
+                }
             }
         }
     }

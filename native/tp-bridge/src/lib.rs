@@ -4,14 +4,24 @@ use std::ptr;
 use wordsiv::engine::{GenParams, WordSiv};
 use wordsiv::filter::CaseType;
 
+/// Runs an FFI body, mapping a panic to `fallback`. The core inputs here are
+/// arbitrary user font files; a panic in the parsers must degrade to a null
+/// return, not unwind into Swift (which aborts the process). Relies on the
+/// workspace building with the default panic = "unwind".
+fn guard<T>(fallback: T, body: impl FnOnce() -> T) -> T {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)).unwrap_or(fallback)
+}
+
 // ---------------------------------------------------------------------------
 // WordSiv lifecycle
 // ---------------------------------------------------------------------------
 
 #[no_mangle]
 pub extern "C" fn wsv_create(seed: u64) -> *mut WordSiv {
-    let wsv = WordSiv::new(None, None, true, false, Some(seed));
-    Box::into_raw(Box::new(wsv))
+    guard(ptr::null_mut(), || {
+        let wsv = WordSiv::new(None, None, true, false, Some(seed));
+        Box::into_raw(Box::new(wsv))
+    })
 }
 
 #[no_mangle]
@@ -50,50 +60,52 @@ pub unsafe extern "C" fn wsv_text(
     words_per_sentence: u32,
     sentences_per_paragraph: u32,
 ) -> *mut c_char {
-    let wsv = &mut *ptr;
-    let bias_vec = if bias_chars.is_null() {
-        vec![]
-    } else {
-        let s = CStr::from_ptr(bias_chars).to_str().unwrap_or("");
-        if s.is_empty() {
+    guard(ptr::null_mut(), || unsafe {
+        let wsv = &mut *ptr;
+        let bias_vec = if bias_chars.is_null() {
             vec![]
         } else {
-            s.split(',').map(|c| c.to_string()).collect()
+            let s = CStr::from_ptr(bias_chars).to_str().unwrap_or("");
+            if s.is_empty() {
+                vec![]
+            } else {
+                s.split(',').map(|c| c.to_string()).collect()
+            }
+        };
+        let mut params = GenParams {
+            glyphs: c_str_to_option(glyphs),
+            vocab: c_str_to_option(vocab),
+            n_paras: n_paras as usize,
+            numbers,
+            rnd_punc,
+            rnd,
+            top_k: top_k as usize,
+            min_wl: min_wl as usize,
+            max_wl: if max_wl > 0 { Some(max_wl as usize) } else { None },
+            bias_chars: bias_vec,
+            bias_strength,
+            para_sep: c_str_to_string(para_sep, " "),
+            ..Default::default()
+        };
+        // 0 means "leave the engine default". Otherwise center a small spread on the
+        // requested value so sentences/paragraphs vary naturally instead of being
+        // uniform. The default UI values (15 words, 4 sentences) reproduce the
+        // engine defaults (10..20 words, 3..5 sentences) exactly.
+        if words_per_sentence > 0 {
+            let v = words_per_sentence as usize;
+            params.min_n_words = v.saturating_sub(5).max(1);
+            params.max_n_words = v + 5;
         }
-    };
-    let mut params = GenParams {
-        glyphs: c_str_to_option(glyphs),
-        vocab: c_str_to_option(vocab),
-        n_paras: n_paras as usize,
-        numbers,
-        rnd_punc,
-        rnd,
-        top_k: top_k as usize,
-        min_wl: min_wl as usize,
-        max_wl: if max_wl > 0 { Some(max_wl as usize) } else { None },
-        bias_chars: bias_vec,
-        bias_strength,
-        para_sep: c_str_to_string(para_sep, " "),
-        ..Default::default()
-    };
-    // 0 means "leave the engine default". Otherwise center a small spread on the
-    // requested value so sentences/paragraphs vary naturally instead of being
-    // uniform. The default UI values (15 words, 4 sentences) reproduce the
-    // engine defaults (10..20 words, 3..5 sentences) exactly.
-    if words_per_sentence > 0 {
-        let v = words_per_sentence as usize;
-        params.min_n_words = v.saturating_sub(5).max(1);
-        params.max_n_words = v + 5;
-    }
-    if sentences_per_paragraph > 0 {
-        let v = sentences_per_paragraph as usize;
-        params.min_n_sents = v.saturating_sub(1).max(1);
-        params.max_n_sents = v + 1;
-    }
-    match wsv.text(None, &params) {
-        Ok(s) => string_to_c(s),
-        Err(_) => ptr::null_mut(),
-    }
+        if sentences_per_paragraph > 0 {
+            let v = sentences_per_paragraph as usize;
+            params.min_n_sents = v.saturating_sub(1).max(1);
+            params.max_n_sents = v + 1;
+        }
+        match wsv.text(None, &params) {
+            Ok(s) => string_to_c(s),
+            Err(_) => ptr::null_mut(),
+        }
+    })
 }
 
 #[no_mangle]
@@ -110,42 +122,44 @@ pub unsafe extern "C" fn wsv_words(
     endswith: *const c_char,
     inner: *const c_char,
 ) -> *mut c_char {
-    let wsv = &mut *ptr;
-    let case = if case_str.is_null() {
-        CaseType::Any
-    } else {
-        let s = CStr::from_ptr(case_str).to_str().unwrap_or("any");
-        CaseType::from_str(s).unwrap_or(CaseType::Any)
-    };
-    let contains_vec = if contains.is_null() {
-        vec![]
-    } else {
-        let s = CStr::from_ptr(contains).to_str().unwrap_or("");
-        if s.is_empty() { vec![] } else { vec![s.to_string()] }
-    };
-    let inner_vec = if inner.is_null() {
-        vec![]
-    } else {
-        let s = CStr::from_ptr(inner).to_str().unwrap_or("");
-        if s.is_empty() { vec![] } else { vec![s.to_string()] }
-    };
-    let params = GenParams {
-        glyphs: c_str_to_option(glyphs),
-        vocab: c_str_to_option(vocab),
-        case,
-        contains: contains_vec,
-        inner: inner_vec,
-        startswith: c_str_to_option(startswith),
-        endswith: c_str_to_option(endswith),
-        n_words: Some(n_words as usize),
-        min_wl: min_wl as usize,
-        max_wl: if max_wl > 0 { Some(max_wl as usize) } else { None },
-        ..Default::default()
-    };
-    match wsv.words(None, &params) {
-        Ok(words) => string_to_c(words.join(" ")),
-        Err(_) => ptr::null_mut(),
-    }
+    guard(ptr::null_mut(), || unsafe {
+        let wsv = &mut *ptr;
+        let case = if case_str.is_null() {
+            CaseType::Any
+        } else {
+            let s = CStr::from_ptr(case_str).to_str().unwrap_or("any");
+            CaseType::from_str(s).unwrap_or(CaseType::Any)
+        };
+        let contains_vec = if contains.is_null() {
+            vec![]
+        } else {
+            let s = CStr::from_ptr(contains).to_str().unwrap_or("");
+            if s.is_empty() { vec![] } else { vec![s.to_string()] }
+        };
+        let inner_vec = if inner.is_null() {
+            vec![]
+        } else {
+            let s = CStr::from_ptr(inner).to_str().unwrap_or("");
+            if s.is_empty() { vec![] } else { vec![s.to_string()] }
+        };
+        let params = GenParams {
+            glyphs: c_str_to_option(glyphs),
+            vocab: c_str_to_option(vocab),
+            case,
+            contains: contains_vec,
+            inner: inner_vec,
+            startswith: c_str_to_option(startswith),
+            endswith: c_str_to_option(endswith),
+            n_words: Some(n_words as usize),
+            min_wl: min_wl as usize,
+            max_wl: if max_wl > 0 { Some(max_wl as usize) } else { None },
+            ..Default::default()
+        };
+        match wsv.words(None, &params) {
+            Ok(words) => string_to_c(words.join(" ")),
+            Err(_) => ptr::null_mut(),
+        }
+    })
 }
 
 #[no_mangle]
@@ -158,25 +172,27 @@ pub unsafe extern "C" fn wsv_top_word(
     min_wl: u32,
     vocab: *const c_char,
 ) -> *mut c_char {
-    let wsv = &mut *ptr;
-    let case = if case_str.is_null() {
-        CaseType::Any
-    } else {
-        let s = CStr::from_ptr(case_str).to_str().unwrap_or("any");
-        CaseType::from_str(s).unwrap_or(CaseType::Any)
-    };
-    let params = GenParams {
-        glyphs: c_str_to_option(glyphs),
-        vocab: c_str_to_option(vocab),
-        case,
-        regexp: c_str_to_option(regexp),
-        min_wl: min_wl as usize,
-        ..Default::default()
-    };
-    match wsv.top_word(None, idx as usize, &params) {
-        Ok(s) => string_to_c(s),
-        Err(_) => ptr::null_mut(),
-    }
+    guard(ptr::null_mut(), || unsafe {
+        let wsv = &mut *ptr;
+        let case = if case_str.is_null() {
+            CaseType::Any
+        } else {
+            let s = CStr::from_ptr(case_str).to_str().unwrap_or("any");
+            CaseType::from_str(s).unwrap_or(CaseType::Any)
+        };
+        let params = GenParams {
+            glyphs: c_str_to_option(glyphs),
+            vocab: c_str_to_option(vocab),
+            case,
+            regexp: c_str_to_option(regexp),
+            min_wl: min_wl as usize,
+            ..Default::default()
+        };
+        match wsv.top_word(None, idx as usize, &params) {
+            Ok(s) => string_to_c(s),
+            Err(_) => ptr::null_mut(),
+        }
+    })
 }
 
 #[no_mangle]
@@ -191,16 +207,17 @@ pub unsafe extern "C" fn wsv_seed(ptr: *mut WordSiv, seed: u64) {
 
 #[no_mangle]
 pub extern "C" fn wsv_list_vocabs() -> *mut c_char {
-    let wsv = WordSiv::new(None, None, true, false, None);
-    let mut keys = wsv.list_vocabs();
-    keys.sort();
+    guard(ptr::null_mut(), || {
+        let wsv = WordSiv::new(None, None, true, false, None);
+        let mut keys = wsv.list_vocabs();
+        keys.sort();
 
-    let items: Vec<String> = keys.iter().map(|k| {
-        let name = vocab_display_name(k);
-        format!("{{\"key\":\"{}\",\"name\":\"{}\"}}", k, name)
-    }).collect();
+        let items: Vec<serde_json::Value> = keys.iter().map(|k| {
+            serde_json::json!({"key": k, "name": vocab_display_name(k)})
+        }).collect();
 
-    string_to_c(format!("[{}]", items.join(",")))
+        string_to_c(serde_json::Value::Array(items).to_string())
+    })
 }
 
 fn vocab_display_name(key: &str) -> String {
@@ -287,28 +304,30 @@ pub struct TPFontInfo {
 
 #[no_mangle]
 pub unsafe extern "C" fn tp_load_font(data: *const u8, len: usize) -> *mut TPFontInfo {
-    let slice = std::slice::from_raw_parts(data, len);
-    let info = match tp_fonts::font_info::load_font_info(slice) {
-        Some(i) => i,
-        None => return ptr::null_mut(),
-    };
+    guard(ptr::null_mut(), || unsafe {
+        let slice = std::slice::from_raw_parts(data, len);
+        let info = match tp_fonts::font_info::load_font_info(slice) {
+            Some(i) => i,
+            None => return ptr::null_mut(),
+        };
 
-    let axes_json = serde_axes_json(&info);
-    let features_json = serde_features_json(&info);
+        let axes_json = serde_axes_json(&info);
+        let features_json = serde_features_json(&info);
 
-    let result = Box::new(TPFontInfo {
-        family_name: string_to_c(info.family_name),
-        subfamily_name: string_to_c(info.subfamily_name),
-        weight: info.weight,
-        width: info.width,
-        fs_selection: info.fs_selection,
-        is_variable: info.is_variable,
-        slant: info.slant,
-        optical_size: info.optical_size,
-        axes_json: string_to_c(axes_json),
-        features_json: string_to_c(features_json),
-    });
-    Box::into_raw(result)
+        let result = Box::new(TPFontInfo {
+            family_name: string_to_c(info.family_name),
+            subfamily_name: string_to_c(info.subfamily_name),
+            weight: info.weight,
+            width: info.width,
+            fs_selection: info.fs_selection,
+            is_variable: info.is_variable,
+            slant: info.slant,
+            optical_size: info.optical_size,
+            axes_json: string_to_c(axes_json),
+            features_json: string_to_c(features_json),
+        });
+        Box::into_raw(result)
+    })
 }
 
 #[no_mangle]
@@ -323,83 +342,79 @@ pub unsafe extern "C" fn tp_free_font_info(ptr: *mut TPFontInfo) {
 
 #[no_mangle]
 pub unsafe extern "C" fn tp_get_charset(data: *const u8, len: usize) -> *mut c_char {
-    let slice = std::slice::from_raw_parts(data, len);
-    string_to_c(tp_fonts::charset::filtered_charset(slice))
+    guard(ptr::null_mut(), || unsafe {
+        let slice = std::slice::from_raw_parts(data, len);
+        string_to_c(tp_fonts::charset::filtered_charset(slice))
+    })
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn tp_get_axes_json(data: *const u8, len: usize) -> *mut c_char {
-    let slice = std::slice::from_raw_parts(data, len);
-    match tp_fonts::axes::get_generation_axes(slice) {
-        Some(axes) => {
-            let json = axes.iter().map(|a| {
-                let tag = std::str::from_utf8(&a.tag).unwrap_or("????");
-                let vals: Vec<String> = a.values.iter().map(|v| format!("{}", v)).collect();
-                format!("{{\"tag\":\"{}\",\"values\":[{}]}}", tag, vals.join(","))
-            }).collect::<Vec<_>>().join(",");
-            string_to_c(format!("[{}]", json))
+    guard(ptr::null_mut(), || unsafe {
+        let slice = std::slice::from_raw_parts(data, len);
+        match tp_fonts::axes::get_generation_axes(slice) {
+            Some(axes) => {
+                let items: Vec<serde_json::Value> = axes.iter().map(|a| {
+                    let tag = std::str::from_utf8(&a.tag).unwrap_or("????");
+                    serde_json::json!({"tag": tag, "values": a.values})
+                }).collect();
+                string_to_c(serde_json::Value::Array(items).to_string())
+            }
+            None => ptr::null_mut(),
         }
-        None => ptr::null_mut(),
-    }
+    })
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn tp_get_named_instances_json(data: *const u8, len: usize) -> *mut c_char {
-    let slice = std::slice::from_raw_parts(data, len);
-    let instances = tp_fonts::font_info::get_named_instances(slice);
-    if instances.is_empty() {
-        return ptr::null_mut();
-    }
+    guard(ptr::null_mut(), || unsafe {
+        let slice = std::slice::from_raw_parts(data, len);
+        let instances = tp_fonts::font_info::get_named_instances(slice);
+        if instances.is_empty() {
+            return ptr::null_mut();
+        }
 
-    let json_items: Vec<String> = instances.iter().map(|inst| {
-        let coords: Vec<String> = inst.coordinates.iter().map(|(tag, val)| {
-            let tag_str = std::str::from_utf8(tag).unwrap_or("????");
-            format!("\"{}\":{}", tag_str, val)
+        let items: Vec<serde_json::Value> = instances.iter().map(|inst| {
+            let coords: serde_json::Map<String, serde_json::Value> = inst.coordinates.iter().map(|(tag, val)| {
+                let tag_str = std::str::from_utf8(tag).unwrap_or("????").to_string();
+                (tag_str, serde_json::json!(val))
+            }).collect();
+            serde_json::json!({"name": inst.name, "coordinates": coords})
         }).collect();
-        let name = inst.name.replace('\\', "\\\\").replace('"', "\\\"");
-        format!("{{\"name\":\"{}\",\"coordinates\":{{{}}}}}", name, coords.join(","))
-    }).collect();
 
-    string_to_c(format!("[{}]", json_items.join(",")))
+        string_to_c(serde_json::Value::Array(items).to_string())
+    })
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn tp_get_substitutions_json(data: *const u8, len: usize) -> *mut c_char {
-    let slice = std::slice::from_raw_parts(data, len);
-    let subs = tp_fonts::substitutions::get_font_substitutions(slice);
-    if subs.is_empty() {
-        return ptr::null_mut();
-    }
+    guard(ptr::null_mut(), || unsafe {
+        let slice = std::slice::from_raw_parts(data, len);
+        let subs = tp_fonts::substitutions::get_font_substitutions(slice);
+        if subs.is_empty() {
+            return ptr::null_mut();
+        }
 
-    let features: Vec<String> = subs.iter().map(|f| {
-        let entries: Vec<String> = f.entries.iter().map(|e| {
-            let input: Vec<String> = e.input_glyphs.iter().map(|g| g.to_string()).collect();
-            let output: Vec<String> = e.output_glyphs.iter().map(|g| g.to_string()).collect();
-            let out_names: Vec<String> = e.output_glyph_names.iter()
-                .map(|n| format!("\"{}\"", n.replace('\\', "\\\\").replace('"', "\\\"")))
-                .collect();
-            format!(
-                "{{\"kind\":\"{}\",\"input\":[{}],\"output\":[{}],\"input_text\":\"{}\",\"output_names\":[{}],\"backtrack_text\":\"{}\",\"lookahead_text\":\"{}\"}}",
-                e.kind,
-                input.join(","),
-                output.join(","),
-                e.input_text.replace('\\', "\\\\").replace('"', "\\\""),
-                out_names.join(","),
-                e.backtrack_text.replace('\\', "\\\\").replace('"', "\\\""),
-                e.lookahead_text.replace('\\', "\\\\").replace('"', "\\\""),
-            )
+        let features: Vec<serde_json::Value> = subs.iter().map(|f| {
+            let entries: Vec<serde_json::Value> = f.entries.iter().map(|e| {
+                serde_json::json!({
+                    "kind": e.kind,
+                    "input": e.input_glyphs,
+                    "output": e.output_glyphs,
+                    "input_text": e.input_text,
+                    "output_names": e.output_glyph_names,
+                    "backtrack_text": e.backtrack_text,
+                    "lookahead_text": e.lookahead_text,
+                })
+            }).collect();
+            serde_json::json!({
+                "tag": f.feature_tag,
+                "entries": entries,
+                "output_glyphs": f.output_glyphs,
+            })
         }).collect();
-        let out_glyphs: Vec<String> = f.output_glyphs.iter()
-            .map(|n| format!("\"{}\"", n.replace('\\', "\\\\").replace('"', "\\\"")))
-            .collect();
-        format!(
-            "{{\"tag\":\"{}\",\"entries\":[{}],\"output_glyphs\":[{}]}}",
-            f.feature_tag,
-            entries.join(","),
-            out_glyphs.join(","),
-        )
-    }).collect();
-    string_to_c(format!("[{}]", features.join(",")))
+        string_to_c(serde_json::Value::Array(features).to_string())
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -443,21 +458,15 @@ unsafe fn free_c_str(ptr: *mut c_char) {
 }
 
 fn serde_axes_json(info: &tp_fonts::font_info::FontInfo) -> String {
-    let items: Vec<String> = info.axes.iter().map(|a| {
+    let items: Vec<serde_json::Value> = info.axes.iter().map(|a| {
         let tag = std::str::from_utf8(&a.tag).unwrap_or("????");
-        format!(
-            "{{\"tag\":\"{}\",\"min\":{},\"default\":{},\"max\":{}}}",
-            tag, a.min, a.default, a.max
-        )
+        serde_json::json!({"tag": tag, "min": a.min, "default": a.default, "max": a.max})
     }).collect();
-    format!("[{}]", items.join(","))
+    serde_json::Value::Array(items).to_string()
 }
 
 fn serde_features_json(info: &tp_fonts::font_info::FontInfo) -> String {
-    let items: Vec<String> = info.features.iter()
-        .map(|f| format!("\"{}\"", f))
-        .collect();
-    format!("[{}]", items.join(","))
+    serde_json::json!(info.features).to_string()
 }
 
 #[cfg(test)]

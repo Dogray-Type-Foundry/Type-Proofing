@@ -644,6 +644,11 @@ pub fn cached_measure(
 
     {
         let mut cache = global_shaping_cache().lock().unwrap();
+        // Bounded like the engine's filter/sampling caches: each entry holds a
+        // fully measured vocabulary, so unbounded growth is real memory.
+        if cache.len() >= 16 {
+            cache.clear();
+        }
         cache.insert(cache_key.clone(), Arc::clone(&arc));
     }
 

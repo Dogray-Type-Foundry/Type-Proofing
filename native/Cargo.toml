@@ -2,11 +2,13 @@
 members = ["tp-fonts", "tp-bridge", "wordsiv"]
 resolver = "2"
 
+# panic stays "unwind" (the default) so the catch_unwind guards at the
+# tp-bridge FFI entry points can turn a panic on a malformed user font into a
+# null return instead of killing the whole app.
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
-panic = "abort"
 strip = "symbols"
 
 [workspace.dependencies]

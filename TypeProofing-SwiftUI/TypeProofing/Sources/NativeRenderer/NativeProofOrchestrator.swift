@@ -92,7 +92,10 @@ struct NativeProofOrchestrator {
         var fontDataList: [FontRenderData] = []
         for (fontIndex, fontPath) in config.fontPaths.enumerated() {
             if isCancelled() { break }
-            guard let (charset, cat) = charsetAndCategories(fontPath: fontPath) else { continue }
+            guard let (charset, cat) = charsetAndCategories(fontPath: fontPath) else {
+                collector.error("Failed to read font file", fontPath: fontPath)
+                continue
+            }
             let axisCombinations = buildAxisCombinations(config: config, fontPath: fontPath)
             fontDataList.append(FontRenderData(
                 fontPath: fontPath, fontIndex: fontIndex,

@@ -264,7 +264,7 @@ final class ProofEngine: ObservableObject {
 
     // MARK: - Proof Generation
 
-    func generateProof(config: ProofConfig) async -> (path: String, sections: [ProofSection])? {
+    func generateProof(config: ProofConfig) async -> (path: String, sections: [ProofSection], wasCancelled: Bool)? {
         isGenerating = true
         errorMessage = nil
         diagnostics.removeAll()
@@ -302,7 +302,7 @@ final class ProofEngine: ObservableObject {
 
         lastPDFPath = result.path
         generationProgress = nil
-        return (path: result.path, sections: result.sections)
+        return (path: result.path, sections: result.sections, wasCancelled: wasCancelled)
     }
 
     func cancelGeneration() {
