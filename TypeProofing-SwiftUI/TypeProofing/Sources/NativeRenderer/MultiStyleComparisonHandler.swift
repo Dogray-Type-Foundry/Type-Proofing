@@ -21,7 +21,10 @@ struct MultiStyleComparisonHandler: ProofHandler {
         let mergedCat = buildMergedCategories(fontPaths: allFonts)
         let categories = CharacterCategorizer.proofCategories(from: mergedCat)
 
-        let sections = enabledSections(categories: categories, settings: context.proofSettings)
+        let sections = enabledCategorySections(
+            categories: categories, settings: context.proofSettings,
+            labels: ["Uppercase", "Lowercase", "Numbers & Symbols", "Punctuation", "Accented"]
+        )
         let customText = settingsValue(makeSettingsKey("customText"), default: "", from: context.proofSettings) as String
 
         var textGroups: [(String, String)] = []
@@ -279,30 +282,4 @@ struct MultiStyleComparisonHandler: ProofHandler {
         return settings[key] as? Bool ?? true
     }
 
-    private func enabledSections(
-        categories: CharacterCategorizer.ProofCategories,
-        settings: [String: Any]
-    ) -> [(String, String)] {
-        let mapping: [(String, String, String)] = [
-            ("uppercase_base", "Uppercase", categories.uppercaseBase),
-            ("lowercase_base", "Lowercase", categories.lowercaseBase),
-            ("numbers_symbols", "Numbers & Symbols", categories.numbersSymbols),
-            ("punctuation", "Punctuation", categories.punctuation),
-            ("accented", "Accented", categories.accented),
-        ]
-
-        let defaults: [String: Bool] = [
-            "uppercase_base": true,
-            "lowercase_base": true,
-            "numbers_symbols": true,
-            "punctuation": true,
-            "accented": false,
-        ]
-
-        return mapping.compactMap { key, label, charset in
-            let settingsKey = makeSettingsKey("cat", key)
-            let enabled = settings[settingsKey] as? Bool ?? defaults[key] ?? true
-            return enabled ? (label, charset) : nil
-        }
-    }
 }

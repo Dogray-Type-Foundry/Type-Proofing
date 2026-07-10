@@ -33,11 +33,9 @@ struct OTFeature: Identifiable, Codable {
     var enabled: Bool
 }
 
-struct SubstitutionFeature: Identifiable, Codable {
-    let id: String
-    var tag: String
-    var enabled: Bool
-}
+/// Substitution features are just OT features surfaced by the GSUB scan —
+/// same shape, same persistence format.
+typealias SubstitutionFeature = OTFeature
 
 struct CategorySettings: Codable {
     var uppercaseBase: Bool = true
@@ -238,9 +236,6 @@ final class ProofState: ObservableObject {
 final class PreviewState: ObservableObject {
     @Published var previewPDFPath: String?
     @Published var previewSections: [ProofSection] = []
-    @Published var previewNavigationRequest: PreviewNavigationRequest?
-    @Published var currentPDFPath: String?
-    @Published var proofSections: [ProofSection] = []
     @Published var finalPDFPath: String?
     @Published var finalSections: [ProofSection] = []
     @Published var finalGeneratedConfigFingerprint: String?
@@ -431,11 +426,8 @@ final class AppState: ObservableObject {
     }
 
     private func clearGeneratedOutput() {
-        preview.currentPDFPath = nil
-        preview.proofSections = []
         preview.previewPDFPath = nil
         preview.previewSections = []
-        preview.previewNavigationRequest = nil
         preview.finalPDFPath = nil
         preview.finalSections = []
         preview.finalGeneratedConfigFingerprint = nil

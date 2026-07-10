@@ -5,6 +5,12 @@ extension Color {
     static let dograyPurple = Color(red: 0.380, green: 0, blue: 0.878)
 }
 
+/// Every font file type the app can load. Shared so the pickers can't drift
+/// (the two previous inline lists disagreed: woff/woff2 vs ttc).
+let fontFileContentTypes: [UTType] = ["otf", "ttf", "ttc", "woff", "woff2"].map {
+    UTType(filenameExtension: $0) ?? .data
+}
+
 struct ContentView: View {
     @EnvironmentObject var engine: ProofEngine
     @EnvironmentObject var state: AppState
@@ -63,12 +69,7 @@ struct ContentView: View {
         }
         .fileImporter(
             isPresented: $ui.showFontPicker,
-            allowedContentTypes: [
-                UTType(filenameExtension: "otf") ?? .data,
-                UTType(filenameExtension: "ttf") ?? .data,
-                UTType(filenameExtension: "woff") ?? .data,
-                UTType(filenameExtension: "woff2") ?? .data,
-            ],
+            allowedContentTypes: fontFileContentTypes,
             allowsMultipleSelection: true
         ) { result in
             if case .success(let urls) = result {
@@ -132,7 +133,6 @@ struct ContentView: View {
                         PDFCanvasView(
                             pdfPath: pdfPath,
                             sections: preview.previewSections,
-                            navigationRequest: preview.previewNavigationRequest,
                             pdfCoordinator: pdfCoordinator
                         )
                     case .grid:

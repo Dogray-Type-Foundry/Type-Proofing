@@ -55,21 +55,11 @@ struct StandardTextProofHandler: ProofHandler {
         } else {
             textContent = TextGeneration.generateTextProofString(
                 characterSet: characterSet,
-                paragraphs: params.paragraphs,
+                params: params,
+                context: context,
                 forceWordsiv: config.forceWordsiv,
-                cat: context.cat,
-                fullCharacterSet: context.fullCharacterSet,
                 language: config.language,
-                hoeflerStyle: config.hoeflerStyle,
-                generativeLanguage: params.generativeLanguage,
-                wordDiversity: params.wordDiversity,
-                vocabularySize: params.vocabularySize,
-                minWordLength: params.minWordLength,
-                maxWordLength: params.maxWordLength,
-                biasChars: params.biasChars,
-                biasStrength: params.biasStrength,
-                wordsPerSentence: params.wordsPerSentence,
-                sentencesPerParagraph: params.sentencesPerParagraph
+                hoeflerStyle: config.hoeflerStyle
             )
         }
 
@@ -179,21 +169,11 @@ struct StandardTextProofHandler: ProofHandler {
 
         let textContent = TextGeneration.generateTextProofString(
             characterSet: characterSet,
-            paragraphs: params.paragraphs,
+            params: params,
+            context: context,
             forceWordsiv: config.forceWordsiv,
-            cat: context.cat,
-            fullCharacterSet: context.fullCharacterSet,
             language: config.language,
-            hoeflerStyle: config.hoeflerStyle,
-            generativeLanguage: params.generativeLanguage,
-            wordDiversity: params.wordDiversity,
-            vocabularySize: params.vocabularySize,
-            minWordLength: params.minWordLength,
-            maxWordLength: params.maxWordLength,
-            biasChars: params.biasChars,
-            biasStrength: params.biasStrength,
-            wordsPerSentence: params.wordsPerSentence,
-            sentencesPerParagraph: params.sentencesPerParagraph
+            hoeflerStyle: config.hoeflerStyle
         )
         if textContent.isEmpty {
             context.diagnostics.debug("Text generation produced empty content",

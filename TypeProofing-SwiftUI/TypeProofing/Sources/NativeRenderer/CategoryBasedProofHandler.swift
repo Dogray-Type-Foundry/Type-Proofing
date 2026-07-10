@@ -11,7 +11,7 @@ struct FilteredCharacterSetHandler: ProofHandler {
         let categories = CharacterCategorizer.proofCategories(from: context.cat)
         let autoSize = settingsValue(makeSettingsKey("autoSize"), default: false, from: context.proofSettings)
 
-        let sections = enabledSections(categories: categories, settings: context.proofSettings)
+        let sections = enabledCategorySections(categories: categories, settings: context.proofSettings)
         for (label, charset) in sections {
             if charset.isEmpty { continue }
 
@@ -65,32 +65,6 @@ struct FilteredCharacterSetHandler: ProofHandler {
         }
     }
 
-    private func enabledSections(
-        categories: CharacterCategorizer.ProofCategories,
-        settings: [String: Any]
-    ) -> [(String, String)] {
-        let mapping: [(String, String, String)] = [
-            ("uppercase_base", "Uppercase Base", categories.uppercaseBase),
-            ("lowercase_base", "Lowercase Base", categories.lowercaseBase),
-            ("numbers_symbols", "Numbers & Symbols", categories.numbersSymbols),
-            ("punctuation", "Punctuation", categories.punctuation),
-            ("accented", "Accented Characters", categories.accented),
-        ]
-
-        let defaults: [String: Bool] = [
-            "uppercase_base": true,
-            "lowercase_base": true,
-            "numbers_symbols": true,
-            "punctuation": true,
-            "accented": false,
-        ]
-
-        return mapping.compactMap { key, label, charset in
-            let settingsKey = makeSettingsKey("cat", key)
-            let enabled = settings[settingsKey] as? Bool ?? defaults[key] ?? true
-            return enabled ? (label, charset) : nil
-        }
-    }
 }
 
 struct SpacingProofHandler: ProofHandler {
@@ -101,7 +75,7 @@ struct SpacingProofHandler: ProofHandler {
         let params = resolveParams(from: context, defaultCols: 2)
         let categories = CharacterCategorizer.proofCategories(from: context.cat)
 
-        let sections = enabledSections(categories: categories, settings: context.proofSettings)
+        let sections = enabledCategorySections(categories: categories, settings: context.proofSettings)
         for (label, charset) in sections {
             if charset.isEmpty { continue }
 
@@ -152,30 +126,4 @@ struct SpacingProofHandler: ProofHandler {
         }
     }
 
-    private func enabledSections(
-        categories: CharacterCategorizer.ProofCategories,
-        settings: [String: Any]
-    ) -> [(String, String)] {
-        let mapping: [(String, String, String)] = [
-            ("uppercase_base", "Uppercase Base", categories.uppercaseBase),
-            ("lowercase_base", "Lowercase Base", categories.lowercaseBase),
-            ("numbers_symbols", "Numbers & Symbols", categories.numbersSymbols),
-            ("punctuation", "Punctuation", categories.punctuation),
-            ("accented", "Accented Characters", categories.accented),
-        ]
-
-        let defaults: [String: Bool] = [
-            "uppercase_base": true,
-            "lowercase_base": true,
-            "numbers_symbols": true,
-            "punctuation": true,
-            "accented": false,
-        ]
-
-        return mapping.compactMap { key, label, charset in
-            let settingsKey = makeSettingsKey("cat", key)
-            let enabled = settings[settingsKey] as? Bool ?? defaults[key] ?? true
-            return enabled ? (label, charset) : nil
-        }
-    }
 }

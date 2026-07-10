@@ -179,7 +179,7 @@ class PDFViewCoordinator: ObservableObject {
     /// Loads the document off the main thread and applies it when ready, so a
     /// regenerated preview never stalls the UI on `PDFDocument(url:)`. A load
     /// that finishes after a newer path was requested is discarded.
-    func loadDocument(path: String, sections: [ProofSection], navigationRequest: PreviewNavigationRequest?) {
+    func loadDocument(path: String, sections: [ProofSection]) {
         guard requestedPDFPath != path else { return }
         requestedPDFPath = path
         let url = URL(fileURLWithPath: path)
@@ -196,7 +196,6 @@ class PDFViewCoordinator: ObservableObject {
                 self.restore(in: document, sections: sections)
                 self.updateThumbnails(document: document, sections: sections)
                 self.sections = sections
-                self.handleNavigation(navigationRequest, in: document)
             }
         }
     }
@@ -208,7 +207,6 @@ class PDFViewCoordinator: ObservableObject {
 struct PDFCanvasView: NSViewRepresentable {
     let pdfPath: String?
     let sections: [ProofSection]
-    let navigationRequest: PreviewNavigationRequest?
     let pdfCoordinator: PDFViewCoordinator
 
     func makeNSView(context: Context) -> PDFView {
@@ -226,11 +224,10 @@ struct PDFCanvasView: NSViewRepresentable {
         pdfCoordinator.lateBindScrollObservers()
         if let path = pdfPath {
             if pdfCoordinator.lastLoadedPDFPath != path {
-                pdfCoordinator.loadDocument(path: path, sections: sections, navigationRequest: navigationRequest)
+                pdfCoordinator.loadDocument(path: path, sections: sections)
             } else if let document = pdfView.document {
                 pdfCoordinator.updateThumbnails(document: document, sections: sections)
                 pdfCoordinator.sections = sections
-                pdfCoordinator.handleNavigation(navigationRequest, in: document)
             }
         } else {
             pdfView.document = nil

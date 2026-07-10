@@ -38,12 +38,4 @@ class PDFRenderer {
         context.setLineWidth(width)
         context.strokeLineSegments(between: [from, to])
     }
-
-    func saveGState() {
-        context.saveGState()
-    }
-
-    func restoreGState() {
-        context.restoreGState()
-    }
 }

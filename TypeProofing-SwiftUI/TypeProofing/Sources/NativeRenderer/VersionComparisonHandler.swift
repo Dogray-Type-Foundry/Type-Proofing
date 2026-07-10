@@ -90,21 +90,11 @@ struct VersionComparisonHandler: ProofHandler {
         let characterSet = context.cat.resolveCharacterSet(forKey: charsetKey)
         return TextGeneration.generateTextProofString(
             characterSet: characterSet,
-            paragraphs: params.paragraphs,
+            params: params,
+            context: context,
             forceWordsiv: config?.forceWordsiv ?? true,
-            cat: context.cat,
-            fullCharacterSet: context.fullCharacterSet,
             language: config?.language,
-            hoeflerStyle: config?.hoeflerStyle ?? false,
-            generativeLanguage: params.generativeLanguage,
-            wordDiversity: params.wordDiversity,
-            vocabularySize: params.vocabularySize,
-            minWordLength: params.minWordLength,
-            maxWordLength: params.maxWordLength,
-            biasChars: params.biasChars,
-            biasStrength: params.biasStrength,
-            wordsPerSentence: params.wordsPerSentence,
-            sentencesPerParagraph: params.sentencesPerParagraph
+            hoeflerStyle: config?.hoeflerStyle ?? false
         )
     }
 

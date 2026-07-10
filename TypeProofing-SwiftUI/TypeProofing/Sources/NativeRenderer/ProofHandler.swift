@@ -165,6 +165,31 @@ extension ProofHandler {
         ([proofKey] + parts).joined(separator: "_")
     }
 
+    /// The category sections the user left enabled, as (label, charset) pairs.
+    /// Shared by the character-set, spacing, and multi-style handlers, which
+    /// previously carried three verbatim copies. `labels` overrides the five
+    /// default section titles positionally.
+    func enabledCategorySections(
+        categories: CharacterCategorizer.ProofCategories,
+        settings: [String: Any],
+        labels: [String]? = nil
+    ) -> [(String, String)] {
+        let mapping: [(key: String, label: String, charset: String, defaultEnabled: Bool)] = [
+            ("uppercase_base", "Uppercase Base", categories.uppercaseBase, true),
+            ("lowercase_base", "Lowercase Base", categories.lowercaseBase, true),
+            ("numbers_symbols", "Numbers & Symbols", categories.numbersSymbols, true),
+            ("punctuation", "Punctuation", categories.punctuation, true),
+            ("accented", "Accented Characters", categories.accented, false),
+        ]
+
+        return mapping.enumerated().compactMap { index, entry in
+            let settingsKey = makeSettingsKey("cat", entry.key)
+            let enabled = settings[settingsKey] as? Bool ?? entry.defaultEnabled
+            let label = labels?[index] ?? entry.label
+            return enabled ? (label, entry.charset) : nil
+        }
+    }
+
     func settingsValue<T>(_ key: String, default defaultValue: T, from settings: [String: Any]) -> T {
         settings[key] as? T ?? defaultValue
     }

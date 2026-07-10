@@ -135,8 +135,6 @@ struct SidebarView: View {
         if let result = await engine.generateProof(config: config) {
             preview.finalPDFPath = result.path
             preview.finalSections = result.sections
-            preview.currentPDFPath = result.path
-            preview.proofSections = result.sections
             if preview.previewPDFPath == nil {
                 preview.previewPDFPath = result.path
                 preview.previewSections = result.sections

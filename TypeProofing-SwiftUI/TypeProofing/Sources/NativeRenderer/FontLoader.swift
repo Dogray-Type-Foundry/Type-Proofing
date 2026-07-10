@@ -75,42 +75,6 @@ struct FontLoader {
         return CTFontGetGlyphsForCharacters(font, utf16, &glyphs, utf16.count)
     }
 
-    static func drawGlyphsByName(
-        _ glyphNames: [String],
-        font: CTFont,
-        in rect: CGRect,
-        context: CGContext,
-        tracking: CGFloat = 0
-    ) {
-        var glyphs: [CGGlyph] = []
-        for name in glyphNames {
-            let glyph = CTFontGetGlyphWithName(font, name as CFString)
-            if glyph != 0 { glyphs.append(glyph) }
-        }
-        if glyphs.isEmpty { return }
-
-        var advances = [CGSize](repeating: .zero, count: glyphs.count)
-        CTFontGetAdvancesForGlyphs(font, .horizontal, glyphs, &advances, glyphs.count)
-
-        let ascent = CTFontGetAscent(font)
-        var x = rect.minX
-        let y = rect.minY + (rect.height - ascent) / 2 + ascent * 0.1
-
-        context.saveGState()
-        context.textMatrix = .identity
-        context.setFillColor(CGColor(gray: 0, alpha: 1))
-
-        for (i, glyph) in glyphs.enumerated() {
-            if x > rect.maxX { break }
-            var g = glyph
-            var pos = CGPoint(x: x, y: y)
-            CTFontDrawGlyphs(font, &g, &pos, 1, context)
-            x += advances[i].width + tracking
-        }
-
-        context.restoreGState()
-    }
-
     static func drawGlyphsByID(
         _ glyphIDs: [UInt16],
         font: CTFont,

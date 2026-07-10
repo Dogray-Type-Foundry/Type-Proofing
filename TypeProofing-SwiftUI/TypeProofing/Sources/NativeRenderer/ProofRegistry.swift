@@ -35,7 +35,6 @@ struct ProofRegistryInfo {
 	let key: String
 	let displayName: String
 	let isArabic: Bool
-	let hasSettings: Bool
 	let defaultCols: Int
 	let hasParagraphs: Bool
 	let defaultSize: Int
@@ -85,7 +84,7 @@ struct ProofRegistry {
 		) {
 			map[key] = ProofRegistryInfo(
 				key: key, displayName: name, isArabic: arabic,
-				hasSettings: true, defaultCols: cols, hasParagraphs: paras,
+				defaultCols: cols, hasParagraphs: paras,
 				defaultSize: size, hasCustomText: customText, hasCategories: categories,
 				multiStyle: multiStyle, defaultEnabled: enabled, textConfig: text
 			)

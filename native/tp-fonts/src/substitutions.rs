@@ -9,7 +9,6 @@ static SKIPPED_FEATURES: &[&str] = &[
 
 #[derive(Debug, Clone)]
 pub struct SubstitutionEntry {
-    pub feature_tag: String,
     pub kind: &'static str,
     pub input_glyphs: Vec<u16>,
     pub output_glyphs: Vec<u16>,
@@ -69,7 +68,6 @@ pub fn get_font_substitutions(data: &[u8]) -> Vec<SubstitutionFeature> {
             if let Ok(lookup) = lookup_list.lookups().get(idx) {
                 let new_entries = extract_lookup_entries(
                     &lookup,
-                    &tag,
                     &lookup_list,
                     idx,
                     &glyph_to_char,
@@ -112,7 +110,6 @@ const MAX_NESTED_LOOKUP_DEPTH: usize = 8;
 
 fn extract_lookup_entries(
     lookup: &read_fonts::tables::gsub::SubstitutionLookup,
-    tag: &str,
     lookup_list: &read_fonts::tables::gsub::SubstitutionLookupList,
     source_index: usize,
     glyph_to_char: &HashMap<u16, char>,
@@ -135,14 +132,14 @@ fn extract_lookup_entries(
         SubstitutionSubtables::Single(subs) => {
             for subtable in subs.iter() {
                 if let Ok(single) = subtable {
-                    extract_single(&single, tag, glyph_to_char, glyph_to_name, &mut entries);
+                    extract_single(&single, glyph_to_char, glyph_to_name, &mut entries);
                 }
             }
         }
         SubstitutionSubtables::Ligature(subs) => {
             for subtable in subs.iter() {
                 if let Ok(lig) = subtable {
-                    extract_ligature(&lig, tag, glyph_to_char, glyph_to_name, &mut entries);
+                    extract_ligature(&lig, glyph_to_char, glyph_to_name, &mut entries);
                 }
             }
         }
@@ -150,7 +147,7 @@ fn extract_lookup_entries(
             for subtable in subs.iter() {
                 if let Ok(chain) = subtable {
                     extract_chain_context(
-                        &chain, tag, lookup_list, source_index,
+                        &chain, lookup_list, source_index,
                         glyph_to_char, glyph_to_name, &mut entries, depth,
                     );
                 }
@@ -168,7 +165,6 @@ fn glyphs_to_text(gids: &[u16], glyph_to_char: &HashMap<u16, char>) -> String {
 
 fn extract_chain_context(
     chain: &read_fonts::tables::layout::ChainedSequenceContext,
-    tag: &str,
     lookup_list: &read_fonts::tables::gsub::SubstitutionLookupList,
     source_index: usize,
     glyph_to_char: &HashMap<u16, char>,
@@ -180,7 +176,7 @@ fn extract_chain_context(
 
     match chain {
         ChainedSequenceContext::Format1(f) => {
-            extract_chain_format1_records(f, lookup_list, tag, source_index, glyph_to_char, glyph_to_name, entries, depth);
+            extract_chain_format1_records(f, lookup_list, source_index, glyph_to_char, glyph_to_name, entries, depth);
         }
         ChainedSequenceContext::Format2(_) => {}
         ChainedSequenceContext::Format3(f) => {
@@ -194,7 +190,7 @@ fn extract_chain_context(
                 .map(|cov| cov.iter().map(|g| g.to_u32() as u16).collect())
                 .collect();
             collect_nested_entries_fmt3(
-                f.seq_lookup_records(), tag, lookup_list, source_index,
+                f.seq_lookup_records(), lookup_list, source_index,
                 glyph_to_char, glyph_to_name,
                 &bt_cov_gids, &la_cov_gids, entries, depth,
             );
@@ -224,7 +220,6 @@ fn pick_context_text(
 
 fn collect_nested_entries_fmt3(
     records: &[read_fonts::tables::layout::SequenceLookupRecord],
-    tag: &str,
     lookup_list: &read_fonts::tables::gsub::SubstitutionLookupList,
     source_index: usize,
     glyph_to_char: &HashMap<u16, char>,
@@ -239,7 +234,7 @@ fn collect_nested_entries_fmt3(
         if nested_idx == source_index { continue; }
         if let Ok(nested_lookup) = lookup_list.lookups().get(nested_idx) {
             let nested = extract_lookup_entries(
-                &nested_lookup, tag, lookup_list, nested_idx,
+                &nested_lookup, lookup_list, nested_idx,
                 glyph_to_char, glyph_to_name, depth + 1,
             );
             for mut e in nested {
@@ -259,7 +254,6 @@ fn collect_nested_entries_fmt3(
 
 fn collect_nested_entries(
     records: &[read_fonts::tables::layout::SequenceLookupRecord],
-    tag: &str,
     lookup_list: &read_fonts::tables::gsub::SubstitutionLookupList,
     source_index: usize,
     glyph_to_char: &HashMap<u16, char>,
@@ -276,7 +270,7 @@ fn collect_nested_entries(
         }
         if let Ok(nested_lookup) = lookup_list.lookups().get(nested_idx) {
             let nested = extract_lookup_entries(
-                &nested_lookup, tag, lookup_list, nested_idx,
+                &nested_lookup, lookup_list, nested_idx,
                 glyph_to_char, glyph_to_name, depth + 1,
             );
             for mut e in nested {
@@ -296,7 +290,6 @@ fn collect_nested_entries(
 fn extract_chain_format1_records(
     f1: &read_fonts::tables::layout::ChainedSequenceContextFormat1,
     lookup_list: &read_fonts::tables::gsub::SubstitutionLookupList,
-    tag: &str,
     source_index: usize,
     glyph_to_char: &HashMap<u16, char>,
     glyph_to_name: &HashMap<u16, String>,
@@ -334,7 +327,7 @@ fn extract_chain_format1_records(
             let la = glyphs_to_text(&lookahead_gids, glyph_to_char);
 
             collect_nested_entries(
-                rule.seq_lookup_records(), tag, lookup_list, source_index,
+                rule.seq_lookup_records(), lookup_list, source_index,
                 glyph_to_char, glyph_to_name, &bt, &la, entries, depth,
             );
         }
@@ -343,7 +336,6 @@ fn extract_chain_format1_records(
 
 fn extract_single(
     single: &read_fonts::tables::gsub::SingleSubst,
-    tag: &str,
     glyph_to_char: &HashMap<u16, char>,
     glyph_to_name: &HashMap<u16, String>,
     entries: &mut Vec<SubstitutionEntry>,
@@ -358,7 +350,7 @@ fn extract_single(
                     let input_raw = input_gid.to_u32() as u16;
                     let output_raw = (input_raw as i32 + delta as i32) as u16;
                     entries.push(make_entry(
-                        tag, "single",
+                        "single",
                         vec![input_raw], vec![output_raw],
                         glyph_to_char, glyph_to_name,
                     ));
@@ -372,7 +364,7 @@ fn extract_single(
                     let input_raw = input_gid.to_u32() as u16;
                     let output_raw = output_be.get().to_u32() as u16;
                     entries.push(make_entry(
-                        tag, "single",
+                        "single",
                         vec![input_raw], vec![output_raw],
                         glyph_to_char, glyph_to_name,
                     ));
@@ -384,7 +376,6 @@ fn extract_single(
 
 fn extract_ligature(
     lig_subst: &read_fonts::tables::gsub::LigatureSubstFormat1,
-    tag: &str,
     glyph_to_char: &HashMap<u16, char>,
     glyph_to_name: &HashMap<u16, String>,
     entries: &mut Vec<SubstitutionEntry>,
@@ -413,7 +404,7 @@ fn extract_ligature(
             let output_raw = ligature.ligature_glyph().to_u32() as u16;
 
             entries.push(make_entry(
-                tag, "ligature",
+                "ligature",
                 input_glyphs, vec![output_raw],
                 glyph_to_char, glyph_to_name,
             ));
@@ -422,7 +413,6 @@ fn extract_ligature(
 }
 
 fn make_entry(
-    tag: &str,
     kind: &'static str,
     input_glyphs: Vec<u16>,
     output_glyphs: Vec<u16>,
@@ -445,7 +435,6 @@ fn make_entry(
         .collect();
 
     SubstitutionEntry {
-        feature_tag: tag.to_string(),
         kind,
         input_glyphs,
         output_glyphs,
@@ -461,7 +450,6 @@ fn dedupe_entries(entries: Vec<SubstitutionEntry>) -> Vec<SubstitutionEntry> {
     let mut result = Vec::new();
     for entry in entries {
         let key = (
-            entry.feature_tag.clone(),
             entry.kind,
             entry.input_glyphs.clone(),
             entry.output_glyphs.clone(),

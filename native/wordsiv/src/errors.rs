@@ -6,7 +6,6 @@ pub enum WordsivError {
     VocabEmpty(String),
     VocabFormat(String),
     Value(String),
-    Index(String),
 }
 
 impl fmt::Display for WordsivError {
@@ -16,7 +15,6 @@ impl fmt::Display for WordsivError {
             Self::VocabEmpty(msg) => write!(f, "VocabEmptyError: {}", msg),
             Self::VocabFormat(msg) => write!(f, "VocabFormatError: {}", msg),
             Self::Value(msg) => write!(f, "ValueError: {}", msg),
-            Self::Index(msg) => write!(f, "IndexError: {}", msg),
         }
     }
 }

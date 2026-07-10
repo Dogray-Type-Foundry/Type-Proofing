@@ -666,11 +666,7 @@ struct BaselineFontSection: View {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [
-            UTType(filenameExtension: "otf") ?? .data,
-            UTType(filenameExtension: "ttf") ?? .data,
-            UTType(filenameExtension: "ttc") ?? .data,
-        ]
+        panel.allowedContentTypes = fontFileContentTypes
         guard panel.runModal() == .OK, let url = panel.url else { return }
         _ = url.startAccessingSecurityScopedResource()
         baselineFontPath = url.path

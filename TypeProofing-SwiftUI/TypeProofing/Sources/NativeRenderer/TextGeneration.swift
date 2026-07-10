@@ -16,6 +16,36 @@ struct TextGeneration {
     // pressure and is thread-safe for the concurrent preview queue.
     private static let textCache = NSCache<NSString, NSString>()
 
+    /// Convenience overload for the handlers' common call shape — the ten
+    /// generation knobs all come straight from ProofParams/ProofContext.
+    static func generateTextProofString(
+        characterSet: String,
+        params: ProofParams,
+        context: ProofContext,
+        forceWordsiv: Bool = false,
+        language: String? = nil,
+        hoeflerStyle: Bool = false
+    ) -> String {
+        generateTextProofString(
+            characterSet: characterSet,
+            paragraphs: params.paragraphs,
+            forceWordsiv: forceWordsiv,
+            cat: context.cat,
+            fullCharacterSet: context.fullCharacterSet,
+            language: language,
+            hoeflerStyle: hoeflerStyle,
+            generativeLanguage: params.generativeLanguage,
+            wordDiversity: params.wordDiversity,
+            vocabularySize: params.vocabularySize,
+            minWordLength: params.minWordLength,
+            maxWordLength: params.maxWordLength,
+            biasChars: params.biasChars,
+            biasStrength: params.biasStrength,
+            wordsPerSentence: params.wordsPerSentence,
+            sentencesPerParagraph: params.sentencesPerParagraph
+        )
+    }
+
     static func generateTextProofString(
         characterSet: String,
         paragraphs: Int = 2,

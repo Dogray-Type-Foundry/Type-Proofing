@@ -46,7 +46,6 @@ struct ProofRegistryEntry {
     let key: String
     let displayName: String
     let isArabic: Bool
-    let hasSettings: Bool
     let defaultColumns: Int
     let hasParagraphs: Bool
     let defaultParagraphs: Int
@@ -59,13 +58,9 @@ struct ProofRegistryEntry {
     let previewCost: ProofCost
     let hasTextConfig: Bool
 
-    /// Proofs that don't support tracking/alignment (character-set style proofs)
+    /// Proofs that don't support tracking/alignment/line height
+    /// (character-set style proofs)
     private static let noFormattingKeys: Set<String> = [
-        "filtered_character_set", "spacing_proof", "ar_character_set", "substitution_overview"
-    ]
-
-    /// Proofs that don't support line height
-    private static let noLineHeightKeys: Set<String> = [
         "filtered_character_set", "spacing_proof", "ar_character_set", "substitution_overview"
     ]
 
@@ -79,7 +74,7 @@ struct ProofRegistryEntry {
     }
 
     var supportsLineHeight: Bool {
-        !Self.noLineHeightKeys.contains(key)
+        !Self.noFormattingKeys.contains(key)
     }
 
     private static let hyphenationKeys: Set<String> = [
@@ -446,26 +441,6 @@ final class ProofEngine: ObservableObject {
         }
     }
 
-    func getFontAxes(path: String) -> [FontAxis] {
-        FontLoader.withFontBytes(path: path, fallback: []) { ptr, len -> [FontAxis] in
-            guard let infoPtr = tp_load_font(ptr, len) else { return [] }
-            defer { tp_free_font_info(infoPtr) }
-            let info = infoPtr.pointee
-            guard let json = info.axes_json else { return [] }
-            let jsonStr = String(cString: json)
-            guard let jsonData = jsonStr.data(using: .utf8),
-                  let array = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] else { return [] }
-            return array.compactMap { dict -> FontAxis? in
-                guard let tag = dict["tag"] as? String,
-                      let minVal = (dict["min"] as? NSNumber)?.doubleValue,
-                      let maxVal = (dict["max"] as? NSNumber)?.doubleValue,
-                      let defVal = (dict["default"] as? NSNumber)?.doubleValue else { return nil }
-                return FontAxis(id: tag, name: tag, minValue: minVal, maxValue: maxVal,
-                                defaultValue: defVal, currentValue: defVal, instanceValues: [])
-            }
-        }
-    }
-
     func getAvailableOTFeatures(path: String) -> [String] {
         FontLoader.withFontBytes(path: path, fallback: []) { ptr, len -> [String] in
             guard let infoPtr = tp_load_font(ptr, len) else { return [] }
@@ -494,7 +469,6 @@ final class ProofEngine: ObservableObject {
                 key: key,
                 displayName: info.displayName,
                 isArabic: info.isArabic,
-                hasSettings: info.hasSettings,
                 defaultColumns: info.defaultCols,
                 hasParagraphs: info.hasParagraphs,
                 defaultParagraphs: info.textConfig?.defaultParagraphs ?? (info.hasParagraphs ? 5 : 2),

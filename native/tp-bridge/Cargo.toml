@@ -9,5 +9,8 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 tp-fonts = { path = "../tp-fonts" }
-wordsiv = { path = "../wordsiv", default-features = false, features = ["shaping", "semantic"] }
+# No shaping/semantic: neither is reachable from the exposed FFI, and they
+# pull in harfrust, zip, memmap2, dirs, a second read-fonts version, and a
+# code path that would download 862 MB of embeddings via curl.
+wordsiv = { path = "../wordsiv", default-features = false }
 serde_json = "1"

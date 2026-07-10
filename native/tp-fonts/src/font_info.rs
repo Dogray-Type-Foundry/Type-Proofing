@@ -12,12 +12,6 @@ pub struct AxisInfo {
 }
 
 #[derive(Debug, Clone)]
-pub struct AxisInstances {
-    pub tag: [u8; 4],
-    pub values: Vec<f64>,
-}
-
-#[derive(Debug, Clone)]
 pub struct NamedInstanceRecord {
     pub name: String,
     pub coordinates: Vec<([u8; 4], f64)>,
@@ -34,7 +28,6 @@ pub struct FontInfo {
     pub slant: f64,
     pub optical_size: f64,
     pub axes: Vec<AxisInfo>,
-    pub axis_instances: Vec<AxisInstances>,
     pub features: Vec<String>,
 }
 
@@ -62,7 +55,7 @@ pub fn load_font_info(data: &[u8]) -> Option<FontInfo> {
     let is_italic = (fs_selection & SelectionFlags::ITALIC.bits()) != 0;
     let slant = if is_italic { -12.0 } else { 0.0 };
 
-    let (is_variable, axes, axis_instances, optical_size, slant) = match font.fvar() {
+    let (is_variable, axes, optical_size, slant) = match font.fvar() {
         Ok(fvar) => {
             let axis_records = fvar.axes().unwrap_or_default();
             let fvar_axes: Vec<AxisInfo> = axis_records
@@ -72,40 +65,6 @@ pub fn load_font_info(data: &[u8]) -> Option<FontInfo> {
                     min: a.min_value().to_f64(),
                     default: a.default_value().to_f64(),
                     max: a.max_value().to_f64(),
-                })
-                .collect();
-
-            let mut instances_map: std::collections::BTreeMap<[u8; 4], std::collections::BTreeSet<OrderedF64>> =
-                std::collections::BTreeMap::new();
-
-            for axis in &fvar_axes {
-                instances_map.entry(axis.tag).or_default();
-            }
-
-            if let Ok(named_instances) = fvar.instances() {
-                let axis_tags: Vec<[u8; 4]> = fvar_axes.iter().map(|a| a.tag).collect();
-                for i in 0..named_instances.len() {
-                    if let Ok(instance) = named_instances.get(i) {
-                        let coords = instance.coordinates;
-                        for (j, coord) in coords.iter().enumerate() {
-                            if let Some(tag) = axis_tags.get(j) {
-                                let val: read_fonts::types::Fixed = coord.get();
-                                instances_map
-                                    .entry(*tag)
-                                    .or_default()
-                                    .insert(OrderedF64(val.to_f64()));
-                            }
-                        }
-                    }
-                }
-            }
-
-            let axis_instances: Vec<AxisInstances> = instances_map
-                .into_iter()
-                .filter(|(_, vals)| !vals.is_empty())
-                .map(|(tag, vals)| AxisInstances {
-                    tag,
-                    values: vals.into_iter().map(|v| v.0).collect(),
                 })
                 .collect();
 
@@ -121,9 +80,9 @@ pub fn load_font_info(data: &[u8]) -> Option<FontInfo> {
                 .map(|a| a.default);
             let final_slant = slant_from_axis.unwrap_or(slant);
 
-            (true, fvar_axes, axis_instances, opsz, final_slant)
+            (true, fvar_axes, opsz, final_slant)
         }
-        Err(_) => (false, Vec::new(), Vec::new(), 0.0, slant),
+        Err(_) => (false, Vec::new(), 0.0, slant),
     };
 
     let features = extract_features(&font);
@@ -138,7 +97,6 @@ pub fn load_font_info(data: &[u8]) -> Option<FontInfo> {
         slant,
         optical_size,
         axes,
-        axis_instances,
         features,
     })
 }
@@ -198,23 +156,6 @@ fn extract_features(font: &FontRef) -> Vec<String> {
     tags.into_iter().collect()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct OrderedF64(f64);
-
-impl Eq for OrderedF64 {}
-
-impl PartialOrd for OrderedF64 {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for OrderedF64 {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.total_cmp(&other.0)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,7 +170,6 @@ mod tests {
         assert_eq!(info.weight, 400);
         assert!(!info.is_variable);
         assert!(info.axes.is_empty());
-        assert!(info.axis_instances.is_empty());
         assert!(info.features.contains(&"kern".to_string()));
     }
 
@@ -257,15 +197,6 @@ mod tests {
         assert_eq!(opsz.max, 32.0);
 
         assert_eq!(info.optical_size, opsz.default);
-
-        let wght_inst = info.axis_instances.iter().find(|a| &a.tag == b"wght").unwrap();
-        assert_eq!(
-            wght_inst.values,
-            vec![100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0]
-        );
-
-        let opsz_inst = info.axis_instances.iter().find(|a| &a.tag == b"opsz").unwrap();
-        assert_eq!(opsz_inst.values, vec![8.0, 14.0, 22.0, 32.0]);
 
         assert!(info.features.contains(&"kern".to_string()));
         assert!(info.features.contains(&"calt".to_string()));

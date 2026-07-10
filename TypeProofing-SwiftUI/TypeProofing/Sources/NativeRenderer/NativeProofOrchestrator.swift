@@ -103,7 +103,7 @@ struct NativeProofOrchestrator {
             ))
         }
 
-        let globalFeatures = buildGlobalOTFeatures(config: config)
+        let globalFeatures = buildGlobalOTFeatures()
 
         for (proofIndex, option) in enabledProofs.enumerated() {
             if isCancelled() { break }
@@ -195,7 +195,7 @@ struct NativeProofOrchestrator {
         }
 
         let proofKey = settingsKey(for: config.targetProofName, baseType: config.targetProofBaseType)
-        let globalFeatures = buildGlobalOTFeatures(config: config)
+        let globalFeatures = buildGlobalOTFeatures()
         let perProofFeatures = extractOTFeatures(proofKey: proofKey, settings: config.proofSettings)
         let otFeatures = perProofFeatures.isEmpty ? globalFeatures : perProofFeatures
 
@@ -326,7 +326,7 @@ struct NativeProofOrchestrator {
         return features
     }
 
-    private static func buildGlobalOTFeatures(config: ProofConfig) -> [String: Bool] {
+    private static func buildGlobalOTFeatures() -> [String: Bool] {
         var features: [String: Bool] = [:]
         for tag in DEFAULT_ON_FEATURES {
             features[tag] = true
