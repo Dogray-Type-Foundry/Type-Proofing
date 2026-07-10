@@ -156,7 +156,6 @@ final class ProofKeyTests: XCTestCase {
             key: "filtered_character_set",
             displayName: "Character Overview",
             isArabic: false,
-            hasSettings: true,
             defaultColumns: 1,
             hasParagraphs: false,
             defaultParagraphs: 2,
