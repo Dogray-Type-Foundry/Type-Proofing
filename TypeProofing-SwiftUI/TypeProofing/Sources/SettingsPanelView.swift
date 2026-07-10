@@ -589,6 +589,9 @@ struct PDFOutputSection: View {
             }
             .pickerStyle(.radioGroup)
             .labelsHidden()
+            .onChange(of: output.useCustomOutputLocation) { _ in
+                state.schedulePersistPublic(notifyPreview: false)
+            }
 
             if output.useCustomOutputLocation {
                 HStack {

@@ -27,6 +27,8 @@ build_app_local.sh
 *.otf
 *.pdf
 *.json
+# ...but bundled app resources must stay in version control
+!TypeProofing-SwiftUI/TypeProofing/Resources/**/*.json
 
 # Rust / native build artifacts
 native/target/

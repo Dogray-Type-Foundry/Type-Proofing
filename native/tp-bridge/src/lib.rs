@@ -473,7 +473,7 @@ mod tests {
             let glyphs = CString::new("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,;:!?-").unwrap();
             let sep = CString::new(" ").unwrap();
             let en = CString::new("en").unwrap();
-            let result = wsv_text(wsv, glyphs.as_ptr(), 2, 0.0, 0.0, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0);
+            let result = wsv_text(wsv, glyphs.as_ptr(), 2, 0.0, 0.0, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0, 0, 0);
             assert!(!result.is_null());
             let text = CStr::from_ptr(result).to_str().unwrap();
             assert!(!text.is_empty());
@@ -541,13 +541,13 @@ mod tests {
             let cap = CString::new("cap").unwrap();
 
             // Warm up
-            let r = wsv_text(wsv, latin.as_ptr(), 1, 0.0, 0.0, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0);
+            let r = wsv_text(wsv, latin.as_ptr(), 1, 0.0, 0.0, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0, 0, 0);
             wsv_free_string(r);
 
             // Bench: text generation (full charset)
             let t0 = Instant::now();
             for _ in 0..ITERS {
-                let r = wsv_text(wsv, latin.as_ptr(), 3, 0.1, 0.05, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0);
+                let r = wsv_text(wsv, latin.as_ptr(), 3, 0.1, 0.05, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0, 0, 0);
                 wsv_free_string(r);
             }
             let text_full = t0.elapsed();
@@ -555,7 +555,7 @@ mod tests {
             // Bench: text generation (restricted charset)
             let t0 = Instant::now();
             for _ in 0..ITERS {
-                let r = wsv_text(wsv, small.as_ptr(), 3, 0.0, 0.0, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0);
+                let r = wsv_text(wsv, small.as_ptr(), 3, 0.0, 0.0, sep.as_ptr(), en.as_ptr(), 0.0, 0, 1, 0, ptr::null(), 0.0, 0, 0);
                 wsv_free_string(r);
             }
             let text_small = t0.elapsed();

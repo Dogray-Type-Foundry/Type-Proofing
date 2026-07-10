@@ -32,7 +32,7 @@ final class NativeLibTests: XCTestCase {
 
         let glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,;:!?-"
         let sep = " "
-        let result = wsv_text(wsv, glyphs, 2, 0.0, 0.0, sep, "en", 0.0, 0, 1, 0, nil, 0.0)
+        let result = wsv_text(wsv, glyphs, 2, 0.0, 0.0, sep, "en", 0.0, 0, 1, 0, nil, 0.0, 0, 0)
         XCTAssertNotNil(result)
 
         let text = String(cString: result!)

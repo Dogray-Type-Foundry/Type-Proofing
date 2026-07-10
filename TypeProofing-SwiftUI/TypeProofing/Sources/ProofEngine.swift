@@ -525,7 +525,8 @@ final class ProofEngine: ObservableObject {
     }
 
     func generateRandomWords(fontPath: String, paragraphs: Int = 3) -> String {
-        guard let (_, charset, _) = loadFontData(path: fontPath) else { return "" }
+        guard let (infoPtr, charset, _) = loadFontData(path: fontPath) else { return "" }
+        tp_free_font_info(infoPtr)
         let bridge = WordSivBridge(seed: UInt64.random(in: 0..<UInt64.max))
         return bridge.text(glyphs: charset, paragraphs: paragraphs)
     }

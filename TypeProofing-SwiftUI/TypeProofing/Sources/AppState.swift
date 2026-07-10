@@ -667,6 +667,27 @@ final class AppState: ObservableObject {
         schedulePersist()
     }
 
+    func renameProofOption(id: ProofOption.ID, to newName: String) {
+        guard let index = proofs.proofOptions.firstIndex(where: { $0.id == id }) else { return }
+        let oldName = proofs.proofOptions[index].name
+        let trimmed = newName.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, trimmed != oldName else { return }
+
+        let otherNames = Set(proofs.proofOptions.filter { $0.id != id }.map(\.name))
+        var candidate = trimmed
+        var counter = 2
+        while otherNames.contains(candidate) {
+            candidate = "\(trimmed) \(counter)"
+            counter += 1
+        }
+
+        proofs.proofOptions[index].name = candidate
+        if let settings = proofs.proofSettingsByProof.removeValue(forKey: oldName) {
+            proofs.proofSettingsByProof[candidate] = settings
+        }
+        schedulePersist()
+    }
+
     func removeProofOption(at offsets: IndexSet) {
         let names = offsets.map { proofs.proofOptions[$0].name }
         proofs.proofOptions.remove(atOffsets: offsets)

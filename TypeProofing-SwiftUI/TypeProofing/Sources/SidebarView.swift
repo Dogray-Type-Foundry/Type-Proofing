@@ -199,8 +199,7 @@ private struct SidebarProofsSection: View {
                                     state.requestPreviewNavigation(to: option.id)
                                 },
                                 onRename: { newName in
-                                    proofs.proofOptions[index].name = newName
-                                    state.schedulePersistPublic()
+                                    state.renameProofOption(id: option.id, to: newName)
                                 },
                                 dragProvider: {
                                     dragSourceIndex = index

@@ -83,6 +83,7 @@ final class PreviewCoordinator: ObservableObject {
         if debounced {
             globalDebounceTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard !Task.isCancelled else { return }
                 self?.invalidateAll()
             }
         } else {
@@ -95,6 +96,7 @@ final class PreviewCoordinator: ObservableObject {
         debounceTasks[proofID]?.cancel()
         debounceTasks[proofID] = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
             self?.invalidateProof(proofID)
         }
     }
@@ -139,6 +141,7 @@ final class PreviewCoordinator: ObservableObject {
     }
 
     private func invalidateAll() {
+        guard !generationPaused else { return }
         guard let state else { return }
         state.refreshCurrentConfigFingerprint()
         engine?.diagnostics.removeAll()
@@ -167,6 +170,7 @@ final class PreviewCoordinator: ObservableObject {
     }
 
     private func invalidateProof(_ proofID: ProofOption.ID) {
+        guard !generationPaused else { return }
         guard let state, let option = state.proofs.proofOptions.first(where: { $0.id == proofID }) else { return }
         cancelRunning(for: proofID)
         removeQueuedJobs(for: proofID)
@@ -331,6 +335,7 @@ final class PreviewCoordinator: ObservableObject {
     }
 
     private func composePreview() async {
+        guard !generationPaused else { return }
         guard let state else { return }
         let enabled = state.proofs.proofOptions.filter(\.enabled)
         guard !enabled.isEmpty, !state.fonts.enabledFontPaths.isEmpty else {

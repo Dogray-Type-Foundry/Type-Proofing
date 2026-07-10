@@ -780,12 +780,14 @@ impl WordSiv {
             };
 
             if is_number {
+                // The defaulted number length must never sit below min_wl, or
+                // number() errors out and nulls the entire words() call.
                 let w = self.number(
                     None,
                     glyphs.as_deref(),
                     params.wl,
                     params.min_wl,
-                    params.max_wl.unwrap_or(DEFAULT_MAX_NUM_LENGTH),
+                    params.max_wl.unwrap_or(DEFAULT_MAX_NUM_LENGTH.max(params.min_wl)),
                     raise_errors,
                 )?;
                 if !w.is_empty() {

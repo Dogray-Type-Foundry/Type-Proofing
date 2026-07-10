@@ -35,8 +35,12 @@ private struct AxisSliderRow: View {
     @State private var selectedIndex: Int? = nil
 
     /// Window-level mouse-down monitor, installed only while something is selected,
-    /// used to deselect on a click anywhere outside the selected handle.
+    /// used to deselect on a click anywhere outside this row.
     @State private var deselectMonitor: Any? = nil
+
+    /// Backing NSView of this row, used by the deselect monitor to hit-test
+    /// clicks in a coordinate-space-safe way.
+    @State private var rowView: NSView? = nil
 
     /// Drag bookkeeping: the handle grabbed at press (nil = press missed all
     /// handles), and whether the current drag has begun.
@@ -145,6 +149,7 @@ private struct AxisSliderRow: View {
             // Resync when the store changes externally (font switch, reset).
             if localValues != newValues { localValues = newValues }
         }
+        .background(RowBoundsReader { rowView = $0 })
         .onChange(of: selectedIndex) { newValue in
             // Only watch for outside clicks while a handle is actually selected.
             if newValue == nil { removeDeselectMonitor() } else { installDeselectMonitor() }
@@ -155,9 +160,13 @@ private struct AxisSliderRow: View {
     private func installDeselectMonitor() {
         guard deselectMonitor == nil else { return }
         deselectMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { event in
-            // Clear the selection on any click. Clicks that land on this slider are
-            // re-selected by its own gesture (on release / first drag), so only
-            // clicks elsewhere in the app actually stick as a deselect.
+            // Ignore clicks that land on this row: the minus button must act on
+            // the current selection, and clicks on the track re-select via the
+            // row's own gesture. Only clicks elsewhere in the app deselect.
+            if let view = rowView, event.window === view.window {
+                let point = view.convert(event.locationInWindow, from: nil)
+                if view.bounds.contains(point) { return event }
+            }
             selectedIndex = nil
             return event
         }
@@ -391,4 +400,21 @@ private struct EditableHandleLabels: View {
         }
         return String(Int(v.rounded()))
     }
+}
+
+// MARK: - Row bounds reader
+
+/// Invisible background view exposing its backing NSView, so the deselect
+/// monitor can hit-test NSEvent locations against the row without manual
+/// coordinate-space conversion.
+private struct RowBoundsReader: NSViewRepresentable {
+    let onView: (NSView) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { onView(view) }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }

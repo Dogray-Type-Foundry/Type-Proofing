@@ -159,6 +159,7 @@ final class ProofKeyTests: XCTestCase {
             hasSettings: true,
             defaultColumns: 1,
             hasParagraphs: false,
+            defaultParagraphs: 2,
             defaultFontSize: 78,
             hasCustomText: false,
             hasCategories: true,

@@ -3,6 +3,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# wordsiv's own suite is excluded for now: its default `python` feature pulls
+# in pyo3, which the app build never uses. tp-bridge's tests exercise wordsiv
+# through the FFI with the shipping feature set.
+echo "==> Running tests..."
+cargo test -p tp-bridge -p tp-fonts
+
 echo "==> Building aarch64-apple-darwin (release)..."
 cargo build --release --target aarch64-apple-darwin -p tp-bridge
 

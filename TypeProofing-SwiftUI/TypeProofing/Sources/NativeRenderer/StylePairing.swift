@@ -286,7 +286,9 @@ struct StylePairing {
         for word in words {
             let wordStr = String(word) + " "
 
-            guard let resolvedFont = useAlternate ? alternateFont : primaryFont else { continue }
+            // Fall back to the other style if one font failed to load, so text
+            // is never silently dropped.
+            guard let resolvedFont = (useAlternate ? alternateFont : primaryFont) ?? primaryFont ?? alternateFont else { continue }
 
             TextRenderer.appendText(
                 to: result,

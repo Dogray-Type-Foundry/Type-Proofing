@@ -121,27 +121,39 @@ struct CustomTextProofHandler: ProofHandler {
         for page in segments.pages {
             let colRects = PageLayout.columnRects(contentRect: contentRect, columns: params.columns, direction: .ltr)
             var colIdx = 0
+            var pageOpen = false
 
+            func openPage() {
+                renderer.beginPage()
+                pageOpen = true
+                if context.showFooter {
+                    PageLayout.drawFooter(
+                        context: renderer.context,
+                        pageSize: pageSize,
+                        title: sectionName,
+                        fontName: fontName,
+                        otFeatures: params.otFeatures.isEmpty ? nil : params.otFeatures,
+                        tracking: params.tracking,
+                        pageNumber: renderer.pageCount,
+                        showPageNumber: true
+                    )
+                }
+            }
+
+            // Each segment starts in the next free column (colIdx), which is
+            // exactly the #colbreak() semantics; the page is only begun/ended
+            // here, never mid-segment.
             for segment in page {
                 if segment.length == 0 { continue }
 
                 var overflow: NSAttributedString? = segment
-                while overflow != nil && colIdx < colRects.count {
-                    if colIdx == 0 || overflow === segment {
-                        renderer.beginPage()
-                        if context.showFooter {
-                            PageLayout.drawFooter(
-                                context: renderer.context,
-                                pageSize: pageSize,
-                                title: sectionName,
-                                fontName: fontName,
-                                otFeatures: params.otFeatures.isEmpty ? nil : params.otFeatures,
-                                tracking: params.tracking,
-                                pageNumber: renderer.pageCount,
-                                showPageNumber: true
-                            )
-                        }
+                while overflow != nil {
+                    if colIdx >= colRects.count {
+                        renderer.endPage()
+                        pageOpen = false
+                        colIdx = 0
                     }
+                    if !pageOpen { openPage() }
                     let lengthBefore = overflow!.length
                     overflow = TextRenderer.drawText(overflow!, in: colRects[colIdx], context: renderer.context)
                     // A column pass that consumes no characters would loop forever.
@@ -151,17 +163,9 @@ struct CustomTextProofHandler: ProofHandler {
                         overflow = nil
                     }
                     colIdx += 1
-
-                    if colIdx >= colRects.count && overflow != nil {
-                        renderer.endPage()
-                        colIdx = 0
-                    }
-                }
-                if colIdx > 0 && colIdx < colRects.count {
-                    // Column break: advance to next column
                 }
             }
-            if colIdx > 0 {
+            if pageOpen {
                 renderer.endPage()
             }
         }
