@@ -246,9 +246,7 @@ struct MarkupRenderer {
     }
 
     private static func fontStyleName(path: String) -> String {
-        let url = URL(fileURLWithPath: path) as CFURL
-        guard let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor],
-              let desc = descriptors.first else { return "" }
+        guard let desc = FontLoader.baseDescriptor(path: path) else { return "" }
         return CTFontDescriptorCopyAttribute(desc, kCTFontStyleNameAttribute) as? String ?? ""
     }
 

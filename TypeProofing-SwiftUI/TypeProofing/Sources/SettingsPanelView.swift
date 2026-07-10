@@ -1234,13 +1234,11 @@ struct OTFeaturesSection: View {
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
-    private var defaultVariations: [String: Double]? {
-        computeDefaultVariations()
-    }
-
-    private var featureSamples: [String: String] {
-        computeFeatureSamples(variations: defaultVariations)
-    }
+    // Populated by .task(id: fontPath) below. As computed properties these ran
+    // the full Rust GSUB analysis on every body evaluation — i.e. on every
+    // slider tick and keystroke that touched the proof settings.
+    @State private var defaultVariations: [String: Double]?
+    @State private var featureSamples: [String: String] = [:]
 
     private func computeDefaultVariations() -> [String: Double]? {
         guard let path = fontPath else { return nil }
@@ -1442,6 +1440,10 @@ struct OTFeaturesSection: View {
                     }
                 }
             }
+        }
+        .task(id: fontPath) {
+            defaultVariations = computeDefaultVariations()
+            featureSamples = computeFeatureSamples(variations: defaultVariations)
         }
     }
 }

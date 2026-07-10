@@ -20,9 +20,7 @@ struct FontLoader {
         variations: [String: Double]?,
         hangingPunctuation: Bool = false
     ) -> CTFont? {
-        let url = URL(fileURLWithPath: path) as CFURL
-        guard let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor],
-              let baseDesc = descriptors.first else {
+        guard let baseDesc = baseDescriptor(path: path) else {
             return nil
         }
 
@@ -168,9 +166,7 @@ struct FontLoader {
     }
 
     static func fontSupportsOpbd(path: String) -> Bool {
-        let url = URL(fileURLWithPath: path) as CFURL
-        guard let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor],
-              let desc = descriptors.first else { return false }
+        guard let desc = baseDescriptor(path: path) else { return false }
         let font = CTFontCreateWithFontDescriptor(desc, 12, nil)
         guard let features = CTFontCopyFeatures(font) as? [[String: Any]] else { return false }
         return features.contains { dict in
@@ -192,6 +188,30 @@ struct FontLoader {
             UInt8(id & 0xFF),
         ]
         return String(bytes.map { Character(UnicodeScalar($0)) })
+    }
+
+    // MARK: - Cached font descriptors
+
+    private static let baseDescriptorCache = NSCache<NSString, CTFontDescriptor>()
+
+    /// The first font descriptor of the file at `path`, cached with the same
+    /// mtime/size-invalidated key as `fontData`. Creating a descriptor via
+    /// CTFontManagerCreateFontDescriptorsFromURL reads and parses the file from
+    /// disk, and makeFont sits in hot loops (auto-sizing bisection, per-token
+    /// markup styling, per-entry substitution rows), so this cache is what keeps
+    /// those loops off the disk.
+    static func baseDescriptor(path: String) -> CTFontDescriptor? {
+        let key = fontCacheKey(for: path) as NSString
+        if let cached = baseDescriptorCache.object(forKey: key) {
+            return cached
+        }
+        let url = URL(fileURLWithPath: path) as CFURL
+        guard let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor],
+              let desc = descriptors.first else {
+            return nil
+        }
+        baseDescriptorCache.setObject(desc, forKey: key)
+        return desc
     }
 
     // MARK: - Cached font bytes

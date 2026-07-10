@@ -15,6 +15,7 @@ class PDFViewCoordinator: ObservableObject {
 
     var sections: [ProofSection] = []
     var lastLoadedPDFPath: String?
+    var requestedPDFPath: String?
     var lastHandledNavigationRequestID: UUID?
     private var scaleObservers: [NSObjectProtocol] = []
     var pendingAnchor: Anchor?
@@ -165,15 +166,39 @@ class PDFViewCoordinator: ObservableObject {
         thumbnailSidebar?.scrollToPage(pageIndex)
     }
 
-    func updateThumbnails(document: PDFDocument?, sections: [ProofSection], forceRebuild: Bool) {
+    func updateThumbnails(document: PDFDocument?, sections: [ProofSection]) {
         guard let thumbnailSidebar, let pdfView else { return }
         thumbnailSidebar.thumbnailList.update(
             document: document,
             sections: sections,
             pdfView: pdfView,
-            availableWidth: thumbnailSidebar.thumbnailAvailableWidth,
-            forceRebuild: forceRebuild
+            availableWidth: thumbnailSidebar.thumbnailAvailableWidth
         )
+    }
+
+    /// Loads the document off the main thread and applies it when ready, so a
+    /// regenerated preview never stalls the UI on `PDFDocument(url:)`. A load
+    /// that finishes after a newer path was requested is discarded.
+    func loadDocument(path: String, sections: [ProofSection], navigationRequest: PreviewNavigationRequest?) {
+        guard requestedPDFPath != path else { return }
+        requestedPDFPath = path
+        let url = URL(fileURLWithPath: path)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let document = PDFDocument(url: url)
+            DispatchQueue.main.async {
+                guard let self, self.requestedPDFPath == path else { return }
+                guard let document, let pdfView = self.pdfView else { return }
+                if self.pendingAnchor == nil {
+                    self.pendingAnchor = self.currentAnchor()
+                }
+                pdfView.document = document
+                self.lastLoadedPDFPath = path
+                self.restore(in: document, sections: sections)
+                self.updateThumbnails(document: document, sections: sections)
+                self.sections = sections
+                self.handleNavigation(navigationRequest, in: document)
+            }
+        }
     }
 }
 
@@ -193,37 +218,26 @@ struct PDFCanvasView: NSViewRepresentable {
         pdfView.displayMode = .singlePageContinuous
         pdfCoordinator.pdfView = pdfView
         pdfCoordinator.lastLoadedPDFPath = nil
+        pdfCoordinator.requestedPDFPath = nil
         return pdfView
     }
 
     func updateNSView(_ pdfView: PDFView, context: Context) {
         pdfCoordinator.lateBindScrollObservers()
         if let path = pdfPath {
-            let url = URL(fileURLWithPath: path)
-            let documentChanged = pdfCoordinator.lastLoadedPDFPath != path
-            if let document = documentChanged ? PDFDocument(url: url) : pdfView.document {
-                if documentChanged {
-                    if pdfCoordinator.pendingAnchor == nil {
-                        pdfCoordinator.pendingAnchor = pdfCoordinator.currentAnchor()
-                    }
-                    pdfView.document = document
-                    pdfCoordinator.lastLoadedPDFPath = path
-                    pdfCoordinator.restore(in: document, sections: sections)
-                }
-                let sectionsChanged = pdfCoordinator.sections != sections
-                pdfCoordinator.updateThumbnails(
-                    document: document,
-                    sections: sections,
-                    forceRebuild: documentChanged || sectionsChanged
-                )
+            if pdfCoordinator.lastLoadedPDFPath != path {
+                pdfCoordinator.loadDocument(path: path, sections: sections, navigationRequest: navigationRequest)
+            } else if let document = pdfView.document {
+                pdfCoordinator.updateThumbnails(document: document, sections: sections)
                 pdfCoordinator.sections = sections
                 pdfCoordinator.handleNavigation(navigationRequest, in: document)
             }
         } else {
             pdfView.document = nil
             pdfCoordinator.lastLoadedPDFPath = nil
+            pdfCoordinator.requestedPDFPath = nil
             pdfCoordinator.sections = []
-            pdfCoordinator.updateThumbnails(document: nil, sections: [], forceRebuild: true)
+            pdfCoordinator.updateThumbnails(document: nil, sections: [])
             pdfCoordinator.lastHandledNavigationRequestID = nil
         }
     }
@@ -253,8 +267,7 @@ struct ThumbnailStripView: NSViewRepresentable {
                 document: document,
                 sections: sections,
                 pdfView: pdfView,
-                availableWidth: sidebar.thumbnailAvailableWidth,
-                forceRebuild: pathChanged || sectionsChanged
+                availableWidth: sidebar.thumbnailAvailableWidth
             )
             context.coordinator.lastPath = pdfPath
             context.coordinator.lastSections = sections
@@ -676,6 +689,7 @@ final class ThumbnailListView: NSView {
     private var lastDocumentURL: URL?
     private var lastPageCount = 0
     private var thumbnailCache: [ThumbnailCacheKey: NSImage] = [:]
+    private var renderGeneration = 0
 
     private let thumbnailSpacing: CGFloat = 4
     private let pageNumberHeight: CGFloat = 16
@@ -685,13 +699,15 @@ final class ThumbnailListView: NSView {
         document: PDFDocument?,
         sections: [ProofSection],
         pdfView: PDFView,
-        availableWidth: CGFloat,
-        forceRebuild: Bool
+        availableWidth: CGFloat
     ) {
         let nextWidth = max(availableWidth, 80)
         let documentURL = document?.documentURL
         let pageCount = document?.pageCount ?? 0
-        let needsRebuild = forceRebuild
+        // The rebuild decision lives here (not in the callers) so that the two
+        // representables driving this view can both call update() without
+        // triggering duplicate full rebuilds for the same state.
+        let needsRebuild = document !== self.document
             || documentURL != lastDocumentURL
             || pageCount != lastPageCount
             || sections != self.sections
@@ -716,6 +732,7 @@ final class ThumbnailListView: NSView {
     }
 
     private func rebuildThumbnails() {
+        renderGeneration += 1
         for view in thumbnailViews { view.removeFromSuperview() }
         thumbnailViews.removeAll()
         navigationRectsByPage.removeAll()
@@ -740,6 +757,8 @@ final class ThumbnailListView: NSView {
         let padding: CGFloat = 8
         let effectiveThumbWidth = max(1, availableWidth - padding * 2)
         var yOffset: CGFloat = 8
+        var pendingPages: [(pageIndex: Int, width: CGFloat, height: CGFloat)] = []
+        var buttonsByPage: [Int: PageThumbnailButton] = [:]
 
         for pageIndex in 0..<pageCount {
             if let sectionName = sectionStartPages[pageIndex] {
@@ -763,17 +782,17 @@ final class ThumbnailListView: NSView {
             let thumbHeight = effectiveThumbWidth / aspect
             let thumbRect = NSRect(x: padding, y: yOffset, width: effectiveThumbWidth, height: thumbHeight)
 
+            let cached = thumbnailCache[cacheKey(pageIndex: pageIndex, width: effectiveThumbWidth)]
             let thumbView = PageThumbnailButton(
                 page: page,
                 frame: thumbRect,
                 pdfView: pdfView,
-                cachedImage: thumbnailImage(
-                    for: page,
-                    pageIndex: pageIndex,
-                    width: effectiveThumbWidth,
-                    height: thumbHeight
-                )
+                cachedImage: cached
             )
+            if cached == nil {
+                pendingPages.append((pageIndex, effectiveThumbWidth, thumbHeight))
+                buttonsByPage[pageIndex] = thumbView
+            }
             addSubview(thumbView)
             thumbnailViews.append(thumbView)
             if navigationRectsByPage[pageIndex] == nil {
@@ -793,6 +812,7 @@ final class ThumbnailListView: NSView {
 
         frame = NSRect(x: 0, y: 0, width: availableWidth, height: yOffset + 8)
         needsDisplay = true
+        renderThumbnailsAsync(pendingPages, buttonsByPage: buttonsByPage)
     }
 
     func navigationRect(forPageAt pageIndex: Int) -> NSRect? {
@@ -801,26 +821,49 @@ final class ThumbnailListView: NSView {
 
     override var isFlipped: Bool { true }
 
-    private func thumbnailImage(for page: PDFPage, pageIndex: Int, width: CGFloat, height: CGFloat) -> NSImage {
-        let key = ThumbnailCacheKey(
+    private func cacheKey(pageIndex: Int, width: CGFloat) -> ThumbnailCacheKey {
+        ThumbnailCacheKey(
             documentPath: document?.documentURL?.path ?? "",
             pageIndex: pageIndex,
             width: Int((width * 2).rounded())
         )
-        if let cached = thumbnailCache[key] {
-            return cached
-        }
+    }
 
-        let image = page.thumbnail(
-            of: NSSize(width: width * 2, height: height * 2),
-            for: .mediaBox
-        )
+    /// Rasterizes the missing thumbnails off the main thread. The background
+    /// queue opens its own PDFDocument from the same URL — PDFKit does not
+    /// tolerate concurrent access to the document the PDFView is drawing.
+    /// A rebuild that starts meanwhile bumps `renderGeneration`, which makes
+    /// late results from this pass get dropped.
+    private func renderThumbnailsAsync(
+        _ pending: [(pageIndex: Int, width: CGFloat, height: CGFloat)],
+        buttonsByPage: [Int: PageThumbnailButton]
+    ) {
+        guard !pending.isEmpty, let documentURL = document?.documentURL else { return }
+        let generation = renderGeneration
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let bgDocument = PDFDocument(url: documentURL) else { return }
+            for item in pending {
+                guard let page = bgDocument.page(at: item.pageIndex) else { continue }
+                let image = page.thumbnail(
+                    of: NSSize(width: item.width * 2, height: item.height * 2),
+                    for: .mediaBox
+                )
+                DispatchQueue.main.async {
+                    guard let self, self.renderGeneration == generation else { return }
+                    self.storeThumbnail(image, pageIndex: item.pageIndex, width: item.width)
+                    buttonsByPage[item.pageIndex]?.image = image
+                }
+            }
+        }
+    }
+
+    private func storeThumbnail(_ image: NSImage, pageIndex: Int, width: CGFloat) {
+        let key = cacheKey(pageIndex: pageIndex, width: width)
         thumbnailCache[key] = image
         if thumbnailCache.count > 500 {
             thumbnailCache.removeAll(keepingCapacity: true)
             thumbnailCache[key] = image
         }
-        return image
     }
 }
 
@@ -836,7 +879,7 @@ final class PageThumbnailButton: NSButton {
     private let page: PDFPage
     private weak var pdfView: PDFView?
 
-    init(page: PDFPage, frame: NSRect, pdfView: PDFView?, cachedImage: NSImage) {
+    init(page: PDFPage, frame: NSRect, pdfView: PDFView?, cachedImage: NSImage?) {
         self.page = page
         self.pdfView = pdfView
         super.init(frame: frame)

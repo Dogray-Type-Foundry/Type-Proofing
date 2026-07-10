@@ -136,6 +136,72 @@ struct TextRenderer {
         return origins.map { rect.origin.y + $0.y }
     }
 
+    // MARK: - Paginator
+
+    /// Typesets one attributed string across successive column rects using a
+    /// single framesetter and a running character index. Calling drawText in a
+    /// loop instead re-typesets the whole remaining substring per column, which
+    /// makes pagination O(n²). Hyphenated text falls back to the per-column
+    /// NSLayoutManager draw (CoreText framesetters don't hyphenate).
+    final class Paginator {
+        private let attrString: NSAttributedString
+        private let framesetter: CTFramesetter?
+        private var hyphenationRemainder: NSAttributedString?
+        private var index = 0
+
+        init(_ attrString: NSAttributedString) {
+            self.attrString = attrString
+            let hasHyphenation: Bool = {
+                guard attrString.length > 0 else { return false }
+                let paraStyle = attrString.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+                return (paraStyle?.hyphenationFactor ?? 0) > 0
+            }()
+            if hasHyphenation {
+                framesetter = nil
+                hyphenationRemainder = attrString
+            } else {
+                framesetter = TextRenderer.makeFramesetter(for: attrString)
+            }
+        }
+
+        var isFinished: Bool {
+            if framesetter != nil { return index >= attrString.length }
+            return (hyphenationRemainder?.length ?? 0) == 0
+        }
+
+        /// The not-yet-drawn tail, materialized on demand (used only by the
+        /// baseline-grid overlay).
+        func remainingText() -> NSAttributedString {
+            if framesetter != nil {
+                guard index < attrString.length else { return NSAttributedString() }
+                return attrString.attributedSubstring(
+                    from: NSRange(location: index, length: attrString.length - index)
+                )
+            }
+            return hyphenationRemainder ?? NSAttributedString()
+        }
+
+        /// Draws the next chunk into `rect` and advances the cursor. Returns
+        /// the number of characters consumed (0 = nothing fit).
+        @discardableResult
+        func draw(in rect: CGRect, context: CGContext) -> Int {
+            if let framesetter {
+                guard index < attrString.length else { return 0 }
+                let path = CGMutablePath()
+                path.addRect(rect)
+                let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: index, length: 0), path, nil)
+                CTFrameDraw(frame, context)
+                let visible = CTFrameGetVisibleStringRange(frame)
+                index = visible.location + visible.length
+                return visible.length
+            }
+            guard let current = hyphenationRemainder, current.length > 0 else { return 0 }
+            let overflow = TextRenderer.drawTextWithLayoutManager(current, in: rect, context: context)
+            hyphenationRemainder = overflow
+            return current.length - (overflow?.length ?? 0)
+        }
+    }
+
     // MARK: - Private
 
     private static func drawTextWithFramesetter(

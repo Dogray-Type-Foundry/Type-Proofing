@@ -9,6 +9,37 @@ struct NativeProofOrchestrator {
         let sections: [ProofSection]
     }
 
+    /// Charset extraction runs the whole font through the Rust parser, and it
+    /// used to happen per preview fragment. Cache the derived charset and
+    /// categories with the same mtime/size-invalidated key as the font bytes.
+    private final class CharsetData {
+        let charset: String
+        let cat: CharacterCategories
+        init(charset: String, cat: CharacterCategories) {
+            self.charset = charset
+            self.cat = cat
+        }
+    }
+
+    private static let charsetCache = NSCache<NSString, CharsetData>()
+
+    private static func charsetAndCategories(fontPath: String) -> (charset: String, cat: CharacterCategories)? {
+        let key = FontLoader.fontCacheKey(for: fontPath) as NSString
+        if let cached = charsetCache.object(forKey: key) {
+            return (cached.charset, cached.cat)
+        }
+        guard let fontData = FontLoader.fontData(path: fontPath) else { return nil }
+        let charset = fontData.withUnsafeBytes { buffer -> String in
+            guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return "" }
+            guard let charsetPtr = tp_get_charset(ptr, UInt(buffer.count)) else { return "" }
+            defer { wsv_free_string(charsetPtr) }
+            return String(cString: charsetPtr)
+        }
+        let cat = CharacterCategorizer.categorize(charset: charset)
+        charsetCache.setObject(CharsetData(charset: charset, cat: cat), forKey: key)
+        return (charset, cat)
+    }
+
     static func generate(
         config: ProofConfig,
         progress: @Sendable (GenerationProgress) -> Void,
@@ -61,14 +92,7 @@ struct NativeProofOrchestrator {
         var fontDataList: [FontRenderData] = []
         for (fontIndex, fontPath) in config.fontPaths.enumerated() {
             if isCancelled() { break }
-            guard let fontData = FontLoader.fontData(path: fontPath) else { continue }
-            let charset = fontData.withUnsafeBytes { buffer -> String in
-                guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return "" }
-                guard let charsetPtr = tp_get_charset(ptr, UInt(buffer.count)) else { return "" }
-                defer { wsv_free_string(charsetPtr) }
-                return String(cString: charsetPtr)
-            }
-            let cat = CharacterCategorizer.categorize(charset: charset)
+            guard let (charset, cat) = charsetAndCategories(fontPath: fontPath) else { continue }
             let axisCombinations = buildAxisCombinations(config: config, fontPath: fontPath)
             fontDataList.append(FontRenderData(
                 fontPath: fontPath, fontIndex: fontIndex,
@@ -181,18 +205,11 @@ struct NativeProofOrchestrator {
         for fontPath in config.fontPaths {
             if isCancelled() { break }
 
-            guard let fontData = FontLoader.fontData(path: fontPath) else {
+            guard let (charset, cat) = charsetAndCategories(fontPath: fontPath) else {
                 collector.error("Failed to read font file",
                                fontPath: fontPath, proofName: config.targetProofName)
                 continue
             }
-            let charset = fontData.withUnsafeBytes { buffer -> String in
-                guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return "" }
-                guard let charsetPtr = tp_get_charset(ptr, UInt(buffer.count)) else { return "" }
-                defer { wsv_free_string(charsetPtr) }
-                return String(cString: charsetPtr)
-            }
-            let cat = CharacterCategorizer.categorize(charset: charset)
 
             let axisCombinations = buildAxisCombinations(config: config, fontPath: fontPath)
 

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -474,16 +475,18 @@ impl WordSiv {
     }
 
     /// Apply theme-based semantic filtering to a word list.
-    /// Returns the original list unchanged if no theme is set.
+    /// Borrows the original list unchanged if no theme is set — the unthemed
+    /// path is the common one and the lists run to tens of thousands of words,
+    /// so an unconditional clone here was a real per-call cost.
     #[cfg(feature = "semantic")]
-    fn apply_theme_filter(
+    fn apply_theme_filter<'a>(
         &self,
-        wc_list: &[(String, u64)],
+        wc_list: &'a [(String, u64)],
         params: &GenParams,
-    ) -> Vec<(String, u64)> {
+    ) -> Cow<'a, [(String, u64)]> {
         let theme = match &params.theme {
             Some(t) if !t.trim().is_empty() => t.as_str(),
-            _ => return wc_list.to_vec(),
+            _ => return Cow::Borrowed(wc_list),
         };
 
         // Determine language from vocab name (default "en")
@@ -498,21 +501,21 @@ impl WordSiv {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("[wordsiv] Warning: could not load embeddings: {}", e);
-                return wc_list.to_vec();
+                return Cow::Borrowed(wc_list);
             }
         };
 
-        semantic::filter_by_theme(&store, theme, params.theme_strength, wc_list)
+        Cow::Owned(semantic::filter_by_theme(&store, theme, params.theme_strength, wc_list))
     }
 
     /// No-op theme filter when semantic feature is disabled.
     #[cfg(not(feature = "semantic"))]
-    fn apply_theme_filter(
+    fn apply_theme_filter<'a>(
         &self,
-        wc_list: &[(String, u64)],
+        wc_list: &'a [(String, u64)],
         _params: &GenParams,
-    ) -> Vec<(String, u64)> {
-        wc_list.to_vec()
+    ) -> Cow<'a, [(String, u64)]> {
+        Cow::Borrowed(wc_list)
     }
 
     /// Get a cached sampling distribution — uses global static cache
@@ -622,6 +625,37 @@ impl WordSiv {
         self.word_with_case(seed, params, None)
     }
 
+    /// Samples one word, resolving the distribution through `memo` so callers
+    /// looping over many words (words()) pay the cache-key build + global
+    /// mutex only once per distinct case instead of once per word. The
+    /// parameter checks run inside so semantics match word_with_case exactly.
+    fn sample_word_memoized(
+        &mut self,
+        params: &GenParams,
+        case_override: Option<CaseType>,
+        memo: &mut Option<Arc<SamplingDist>>,
+        raise_errors: bool,
+    ) -> Result<String, WordsivError> {
+        if memo.is_none() {
+            if !(0.0..=1.0).contains(&params.rnd) {
+                return Err(WordsivError::Value("'rnd' must be between 0 and 1".into()));
+            }
+            if !(0.0..=1.0).contains(&params.bias_strength) {
+                return Err(WordsivError::Value("'bias_strength' must be between 0 and 1".into()));
+            }
+            match self.cached_sampling_dist(params, case_override) {
+                Ok(d) => *memo = Some(d),
+                Err(e) => {
+                    if raise_errors {
+                        return Err(e);
+                    }
+                    return Ok(String::new());
+                }
+            }
+        }
+        Ok(memo.as_ref().unwrap().sample(&mut self.rng))
+    }
+
     fn word_with_case(
         &mut self,
         seed: Option<u64>,
@@ -716,7 +750,9 @@ impl WordSiv {
         };
 
         let themed = self.apply_theme_filter(&wc_list, params);
-        let slice = &themed[idx..themed.len().min(idx + n_words)];
+        // Range via .get: idx past the end must return the error/empty arm
+        // below, not panic (and abort, given panic = "abort").
+        let slice = themed.get(idx..themed.len().min(idx + n_words)).unwrap_or(&[]);
         if slice.is_empty() {
             if raise_errors {
                 return Err(WordsivError::Filter(format!(
@@ -764,6 +800,10 @@ impl WordSiv {
 
         let mut word_list: Vec<String> = Vec::with_capacity(n);
         let mut last_w: Option<String> = None;
+        // Per-case distribution memos for sample_word_memoized (word 0 may use
+        // the Cap distribution, the rest share the default one).
+        let mut default_dist: Option<Arc<SamplingDist>> = None;
+        let mut cap_dist: Option<Arc<SamplingDist>> = None;
 
         for i in 0..n {
             let word_case = if cap_first && params.case == CaseType::Any && i == 0 {
@@ -795,10 +835,12 @@ impl WordSiv {
                     word_list.push(w);
                 }
             } else {
-                let mut w = self.word_with_case(None, params, word_case)?;
+                let memo = if word_case.is_some() { &mut cap_dist } else { &mut default_dist };
+                let mut w = self.sample_word_memoized(params, word_case, memo, raise_errors)?;
                 // Retry once to avoid consecutive repeats
                 if Some(&w) == last_w.as_ref() {
-                    w = self.word_with_case(None, params, word_case)?;
+                    let memo = if word_case.is_some() { &mut cap_dist } else { &mut default_dist };
+                    w = self.sample_word_memoized(params, word_case, memo, raise_errors)?;
                 }
                 if !w.is_empty() {
                     last_w = Some(w.clone());

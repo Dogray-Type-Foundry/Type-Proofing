@@ -912,7 +912,10 @@ final class AppState: ObservableObject {
     // MARK: - Settings Persistence
 
     private func schedulePersist(notifyPreview: Bool = true) {
-        refreshCurrentConfigFingerprint()
+        // The fingerprint (full-config JSON + SHA256) is intentionally NOT
+        // refreshed here — schedulePersist runs on every keystroke/slider tick.
+        // It refreshes when the debounced persist fires below, when the preview
+        // invalidates, and at the explicit structural-change call sites.
         if notifyPreview {
             previewCoordinator?.stateChanged(debounced: true)
         }
@@ -936,6 +939,7 @@ final class AppState: ObservableObject {
     }
 
     func persistState() {
+        refreshCurrentConfigFingerprint()
         let data = PersistedState(
             fontPaths: fonts.fontPaths,
             axisValuesByFont: fonts.axisValuesByFont,

@@ -383,12 +383,15 @@ final class PreviewCoordinator: ObservableObject {
         }
     }
 
+    // Declared async so the await in composePreview actually hops off the main
+    // actor (a nonisolated *sync* function runs on the caller's executor);
+    // page copying and the disk write below must not stall the UI.
     nonisolated private static func performCompose(
         entries: [(name: String, readyPath: String?, message: String)],
         pageWidth: CGFloat,
         pageHeight: CGFloat,
         outputDir: URL
-    ) -> (URL, [ProofSection])? {
+    ) async -> (URL, [ProofSection])? {
         let output = PDFDocument()
         var sections: [ProofSection] = []
 

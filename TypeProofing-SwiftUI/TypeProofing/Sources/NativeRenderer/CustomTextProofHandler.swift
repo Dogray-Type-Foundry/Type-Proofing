@@ -146,23 +146,22 @@ struct CustomTextProofHandler: ProofHandler {
             for segment in page {
                 if segment.length == 0 { continue }
 
-                var overflow: NSAttributedString? = segment
-                while overflow != nil {
+                let paginator = TextRenderer.Paginator(segment)
+                while !paginator.isFinished {
                     if colIdx >= colRects.count {
                         renderer.endPage()
                         pageOpen = false
                         colIdx = 0
                     }
                     if !pageOpen { openPage() }
-                    let lengthBefore = overflow!.length
-                    overflow = TextRenderer.drawText(overflow!, in: colRects[colIdx], context: renderer.context)
+                    let consumed = paginator.draw(in: colRects[colIdx], context: renderer.context)
+                    colIdx += 1
                     // A column pass that consumes no characters would loop forever.
-                    if let remaining = overflow, remaining.length >= lengthBefore {
+                    if !paginator.isFinished && consumed == 0 {
                         context.diagnostics.error("Text does not fit the column layout — output truncated",
                                                   proofName: proofName)
-                        overflow = nil
+                        break
                     }
-                    colIdx += 1
                 }
             }
             if pageOpen {

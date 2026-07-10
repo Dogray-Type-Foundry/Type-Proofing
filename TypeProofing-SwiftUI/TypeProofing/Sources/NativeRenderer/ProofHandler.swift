@@ -272,10 +272,11 @@ extension ProofHandler {
         let suffix = axisLabel(from: context)
         let fullTitle = suffix.isEmpty ? sectionName : "\(sectionName) - \(suffix)"
 
-        var overflow: NSAttributedString? = attrString
+        let paginator = TextRenderer.Paginator(attrString)
 
-        while overflow != nil {
-            let lengthBefore = overflow?.length ?? 0
+        // repeat-while: an empty string still produces one (blank) page,
+        // matching the previous overflow-based loop.
+        repeat {
             renderer.beginPage()
             if context.showFooter {
                 PageLayout.drawFooter(
@@ -292,7 +293,7 @@ extension ProofHandler {
                 )
             }
 
-            if context.showBaselines, let remaining = overflow {
+            if context.showBaselines, case let remaining = paginator.remainingText(), remaining.length > 0 {
                 let actualBaselines = TextRenderer.baselineOrigins(for: remaining, in: colRects[0])
                 let pageRect = CGRect(origin: .zero, size: pageSize)
 
@@ -317,20 +318,21 @@ extension ProofHandler {
                 BaselineGrid.drawColumns(rects: colRects, context: renderer.context)
             }
 
+            var consumedThisPage = 0
             for col in colRects {
-                guard let remaining = overflow else { break }
-                overflow = TextRenderer.drawText(remaining, in: col, context: renderer.context)
+                if paginator.isFinished { break }
+                consumedThisPage += paginator.draw(in: col, context: renderer.context)
             }
 
             renderer.endPage()
 
             // A page pass that consumes no characters (e.g. column too small
             // for a single line) would otherwise loop forever.
-            if let remaining = overflow, remaining.length >= lengthBefore {
+            if !paginator.isFinished && consumedThisPage == 0 {
                 context.diagnostics.error("Text does not fit the column layout — output truncated",
                                           proofName: proofName)
                 break
             }
-        }
+        } while !paginator.isFinished
     }
 }
