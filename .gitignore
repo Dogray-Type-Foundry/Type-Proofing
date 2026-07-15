@@ -16,6 +16,7 @@ xcuserdata/
 **/build-release/
 **/build-release-*/
 **/build_measure/
+**/build-ios-deploy/
 
 # Project-specific
 /icon
@@ -29,11 +30,13 @@ build_app_local.sh
 *.json
 # ...but bundled app resources must stay in version control
 !TypeProofing-SwiftUI/TypeProofing/Resources/**/*.json
+!ProofCore/Sources/ProofCore/Resources/**/*.json
 
 # Rust / native build artifacts
 native/target/
 native/lib/
-TypeProofing-SwiftUI/NativeLib/libtpnative.a
+ProofCore/Binaries/
+ProofCore/.build/
 
 # Other
 .github

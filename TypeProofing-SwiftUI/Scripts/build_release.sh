@@ -23,7 +23,7 @@
 #     APPLE_ID, TEAM_ID, NOTARIZE_PASSWORD
 #
 # Prerequisites:
-#   1. NativeLib/libtpnative.a built (universal — the linker thins per arch)
+#   1. ProofCore/Binaries/TPNative.xcframework built (native/build_rust.sh)
 #   2. Xcode 16+ with Swift 5.9+ toolchain
 #   3. xcodegen installed (brew install xcodegen)
 
@@ -47,13 +47,11 @@ echo "  Project:    ${PROJECT_DIR}"
 echo "  Signing ID: ${CODESIGN_ID}"
 echo ""
 
-# ── 0. Build NativeLib if missing ─────────────────────────────────────
-if [ ! -f "${PROJECT_DIR}/NativeLib/libtpnative.a" ]; then
-    echo "NativeLib/libtpnative.a not found — building from Rust sources…"
+# ── 0. Build TPNative.xcframework if missing ─────────────────────────
+if [ ! -d "${REPO_ROOT}/ProofCore/Binaries/TPNative.xcframework" ]; then
+    echo "TPNative.xcframework not found — building from Rust sources…"
     bash "${REPO_ROOT}/native/build_rust.sh"
-    cp "${REPO_ROOT}/native/lib/libtpnative.a" "${PROJECT_DIR}/NativeLib/libtpnative.a"
-    cp "${REPO_ROOT}/native/include/tpnative.h" "${PROJECT_DIR}/NativeLib/include/tpnative.h"
-    echo "✓ NativeLib built and copied"
+    echo "✓ TPNative.xcframework built"
 fi
 
 # ── 1. Regenerate Xcode project ──────────────────────────────────────
@@ -84,6 +82,7 @@ build_and_package() {
     xcodebuild -project "${APP_NAME}.xcodeproj" \
         -scheme "${APP_NAME}" \
         -configuration Release \
+        -destination "platform=macOS" \
         -derivedDataPath "${DD}" \
         ARCHS="${ARCH}" \
         ONLY_ACTIVE_ARCH=NO \

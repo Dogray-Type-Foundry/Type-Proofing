@@ -1,0 +1,531 @@
+#if canImport(AppKit)
+import AppKit
+#else
+import UIKit
+#endif
+import Foundation
+import PDFKit
+
+public enum PreviewFragmentStatus: Equatable {
+    case empty
+    case queued
+    case generating
+    case ready(path: String, pageCount: Int, sections: [ProofSection])
+    case failed(message: String)
+}
+
+public struct PreviewFragment {
+    public let proofID: ProofOption.ID
+    public let proofName: String
+    public let baseType: String
+    public var fingerprint: String
+    public var status: PreviewFragmentStatus
+    public var generationToken: UUID
+    public var cost: ProofCost
+    /// Last successfully rendered PDF for this proof — shown while a
+    /// replacement regenerates so the composed preview doesn't collapse to a
+    /// placeholder page (which shifts pages and loses the scroll position).
+    public var lastReadyPath: String?
+}
+
+private enum PreviewPriority {
+    case selected
+    case normal
+}
+
+private struct PreviewJob {
+    public let token: UUID
+    public let proofID: ProofOption.ID
+    public let proofName: String
+    public let baseType: String
+    public let fullConfig: ProofConfig
+    public let fingerprint: String
+    public let cost: ProofCost
+    public let priority: PreviewPriority
+}
+
+@MainActor
+public final class PreviewCoordinator: ObservableObject {
+    public init() {}
+
+    private weak var state: AppState?
+    private weak var engine: ProofEngine?
+
+    private var fragments: [ProofOption.ID: PreviewFragment] = [:]
+    private var fastQueue: [PreviewJob] = []
+    private var wordsivQueue: [PreviewJob] = []
+    private var runningFast: [ProofOption.ID: Task<Void, Never>] = [:]
+    private var runningWordsiv: (proofID: ProofOption.ID, task: Task<Void, Never>)?
+    private var debounceTasks: [ProofOption.ID: Task<Void, Never>] = [:]
+    private var globalDebounceTask: Task<Void, Never>?
+    private var composeTask: Task<Void, Never>?
+    private var generationPaused = false
+    private var lastComposeKey: String?
+
+    private let sessionDirectory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("type-proofing-preview")
+        .appendingPathComponent(UUID().uuidString)
+    private var pageDimensions: [String: PageFormatDimensions] = [:]
+    private var retainedComposedURLs: [URL] = []
+
+    private var maxFastParallelism: Int {
+        min(3, max(1, ProcessInfo.processInfo.processorCount / 2))
+    }
+
+    public func configure(state: AppState, engine: ProofEngine) {
+        self.state = state
+        self.engine = engine
+        self.pageDimensions = engine.getPageFormatDimensions()
+        createPreviewDirectories()
+    }
+
+    public func startInitialPreview() {
+        invalidateAll()
+    }
+
+    public func stateChanged(debounced: Bool) {
+        guard !generationPaused else { return }
+        globalDebounceTask?.cancel()
+        if debounced {
+            globalDebounceTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard !Task.isCancelled else { return }
+                self?.invalidateAll()
+            }
+        } else {
+            invalidateAll()
+        }
+    }
+
+    public func proofSettingsChanged(proofID: ProofOption.ID) {
+        guard !generationPaused else { return }
+        debounceTasks[proofID]?.cancel()
+        debounceTasks[proofID] = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.invalidateProof(proofID)
+        }
+    }
+
+    public func proofEnableChanged(proofID: ProofOption.ID) {
+        guard let state else { return }
+        if state.proofs.proofOptions.first(where: { $0.id == proofID })?.enabled == true {
+            invalidateProof(proofID)
+        } else {
+            cancelRunning(for: proofID)
+            fragments.removeValue(forKey: proofID)
+            removeQueuedJobs(for: proofID)
+            requestCompose(immediate: true)
+        }
+    }
+
+    public func proofOrderChanged() {
+        requestCompose(immediate: true)
+    }
+
+    public func selectedProofChanged() {
+        guard let selected = state?.proofs.selectedProof else { return }
+        prioritizeQueuedJob(for: selected)
+        pumpQueues()
+    }
+
+    public func pauseForFinalGeneration() {
+        generationPaused = true
+        globalDebounceTask?.cancel()
+        debounceTasks.values.forEach { $0.cancel() }
+        debounceTasks.removeAll()
+        composeTask?.cancel()
+        composeTask = nil
+        fastQueue.removeAll()
+        wordsivQueue.removeAll()
+        cancelAllRunning()
+    }
+
+    public func resumeAfterFinalGeneration() {
+        generationPaused = false
+        stateChanged(debounced: false)
+    }
+
+    private func invalidateAll() {
+        guard !generationPaused else { return }
+        guard let state else { return }
+        state.refreshCurrentConfigFingerprint()
+        engine?.diagnostics.removeAll()
+
+        cancelAllRunning()
+        fastQueue.removeAll()
+        wordsivQueue.removeAll()
+
+        let enabled = state.proofs.proofOptions.filter(\.enabled)
+        guard !state.fonts.enabledFontPaths.isEmpty, !enabled.isEmpty else {
+            fragments.removeAll()
+            state.preview.previewPDFPath = nil
+            state.preview.previewSections = []
+            return
+        }
+
+        let fullConfig = state.buildProofConfig()
+        let flatSettings = state.buildFlatProofSettings()
+        let selectedID = state.proofs.selectedProof
+        for option in enabled {
+            enqueue(option: option, priority: option.id == selectedID ? .selected : .normal,
+                    fullConfig: fullConfig, flatSettings: flatSettings)
+        }
+        requestCompose(immediate: true)
+        pumpQueues()
+    }
+
+    private func invalidateProof(_ proofID: ProofOption.ID) {
+        guard !generationPaused else { return }
+        guard let state, let option = state.proofs.proofOptions.first(where: { $0.id == proofID }) else { return }
+        cancelRunning(for: proofID)
+        removeQueuedJobs(for: proofID)
+        guard option.enabled else {
+            fragments.removeValue(forKey: proofID)
+            requestCompose(immediate: true)
+            return
+        }
+        let fullConfig = state.buildProofConfig()
+        let flatSettings = state.buildFlatProofSettings()
+        enqueue(option: option, priority: option.id == state.proofs.selectedProof ? .selected : .normal,
+                fullConfig: fullConfig, flatSettings: flatSettings)
+        requestCompose(immediate: true)
+        pumpQueues()
+    }
+
+    private func enqueue(option: ProofOption, priority: PreviewPriority,
+                         fullConfig: ProofConfig? = nil, flatSettings: [String: Any]? = nil) {
+        guard let state else { return }
+        let resolvedFlatSettings = flatSettings ?? state.buildFlatProofSettings()
+        let fingerprint = state.previewFingerprint(for: option, flatSettings: resolvedFlatSettings)
+        if let existing = fragments[option.id],
+           existing.fingerprint == fingerprint,
+           case .ready = existing.status {
+            return
+        }
+
+        let token = UUID()
+        let cost = state.proofs.registryByKey[option.baseType]?.previewCost ?? .fast
+        let carriedReadyPath: String? = {
+            guard let existing = fragments[option.id] else { return nil }
+            if case .ready(let path, _, _) = existing.status { return path }
+            return existing.lastReadyPath
+        }()
+        fragments[option.id] = PreviewFragment(
+            proofID: option.id,
+            proofName: option.name,
+            baseType: option.baseType,
+            fingerprint: fingerprint,
+            status: .queued,
+            generationToken: token,
+            cost: cost,
+            lastReadyPath: carriedReadyPath
+        )
+
+        let job = PreviewJob(
+            token: token,
+            proofID: option.id,
+            proofName: option.name,
+            baseType: option.baseType,
+            fullConfig: fullConfig ?? state.buildProofConfig(),
+            fingerprint: fingerprint,
+            cost: cost,
+            priority: priority
+        )
+        if cost == .wordsiv {
+            insert(job, into: &wordsivQueue)
+        } else {
+            insert(job, into: &fastQueue)
+        }
+    }
+
+    private func insert(_ job: PreviewJob, into queue: inout [PreviewJob]) {
+        if job.priority == .selected {
+            queue.insert(job, at: 0)
+        } else {
+            queue.append(job)
+        }
+    }
+
+    private func pumpQueues() {
+        guard !generationPaused else { return }
+        while runningFast.count < maxFastParallelism, !fastQueue.isEmpty {
+            start(fastQueue.removeFirst())
+        }
+        if runningWordsiv == nil, !wordsivQueue.isEmpty {
+            start(wordsivQueue.removeFirst())
+        }
+    }
+
+    private func start(_ job: PreviewJob) {
+        guard let engine else { return }
+        fragments[job.proofID]?.status = .generating
+
+        let outputDir = fragmentOutputDirectory(for: job)
+        try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+        var config = job.fullConfig.previewFragmentConfig(
+            proofName: job.proofName,
+            baseType: job.baseType,
+            outputDir: outputDir.path
+        )
+        config.debugMode = engine.debugMode
+
+        let task = Task { [weak self] in
+            let output = await engine.generatePreviewFragment(
+                config: config,
+                timeoutSeconds: job.cost == .wordsiv ? 150 : 60
+            )
+            guard !Task.isCancelled else { return }
+            self?.finish(job: job, result: output.fragment, diagnosticEvents: output.diagnostics)
+        }
+        if job.cost == .wordsiv {
+            runningWordsiv = (job.proofID, task)
+        } else {
+            runningFast[job.proofID] = task
+        }
+    }
+
+    private func finish(job: PreviewJob, result: PreviewFragmentResult?, diagnosticEvents: [DiagnosticEvent]) {
+        if job.cost == .wordsiv {
+            if runningWordsiv?.proofID == job.proofID {
+                runningWordsiv = nil
+            }
+        } else {
+            runningFast.removeValue(forKey: job.proofID)
+        }
+
+        if !diagnosticEvents.isEmpty {
+            engine?.diagnostics.append(contentsOf: diagnosticEvents)
+        }
+
+        guard var fragment = fragments[job.proofID],
+              fragment.generationToken == job.token,
+              fragment.fingerprint == job.fingerprint else {
+            pumpQueues()
+            return
+        }
+
+        if let result, !result.path.isEmpty {
+            guard result.proofName == job.proofName,
+                  result.baseType == job.baseType else {
+                fragment.status = .failed(message: "Preview worker returned a different proof.")
+                fragments[job.proofID] = fragment
+                requestCompose(immediate: true)
+                pumpQueues()
+                return
+            }
+            fragment.status = .ready(
+                path: result.path,
+                pageCount: max(result.pageCount, 1),
+                sections: result.sections
+            )
+        } else {
+            fragment.status = .failed(
+                message: result?.errorMessage ?? "Preview fragment generation failed."
+            )
+        }
+        fragments[job.proofID] = fragment
+        requestCompose()
+        pumpQueues()
+    }
+
+    private func requestCompose(immediate: Bool = false) {
+        composeTask?.cancel()
+        composeTask = Task { [weak self] in
+            if !immediate {
+                try? await Task.sleep(nanoseconds: 75_000_000)
+            }
+            guard !Task.isCancelled else { return }
+            await self?.composePreview()
+        }
+    }
+
+    private func composePreview() async {
+        guard !generationPaused else { return }
+        guard let state else { return }
+        let enabled = state.proofs.proofOptions.filter(\.enabled)
+        guard !enabled.isEmpty, !state.fonts.enabledFontPaths.isEmpty else {
+            state.preview.previewPDFPath = nil
+            state.preview.previewSections = []
+            return
+        }
+
+        var entries: [(name: String, readyPath: String?, message: String)] = []
+        for option in enabled {
+            let status = fragments[option.id]?.status ?? .empty
+            switch status {
+            case .ready(let path, _, _):
+                entries.append((option.name, path, "Preview unavailable"))
+            case .failed(let msg):
+                entries.append((option.name, nil, msg))
+            case .generating:
+                entries.append((option.name, fragments[option.id]?.lastReadyPath, "Generating preview..."))
+            case .queued:
+                entries.append((option.name, fragments[option.id]?.lastReadyPath, "Queued for preview..."))
+            case .empty:
+                entries.append((option.name, nil, "Waiting for preview..."))
+            }
+        }
+        let dims = currentPageDimensions()
+
+        // Recomposing identical content would still produce a new file and
+        // force a document reload in the viewer — skip the no-op.
+        let composeKey = entries.map { "\($0.name)|\($0.readyPath ?? "placeholder:\($0.message)")" }
+            .joined(separator: "\n") + "\n\(dims.width)x\(dims.height)"
+        if composeKey == lastComposeKey, state.preview.previewPDFPath != nil {
+            return
+        }
+
+        let outDir = composedDirectory()
+
+        let result = await Self.performCompose(entries: entries, pageWidth: dims.width, pageHeight: dims.height, outputDir: outDir)
+
+        guard !Task.isCancelled else { return }
+        if let (url, sections) = result {
+            lastComposeKey = composeKey
+            state.preview.previewPDFPath = url.path
+            state.preview.previewSections = sections
+            retainComposedURL(url)
+        }
+    }
+
+    // Declared async so the await in composePreview actually hops off the main
+    // actor (a nonisolated *sync* function runs on the caller's executor);
+    // page copying and the disk write below must not stall the UI.
+    nonisolated private static func performCompose(
+        entries: [(name: String, readyPath: String?, message: String)],
+        pageWidth: CGFloat,
+        pageHeight: CGFloat,
+        outputDir: URL
+    ) async -> (URL, [ProofSection])? {
+        let output = PDFDocument()
+        var sections: [ProofSection] = []
+
+        for entry in entries {
+            sections.append(ProofSection(name: entry.name, firstPage: output.pageCount))
+
+            if let path = entry.readyPath,
+               let document = PDFDocument(url: URL(fileURLWithPath: path)),
+               document.pageCount > 0 {
+                for index in 0..<document.pageCount {
+                    if let page = document.page(at: index) {
+                        let pageCopy = (page.copy() as? PDFPage) ?? page
+                        output.insert(pageCopy, at: output.pageCount)
+                    }
+                }
+            } else {
+                if let page = Self.makePlaceholderPage(
+                    title: entry.name, message: entry.message,
+                    width: pageWidth, height: pageHeight
+                ) {
+                    output.insert(page, at: output.pageCount)
+                }
+            }
+        }
+
+        let url = outputDir.appendingPathComponent("preview-\(UUID().uuidString).pdf")
+        guard output.pageCount > 0, output.write(to: url) else { return nil }
+        return (url, sections)
+    }
+
+    nonisolated private static func makePlaceholderPage(
+        title: String, message: String, width: CGFloat, height: CGFloat
+    ) -> PDFPage? {
+        var mediaBox = CGRect(x: 0, y: 0, width: width, height: height)
+        let data = NSMutableData()
+        guard let consumer = CGDataConsumer(data: data as CFMutableData),
+              let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else { return nil }
+
+        context.beginPDFPage(nil)
+        context.saveGState()
+        context.translateBy(x: 0, y: height)
+        context.scaleBy(x: 1, y: -1)
+        pushGraphicsContext(context)
+
+        let titleAttributes: [NSAttributedString.Key: Any] = [
+            .font: PlatformFont.systemFont(ofSize: 22, weight: .semibold),
+            .foregroundColor: PlatformColor.platformLabel,
+        ]
+        let messageAttributes: [NSAttributedString.Key: Any] = [
+            .font: PlatformFont.systemFont(ofSize: 13, weight: .regular),
+            .foregroundColor: PlatformColor.platformSecondaryLabel,
+        ]
+        let x: CGFloat = 48
+        let y = height / 2 - 30
+        NSAttributedString(string: title, attributes: titleAttributes)
+            .draw(in: CGRect(x: x, y: y, width: width - x * 2, height: 32))
+        NSAttributedString(string: message, attributes: messageAttributes)
+            .draw(in: CGRect(x: x, y: y + 36, width: width - x * 2, height: 48))
+
+        popGraphicsContext()
+        context.restoreGState()
+        context.endPDFPage()
+        context.closePDF()
+
+        guard let pdfDoc = PDFDocument(data: data as Data) else { return nil }
+        return pdfDoc.page(at: 0)
+    }
+
+    private func currentPageDimensions() -> PageFormatDimensions {
+        pageDimensions[state?.page.pageFormat ?? "A4Landscape"]
+            ?? PageFormatDimensions(width: 842, height: 595)
+    }
+
+    private func removeQueuedJobs(for proofID: ProofOption.ID) {
+        fastQueue.removeAll { $0.proofID == proofID }
+        wordsivQueue.removeAll { $0.proofID == proofID }
+    }
+
+    private func cancelRunning(for proofID: ProofOption.ID) {
+        runningFast.removeValue(forKey: proofID)?.cancel()
+        if runningWordsiv?.proofID == proofID {
+            runningWordsiv?.task.cancel()
+            runningWordsiv = nil
+        }
+    }
+
+    private func cancelAllRunning() {
+        runningFast.values.forEach { $0.cancel() }
+        runningFast.removeAll()
+        runningWordsiv?.task.cancel()
+        runningWordsiv = nil
+    }
+
+    private func prioritizeQueuedJob(for proofID: ProofOption.ID) {
+        if let index = fastQueue.firstIndex(where: { $0.proofID == proofID }) {
+            let job = fastQueue.remove(at: index)
+            fastQueue.insert(job, at: 0)
+        }
+        if let index = wordsivQueue.firstIndex(where: { $0.proofID == proofID }) {
+            let job = wordsivQueue.remove(at: index)
+            wordsivQueue.insert(job, at: 0)
+        }
+    }
+
+    private func createPreviewDirectories() {
+        try? FileManager.default.createDirectory(at: fragmentsDirectory(), withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: composedDirectory(), withIntermediateDirectories: true)
+    }
+
+    private func fragmentsDirectory() -> URL {
+        sessionDirectory.appendingPathComponent("fragments")
+    }
+
+    private func fragmentOutputDirectory(for job: PreviewJob) -> URL {
+        fragmentsDirectory()
+            .appendingPathComponent(job.proofID.uuidString)
+            .appendingPathComponent(job.token.uuidString)
+    }
+
+    private func composedDirectory() -> URL {
+        sessionDirectory.appendingPathComponent("composed")
+    }
+
+    private func retainComposedURL(_ url: URL) {
+        retainedComposedURLs.append(url)
+        while retainedComposedURLs.count > 2 {
+            let stale = retainedComposedURLs.removeFirst()
+            try? FileManager.default.removeItem(at: stale)
+        }
+    }
+}

@@ -10,20 +10,20 @@ packages:
   CompactSlider:
     url: https://github.com/buh/CompactSlider.git
     from: "2.1.0"
+  ProofCore:
+    path: ../ProofCore
 
 schemes:
   TypeProofing:
     build:
       targets:
         TypeProofing: all
-        TypeProofingTests: [test]
         TypeProofingUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - TypeProofingTests
         - TypeProofingUITests
     archive:
       config: Release
@@ -31,16 +31,20 @@ schemes:
 targets:
   TypeProofing:
     type: application
-    platform: macOS
+    supportedDestinations: [macOS, iOS]
     sources:
-      - path: TypeProofing/Sources
+      - path: TypeProofing/Sources/Shared
+      - path: TypeProofing/Sources/macOS
+        destinationFilters: [macOS]
+      - path: TypeProofing/Sources/iOS
+        destinationFilters: [iOS]
       - path: TypeProofing/Resources
         buildPhase: resources
         excludes:
           - "*.icon"
       - path: TypeProofing/Resources/TypeProofing.icon
         buildPhase: resources
-        type: folder
+        type: file
     entitlements:
       path: TypeProofing/TypeProofing.entitlements
     info:
@@ -59,52 +63,40 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        TARGETED_DEVICE_FAMILY: 2
+        SUPPORTS_MACCATALYST: NO
+        # macOS + simulator keep ad-hoc signing (previous behavior; releases
+        # are signed by build_release.sh). Device builds sign automatically.
+        CODE_SIGN_IDENTITY: "-"
+        "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "Apple Development"
+        "CODE_SIGN_STYLE[sdk=iphoneos*]": Automatic
+        "DEVELOPMENT_TEAM[sdk=iphoneos*]": 8YVTA46P66
+        # iOS gets its own Info.plist (launch screen, font document types) so
+        # the macOS app's LaunchServices registrations stay untouched.
+        "INFOPLIST_FILE[sdk=iphoneos*]": TypeProofing/Info-iOS.plist
+        "INFOPLIST_FILE[sdk=iphonesimulator*]": TypeProofing/Info-iOS.plist
+        # iOS app icon comes from the Icon Composer file (macOS references it
+        # via CFBundleIconFile/Name instead, so this stays iOS-scoped).
+        "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]": TypeProofing
+        "ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]": TypeProofing
+        # Entitlements split: macOS keeps its (empty) file; iOS has its own,
+        # ready for opt-ins like com.apple.developer.user-fonts later.
         CODE_SIGN_ENTITLEMENTS: TypeProofing/TypeProofing.entitlements
-        # Native Rust library
-        LIBRARY_SEARCH_PATHS:
-          - "$(inherited)"
-          - "$(SRCROOT)/NativeLib"
-        SWIFT_INCLUDE_PATHS:
-          - "$(inherited)"
-          - "$(SRCROOT)/NativeLib/include"
-        OTHER_LDFLAGS:
-          - "$(inherited)"
-          - "-ltpnative"
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": TypeProofing/TypeProofing-iOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": TypeProofing/TypeProofing-iOS.entitlements
     dependencies:
       - package: CompactSlider
+      - package: ProofCore
     preBuildScripts:
-      - name: "Build NativeLib if missing"
+      - name: "Build TPNative.xcframework if missing"
         script: |
-          if [ ! -f "${SRCROOT}/NativeLib/libtpnative.a" ]; then
-            echo "NativeLib missing — building from Rust sources…"
+          if [ ! -d "${SRCROOT}/../ProofCore/Binaries/TPNative.xcframework" ]; then
+            echo "TPNative.xcframework missing — building from Rust sources…"
             bash "${SRCROOT}/../native/build_rust.sh"
-            cp "${SRCROOT}/../native/lib/libtpnative.a" "${SRCROOT}/NativeLib/libtpnative.a"
-            cp "${SRCROOT}/../native/include/tpnative.h" "${SRCROOT}/NativeLib/include/tpnative.h"
           fi
         basedOnDependencyAnalysis: false
     postBuildScripts: []
-
-  TypeProofingTests:
-    type: bundle.unit-test
-    platform: macOS
-    sources:
-      - path: TypeProofingTests
-    settings:
-      base:
-        SWIFT_VERSION: "5.9"
-        MACOSX_DEPLOYMENT_TARGET: "13.0"
-        GENERATE_INFOPLIST_FILE: YES
-        LIBRARY_SEARCH_PATHS:
-          - "$(inherited)"
-          - "$(SRCROOT)/NativeLib"
-        SWIFT_INCLUDE_PATHS:
-          - "$(inherited)"
-          - "$(SRCROOT)/NativeLib/include"
-        OTHER_LDFLAGS:
-          - "$(inherited)"
-          - "-ltpnative"
-    dependencies:
-      - target: TypeProofing
 
   TypeProofingUITests:
     type: bundle.ui-testing
