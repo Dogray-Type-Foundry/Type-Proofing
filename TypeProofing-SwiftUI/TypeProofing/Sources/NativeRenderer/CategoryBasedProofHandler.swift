@@ -28,7 +28,7 @@ struct FilteredCharacterSetHandler: ProofHandler {
                 fontSize = params.fontSize
             }
             let tracking = fontSize / 1.5
-            let sectionName = "Character Set - \(label) - \(Int(fontSize))pt"
+            let sectionName = "\(proofName) - \(label) - \(Int(fontSize))pt"
 
             guard let font = FontLoader.makeFont(
                 path: context.indFont,
@@ -82,12 +82,13 @@ struct SpacingProofHandler: ProofHandler {
             let spacingText = CharacterCategorizer.generateSpacingString(characterSet: charset)
             if spacingText.isEmpty { continue }
 
-            let sectionName = "Spacing - \(label) - \(Int(params.fontSize))pt"
+            let sectionName = "\(proofName) - \(label) - \(Int(params.fontSize))pt"
 
-            var features = params.otFeatures
-            if features.isEmpty {
-                features = ["liga": false, "kern": false]
-            }
+            // Spacing measurements need kern/liga off. User toggles merge on
+            // top of these defaults instead of replacing them, so switching an
+            // unrelated feature on doesn't silently re-enable kerning.
+            var features: [String: Bool] = ["liga": false, "kern": false]
+            features.merge(params.otFeatures) { _, user in user }
 
             guard let font = FontLoader.makeFont(
                 path: context.indFont,

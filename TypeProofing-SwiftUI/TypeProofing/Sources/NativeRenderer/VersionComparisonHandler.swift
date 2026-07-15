@@ -45,9 +45,11 @@ struct VersionComparisonHandler: ProofHandler {
             context.diagnostics.error("Could not load the loaded font", proofName: proofName)
             return
         }
+        // The baseline renders at the same axis position as the current font,
+        // so the overlay compares like-for-like instances (not Bold vs default).
         guard let oldFont = FontLoader.makeFont(
             path: baselinePath, size: fontSize, features: features,
-            variations: nil, hangingPunctuation: params.hangingPunctuation) else {
+            variations: context.axisValues, hangingPunctuation: params.hangingPunctuation) else {
             context.diagnostics.error("Could not load the baseline font", proofName: proofName)
             return
         }

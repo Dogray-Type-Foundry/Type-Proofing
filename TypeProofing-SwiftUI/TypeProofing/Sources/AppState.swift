@@ -115,7 +115,11 @@ struct ProofSettings: Codable {
         substitutionFeatures = try container.decodeIfPresent([SubstitutionFeature].self, forKey: .substitutionFeatures) ?? []
         defaultFontPath = try container.decodeIfPresent(String.self, forKey: .defaultFontPath) ?? ""
         defaultFontAxisDict = try container.decodeIfPresent([String: Double].self, forKey: .defaultFontAxisDict)
-        enabledStyleIndices = try container.decodeIfPresent([String: Bool].self, forKey: .enabledStyleIndices) ?? [:]
+        // Entries without "|" are from the old positional-index scheme, which
+        // silently re-targeted other styles after any font reorder — drop them
+        // (one-time reset to all-enabled) rather than misapply them.
+        enabledStyleIndices = (try container.decodeIfPresent([String: Bool].self, forKey: .enabledStyleIndices) ?? [:])
+            .filter { $0.key.contains("|") }
         autoSize = try container.decodeIfPresent(Bool.self, forKey: .autoSize) ?? false
         showFallback = try container.decodeIfPresent(Bool.self, forKey: .showFallback) ?? false
         columnGap = try container.decodeIfPresent(Double.self, forKey: .columnGap) ?? 20
@@ -541,7 +545,8 @@ final class AppState: ObservableObject {
     private func buildDefaultOTFeatures(for baseType: String?) -> [OTFeature] {
         fonts.availableOTFeatures.map { tag in
             var enabled = DEFAULT_ON_FEATURES.contains(tag)
-            if baseType == "spacing_proof" && tag == "kern" {
+            // Spacing measurements need kern and liga off by default.
+            if baseType == "spacing_proof" && (tag == "kern" || tag == "liga") {
                 enabled = false
             }
             return OTFeature(id: tag, tag: tag, enabled: enabled)
@@ -930,9 +935,8 @@ final class AppState: ObservableObject {
         persistState()
     }
 
-    func persistState() {
-        refreshCurrentConfigFingerprint()
-        let data = PersistedState(
+    private func currentPersistedState() -> PersistedState {
+        PersistedState(
             fontPaths: fonts.fontPaths,
             axisValuesByFont: fonts.axisValuesByFont,
             disabledFontPaths: Array(fonts.disabledFontPaths),
@@ -948,6 +952,11 @@ final class AppState: ObservableObject {
             useCustomOutputLocation: output.useCustomOutputLocation,
             customOutputLocation: output.customOutputLocation
         )
+    }
+
+    func persistState() {
+        refreshCurrentConfigFingerprint()
+        let data = currentPersistedState()
 
         do {
             let encoder = JSONEncoder()
@@ -965,35 +974,84 @@ final class AppState: ObservableObject {
         do {
             let json = try Data(contentsOf: Self.settingsURL)
             let data = try JSONDecoder().decode(PersistedState.self, from: json)
-
-            fonts.fontPaths = data.fontPaths
-            fonts.axisValuesByFont = data.axisValuesByFont
-            fonts.disabledFontPaths = Set(data.disabledFontPaths ?? [])
-            fonts.fontSortCriteria = data.fontSortCriteria ?? []
-            fonts.styleSourceMode = data.styleSourceMode ?? .namedInstances
-            page.pageFormat = data.pageFormat
-            page.showBaselines = data.showBaselines
-            page.showFooter = data.showFooter ?? true
-            output.useCustomOutputLocation = data.useCustomOutputLocation
-            output.customOutputLocation = data.customOutputLocation
-
-            proofs.proofOptions = data.proofOptions.enumerated().map { (i, po) in
-                ProofOption(name: po.name, baseType: po.baseType, enabled: po.enabled, order: po.order)
-            }
-            proofs.proofSettingsByProof = data.proofSettingsByProof
-
-            if let first = proofs.proofOptions.first {
-                proofs.selectedProof = first.id
-            }
-
-            if output.outputDirectory.isEmpty, let first = fonts.fontPaths.first {
-                output.outputDirectory = (first as NSString).deletingLastPathComponent
-            }
-
+            apply(data)
             return true
         } catch {
             print("Settings load error: \(error)")
             return false
+        }
+    }
+
+    private func apply(_ data: PersistedState) {
+        fonts.fontPaths = data.fontPaths
+        fonts.axisValuesByFont = data.axisValuesByFont
+        fonts.disabledFontPaths = Set(data.disabledFontPaths ?? [])
+        fonts.fontSortCriteria = data.fontSortCriteria ?? []
+        fonts.styleSourceMode = data.styleSourceMode ?? .namedInstances
+        page.pageFormat = data.pageFormat
+        page.showBaselines = data.showBaselines
+        page.showFooter = data.showFooter ?? true
+        output.useCustomOutputLocation = data.useCustomOutputLocation
+        output.customOutputLocation = data.customOutputLocation
+
+        proofs.proofOptions = data.proofOptions.map { po in
+            ProofOption(name: po.name, baseType: po.baseType, enabled: po.enabled, order: po.order)
+        }
+        proofs.proofSettingsByProof = data.proofSettingsByProof
+
+        if let first = proofs.proofOptions.first {
+            proofs.selectedProof = first.id
+        }
+
+        if output.outputDirectory.isEmpty, let first = fonts.fontPaths.first {
+            output.outputDirectory = (first as NSString).deletingLastPathComponent
+        }
+    }
+
+    /// Imports a settings file in the app's own persisted format (the same
+    /// JSON `exportState`/`persistState` write), then re-runs the engine-
+    /// dependent side effects that startup normally performs — font metadata,
+    /// sorting, style refresh, available OT features.
+    @discardableResult
+    func importState(from url: URL, engine: ProofEngine) -> Bool {
+        _ = url.startAccessingSecurityScopedResource()
+        defer { url.stopAccessingSecurityScopedResource() }
+
+        guard let json = try? Data(contentsOf: url),
+              let data = try? JSONDecoder().decode(PersistedState.self, from: json) else {
+            print("Settings import failed: not a Type Proofing settings file")
+            return false
+        }
+        apply(data)
+
+        fonts.fontPaths = fonts.fontPaths.filter { FileManager.default.fileExists(atPath: $0) }
+        if fonts.fontPaths.isEmpty {
+            fonts.loadedFonts = []
+        } else {
+            fonts.loadedFonts = engine.getFontMetadata(paths: fonts.fontPaths)
+            applySortCriteria()
+            refreshFontStyles(engine: engine)
+            applyAvailableFontFeatures(engine: engine)
+            if output.outputDirectory.isEmpty {
+                output.outputDirectory = (fonts.fontPaths[0] as NSString).deletingLastPathComponent
+            }
+        }
+
+        clearGeneratedOutput()
+        persistState()
+        previewCoordinator?.stateChanged(debounced: false)
+        return true
+    }
+
+    /// Writes the current settings to `url` in the persisted-state format.
+    func exportState(to url: URL) {
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let json = try encoder.encode(currentPersistedState())
+            try json.write(to: url, options: .atomic)
+        } catch {
+            print("Settings export error: \(error)")
         }
     }
 

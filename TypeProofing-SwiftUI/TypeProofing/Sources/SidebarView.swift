@@ -140,9 +140,7 @@ struct SidebarView: View {
                 preview.previewSections = result.sections
             }
             state.refreshCurrentConfigFingerprint()
-            // A cancelled run leaves a partial PDF — show it, but never mark it
-            // as in sync, so the stale badge stays on.
-            if !result.wasCancelled, preview.currentConfigFingerprint == capturedFingerprint {
+            if preview.currentConfigFingerprint == capturedFingerprint {
                 preview.finalGeneratedConfigFingerprint = capturedFingerprint
             }
         }

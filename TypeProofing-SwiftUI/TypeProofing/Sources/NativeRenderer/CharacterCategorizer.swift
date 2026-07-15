@@ -20,18 +20,23 @@ struct CharacterCategorizer {
         let faTemplate = Set("اآبپتثجچحخدذرزژسشصضطظعغفقکگلمنهویﻻ")
         let dualJoinSet = Set("بپتثجچحخسصضطظعغفڤقكکگلمنهہھيئی")
         let rightJoinSet = Set("اأإآٱدذرزژوﻻ")
+        let upperSet = Set(upperTemplate)
+        let lowerSet = Set(lowerTemplate)
 
         for char in charset {
             let scalar = char.unicodeScalars.first!
             let category = scalar.properties.generalCategory
 
             switch category {
+            // Base and Accented are disjoint: base = the ASCII template
+            // letters only; every other cased letter (Á, ø, Greek, Cyrillic…)
+            // belongs to Accented/Extended alone, so nothing prints twice.
             case .uppercaseLetter:
                 uniLu.append(char)
-                if isAccented(char) { accented.append(char) } else { uniLuBase.append(char) }
+                if upperSet.contains(char) { uniLuBase.append(char) } else { accented.append(char) }
             case .lowercaseLetter:
                 uniLl.append(char)
-                if isAccented(char) { accented.append(char) } else { uniLlBase.append(char) }
+                if lowerSet.contains(char) { uniLlBase.append(char) } else { accented.append(char) }
             case .otherLetter: uniLo.append(char)
             case .decimalNumber: uniNd.append(char)
             case .otherNumber: uniNo.append(char)
@@ -58,16 +63,6 @@ struct CharacterCategorizer {
             if rightJoinSet.contains(char) { arfaRightJoin.append(char) }
         }
 
-        let upperSet = Set(upperTemplate)
-        let lowerSet = Set(lowerTemplate)
-        let accentedSet = Set(accented)
-        var accentedPlus = accented
-        for char in uniLu + uniLl {
-            if !accentedSet.contains(char) && !upperSet.contains(char) && !lowerSet.contains(char) {
-                accentedPlus.append(char)
-            }
-        }
-
         return CharacterCategories(
             uniLu: uniLu, uniLl: uniLl, uniLo: uniLo,
             uniLuBase: uniLuBase, uniLlBase: uniLlBase,
@@ -78,7 +73,7 @@ struct CharacterCategorizer {
             uniSm: uniSm, uniSc: uniSc, uniSo: uniSo,
             uppercaseOnly: uniLl.isEmpty,
             lowercaseOnly: uniLu.isEmpty,
-            accentedPlus: accentedPlus,
+            accentedPlus: accented,
             ar: ar, fa: fa,
             arabTyped: arabTyped,
             arfaDualJoin: arfaDualJoin,
@@ -93,14 +88,6 @@ struct CharacterCategorizer {
                (0x08A0...0x08FF).contains(v) ||   // Arabic Extended-A
                (0xFB50...0xFDFF).contains(v) ||   // Arabic Presentation Forms-A
                (0xFE70...0xFEFF).contains(v)      // Arabic Presentation Forms-B
-    }
-
-    private static func isAccented(_ char: Character) -> Bool {
-        let scalars = char.unicodeScalars
-        if scalars.count > 1 { return true }
-        guard let scalar = scalars.first else { return false }
-        let decomposed = String(scalar).decomposedStringWithCanonicalMapping.unicodeScalars
-        return decomposed.count > 1
     }
 
     struct ProofCategories {

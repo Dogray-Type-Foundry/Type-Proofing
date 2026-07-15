@@ -259,7 +259,7 @@ final class ProofEngine: ObservableObject {
 
     // MARK: - Proof Generation
 
-    func generateProof(config: ProofConfig) async -> (path: String, sections: [ProofSection], wasCancelled: Bool)? {
+    func generateProof(config: ProofConfig) async -> (path: String, sections: [ProofSection])? {
         isGenerating = true
         errorMessage = nil
         diagnostics.removeAll()
@@ -295,9 +295,16 @@ final class ProofEngine: ObservableObject {
             return nil
         }
 
+        if wasCancelled {
+            // A cancelled run writes a partial PDF — remove it; the viewer
+            // keeps showing whatever it had before.
+            try? FileManager.default.removeItem(atPath: result.path)
+            return nil
+        }
+
         lastPDFPath = result.path
         generationProgress = nil
-        return (path: result.path, sections: result.sections, wasCancelled: wasCancelled)
+        return (path: result.path, sections: result.sections)
     }
 
     func cancelGeneration() {

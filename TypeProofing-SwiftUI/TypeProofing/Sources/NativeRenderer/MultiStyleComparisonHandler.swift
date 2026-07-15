@@ -3,6 +3,18 @@ import CoreText
 import Foundation
 import TPNative
 
+/// Stable identity for a style row: font path + sorted axis coordinates.
+/// Used as the persisted enable/disable key so a selection survives font
+/// add/remove/re-sort — the previous positional indices silently re-targeted
+/// other styles after any reorder.
+func stableStyleKey(fontPath: String, coordinates: [String: Double]?) -> String {
+    let coords = (coordinates ?? [:])
+        .sorted { $0.key < $1.key }
+        .map { "\($0.key)=\($0.value)" }
+        .joined(separator: ",")
+    return "\(fontPath)|\(coords)"
+}
+
 struct MultiStyleComparisonHandler: ProofHandler {
     let proofName: String
     let proofKey: String
@@ -188,15 +200,13 @@ struct MultiStyleComparisonHandler: ProofHandler {
         let mode = StyleSourceMode(rawValue: modeRaw) ?? .namedInstances
 
         var styles: [StyleEntry] = []
-        var styleIndex = 0
 
         for fontPath in allFonts {
             guard let fontData = FontLoader.fontData(path: fontPath) else {
-                if isStyleEnabled(styleIndex, settings: context.proofSettings) {
+                if isStyleEnabled(fontPath: fontPath, coordinates: nil, settings: context.proofSettings) {
                     let displayName = URL(fileURLWithPath: fontPath).deletingPathExtension().lastPathComponent
                     styles.append(StyleEntry(fontPath: fontPath, variations: nil, label: displayName))
                 }
-                styleIndex += 1
                 continue
             }
 
@@ -207,20 +217,18 @@ struct MultiStyleComparisonHandler: ProofHandler {
             case .namedInstances:
                 let instances = parseNamedInstances(fontData: fontData)
                 if instances.isEmpty {
-                    if isStyleEnabled(styleIndex, settings: context.proofSettings) {
+                    if isStyleEnabled(fontPath: fontPath, coordinates: nil, settings: context.proofSettings) {
                         let displayName = URL(fileURLWithPath: fontPath).deletingPathExtension().lastPathComponent
                         styles.append(StyleEntry(fontPath: fontPath, variations: nil, label: displayName))
                     }
-                    styleIndex += 1
                 } else {
                     for inst in instances {
-                        if isStyleEnabled(styleIndex, settings: context.proofSettings) {
+                        let coords = inst["coordinates"] as? [String: Double] ?? [:]
+                        if isStyleEnabled(fontPath: fontPath, coordinates: coords, settings: context.proofSettings) {
                             let name = inst["name"] as? String ?? ""
-                            let coords = inst["coordinates"] as? [String: Double] ?? [:]
                             let label = "\(familyName) \u{2014} \(name)"
                             styles.append(StyleEntry(fontPath: fontPath, variations: coords, label: label))
                         }
-                        styleIndex += 1
                     }
                 }
 
@@ -233,11 +241,10 @@ struct MultiStyleComparisonHandler: ProofHandler {
                 }
 
                 if axisArrays.isEmpty {
-                    if isStyleEnabled(styleIndex, settings: context.proofSettings) {
+                    if isStyleEnabled(fontPath: fontPath, coordinates: nil, settings: context.proofSettings) {
                         let displayName = URL(fileURLWithPath: fontPath).deletingPathExtension().lastPathComponent
                         styles.append(StyleEntry(fontPath: fontPath, variations: nil, label: displayName))
                     }
-                    styleIndex += 1
                 } else {
                     var combinations: [[(String, Double)]] = [[]]
                     for (tag, values) in axisArrays {
@@ -251,12 +258,11 @@ struct MultiStyleComparisonHandler: ProofHandler {
                     }
 
                     for combo in combinations {
-                        if isStyleEnabled(styleIndex, settings: context.proofSettings) {
-                            let coords = Dictionary(uniqueKeysWithValues: combo)
+                        let coords = Dictionary(uniqueKeysWithValues: combo)
+                        if isStyleEnabled(fontPath: fontPath, coordinates: coords, settings: context.proofSettings) {
                             let label = "\(familyName) \u{2014} " + combo.map { "\($0.0)=\(Int($0.1))" }.joined(separator: " ")
                             styles.append(StyleEntry(fontPath: fontPath, variations: coords, label: label))
                         }
-                        styleIndex += 1
                     }
                 }
             }
@@ -277,8 +283,8 @@ struct MultiStyleComparisonHandler: ProofHandler {
         }
     }
 
-    private func isStyleEnabled(_ index: Int, settings: [String: Any]) -> Bool {
-        let key = makeSettingsKey("style", String(index))
+    private func isStyleEnabled(fontPath: String, coordinates: [String: Double]?, settings: [String: Any]) -> Bool {
+        let key = makeSettingsKey("style", stableStyleKey(fontPath: fontPath, coordinates: coordinates))
         return settings[key] as? Bool ?? true
     }
 

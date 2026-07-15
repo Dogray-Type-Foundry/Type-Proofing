@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct TypeProofingApp: App {
@@ -22,6 +24,15 @@ struct TypeProofingApp: App {
                 Button("Import Settings…") {
                     appState.ui.showSettingsImporter = true
                 }
+                Button("Export Settings…") {
+                    let panel = NSSavePanel()
+                    panel.allowedContentTypes = [.json]
+                    panel.nameFieldStringValue = "TypeProofing Settings.json"
+                    if panel.runModal() == .OK, let url = panel.url {
+                        appState.exportState(to: url)
+                    }
+                }
+                .disabled(!engine.isReady || !appState.proofs.isRegistryLoaded)
                 Divider()
                 Button("Reset Settings") {
                     appState.resetAllSettings()

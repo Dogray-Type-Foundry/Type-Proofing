@@ -16,44 +16,29 @@ struct MarkupParser {
         var attrs: [String: String] = [:]
     }
 
-    // MARK: - Escape / Restore
+    // MARK: - Escapes
 
-    private static let escapePairs: [(String, String)] = [
-        ("\\\\", "\u{E000}"),
-        ("\\*", "\u{E001}"),
-        ("\\#", "\u{E002}"),
-        ("\\[", "\u{E003}"),
-        ("\\]", "\u{E004}"),
-        ("\\{", "\u{E005}"),
-        ("\\}", "\u{E006}"),
-    ]
+    /// Characters that `\` escapes. Escapes are resolved inline while
+    /// scanning — the previous implementation smuggled them through
+    /// U+E000–E006 sentinels and mapped every sentinel back to punctuation at
+    /// the end, which corrupted Private Use Area characters (perfectly
+    /// legitimate input when proofing fonts).
+    private static let escapableChars: Set<Character> = ["\\", "*", "#", "[", "]", "{", "}"]
 
-    private static let restoreMap: [Character: Character] = [
-        "\u{E000}": "\\",
-        "\u{E001}": "*",
-        "\u{E002}": "#",
-        "\u{E003}": "[",
-        "\u{E004}": "]",
-        "\u{E005}": "{",
-        "\u{E006}": "}",
-    ]
-
-    private static func escape(_ text: String) -> String {
-        var result = text
-        for (old, new) in escapePairs {
-            result = result.replacingOccurrences(of: old, with: new)
-        }
-        return result
-    }
-
-    private static func restore(_ text: String) -> String {
+    /// Resolves `\X` sequences in text used verbatim (headings). Backslashes
+    /// before non-escapable characters stay as-is.
+    private static func unescape(_ text: String) -> String {
+        let chars = Array(text)
         var result = ""
-        result.reserveCapacity(text.count)
-        for ch in text {
-            if let replacement = restoreMap[ch] {
-                result.append(replacement)
+        result.reserveCapacity(chars.count)
+        var i = 0
+        while i < chars.count {
+            if chars[i] == "\\", i + 1 < chars.count, escapableChars.contains(chars[i + 1]) {
+                result.append(chars[i + 1])
+                i += 2
             } else {
-                result.append(ch)
+                result.append(chars[i])
+                i += 1
             }
         }
         return result
@@ -61,13 +46,8 @@ struct MarkupParser {
 
     // MARK: - Tokenizer
 
-    private static let inlinePattern = try! NSRegularExpression(
-        pattern: #"\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|\[([^\]]+)\]\{([^}]+)\}"#
-    )
-
     static func tokenize(_ rawText: String) -> [Token] {
-        let escaped = escape(rawText)
-        let lines = escaped.components(separatedBy: "\n")
+        let lines = rawText.components(separatedBy: "\n")
         var tokens: [Token] = []
 
         for (i, line) in lines.enumerated() {
@@ -80,9 +60,9 @@ struct MarkupParser {
             } else if stripped == "#colbreak()" {
                 tokens.append(Token(kind: .columnBreak))
             } else if line.hasPrefix("## ") {
-                tokens.append(Token(kind: .heading2, text: restore(String(line.dropFirst(3)))))
+                tokens.append(Token(kind: .heading2, text: unescape(String(line.dropFirst(3)))))
             } else if line.hasPrefix("# ") {
-                tokens.append(Token(kind: .heading1, text: restore(String(line.dropFirst(2)))))
+                tokens.append(Token(kind: .heading1, text: unescape(String(line.dropFirst(2)))))
             } else {
                 tokenizeInline(line, into: &tokens)
             }
@@ -96,37 +76,117 @@ struct MarkupParser {
     }
 
     private static func tokenizeInline(_ line: String, into tokens: inout [Token]) {
-        let nsLine = line as NSString
-        let range = NSRange(location: 0, length: nsLine.length)
-        let matches = inlinePattern.matches(in: line, range: range)
+        let chars = Array(line)
+        var i = 0
+        var plain = ""
 
-        var lastEnd = 0
-        for match in matches {
-            if match.range.location > lastEnd {
-                let plainRange = NSRange(location: lastEnd, length: match.range.location - lastEnd)
-                tokens.append(Token(kind: .plain, text: restore(nsLine.substring(with: plainRange))))
+        func flushPlain() {
+            if !plain.isEmpty {
+                tokens.append(Token(kind: .plain, text: plain))
+                plain = ""
             }
-
-            if match.range(at: 1).location != NSNotFound {
-                tokens.append(Token(kind: .boldItalic, text: restore(nsLine.substring(with: match.range(at: 1)))))
-            } else if match.range(at: 2).location != NSNotFound {
-                tokens.append(Token(kind: .bold, text: restore(nsLine.substring(with: match.range(at: 2)))))
-            } else if match.range(at: 3).location != NSNotFound {
-                tokens.append(Token(kind: .italic, text: restore(nsLine.substring(with: match.range(at: 3)))))
-            } else if match.range(at: 4).location != NSNotFound {
-                let text = restore(nsLine.substring(with: match.range(at: 4)))
-                let attrStr = nsLine.substring(with: match.range(at: 5))
-                let attrs = parseAttrs(restore(attrStr))
-                tokens.append(Token(kind: .attrSpan, text: text, attrs: attrs))
-            }
-
-            lastEnd = match.range.location + match.range.length
         }
 
-        if lastEnd < nsLine.length {
-            let remaining = NSRange(location: lastEnd, length: nsLine.length - lastEnd)
-            tokens.append(Token(kind: .plain, text: restore(nsLine.substring(with: remaining))))
+        while i < chars.count {
+            let ch = chars[i]
+
+            if ch == "\\", i + 1 < chars.count, escapableChars.contains(chars[i + 1]) {
+                plain.append(chars[i + 1])
+                i += 2
+                continue
+            }
+
+            if ch == "*" {
+                var run = 0
+                while i + run < chars.count && chars[i + run] == "*" { run += 1 }
+                // Longest marker first, mirroring the old regex alternation
+                // (***…*** | **…** | *…*).
+                var matched = false
+                for stars in stride(from: min(run, 3), through: 1, by: -1) {
+                    if let (content, next) = scanEmphasis(chars, from: i + stars, closingRun: stars) {
+                        flushPlain()
+                        let kind: TokenKind = stars == 3 ? .boldItalic : (stars == 2 ? .bold : .italic)
+                        tokens.append(Token(kind: kind, text: content))
+                        i = next
+                        matched = true
+                        break
+                    }
+                }
+                if !matched {
+                    plain.append(String(repeating: "*", count: run))
+                    i += run
+                }
+                continue
+            }
+
+            if ch == "[", let span = scanAttrSpan(chars, from: i) {
+                flushPlain()
+                tokens.append(Token(kind: .attrSpan, text: span.text, attrs: parseAttrs(span.attrs)))
+                i = span.next
+                continue
+            }
+
+            plain.append(ch)
+            i += 1
         }
+
+        flushPlain()
+    }
+
+    /// Scans for a `closingRun`-star delimiter starting at `from`, resolving
+    /// escapes inline. Returns the (non-empty) content and the index just past
+    /// the closing stars, or nil if the marker never closes on this line.
+    private static func scanEmphasis(_ chars: [Character], from: Int, closingRun: Int) -> (content: String, next: Int)? {
+        var content = ""
+        var i = from
+        while i < chars.count {
+            if chars[i] == "\\", i + 1 < chars.count, escapableChars.contains(chars[i + 1]) {
+                content.append(chars[i + 1])
+                i += 2
+                continue
+            }
+            if chars[i] == "*", !content.isEmpty {
+                var run = 0
+                while i + run < chars.count && chars[i + run] == "*" { run += 1 }
+                if run >= closingRun {
+                    return (content, i + closingRun)
+                }
+            }
+            content.append(chars[i])
+            i += 1
+        }
+        return nil
+    }
+
+    /// Scans a `[text]{attrs}` span starting at the `[` at `from`. Both
+    /// segments resolve escapes inline and must be non-empty.
+    private static func scanAttrSpan(_ chars: [Character], from: Int) -> (text: String, attrs: String, next: Int)? {
+        var text = ""
+        var i = from + 1
+        while i < chars.count, chars[i] != "]" {
+            if chars[i] == "\\", i + 1 < chars.count, escapableChars.contains(chars[i + 1]) {
+                text.append(chars[i + 1])
+                i += 2
+            } else {
+                text.append(chars[i])
+                i += 1
+            }
+        }
+        guard !text.isEmpty, i < chars.count, i + 1 < chars.count, chars[i + 1] == "{" else { return nil }
+
+        var attrs = ""
+        var j = i + 2
+        while j < chars.count, chars[j] != "}" {
+            if chars[j] == "\\", j + 1 < chars.count, escapableChars.contains(chars[j + 1]) {
+                attrs.append(chars[j + 1])
+                j += 2
+            } else {
+                attrs.append(chars[j])
+                j += 1
+            }
+        }
+        guard !attrs.isEmpty, j < chars.count else { return nil }
+        return (text, attrs, j + 1)
     }
 
     // MARK: - Attribute Parsing

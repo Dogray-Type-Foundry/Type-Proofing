@@ -336,7 +336,7 @@ private struct FamilyGroupView: View {
             // Individual style toggles
             if isExpanded {
                 ForEach(styles) { style in
-                    Toggle(isOn: styleBinding(for: style.index)) {
+                    Toggle(isOn: styleBinding(for: style)) {
                         Text(style.styleName)
                             .font(.caption)
                     }
@@ -350,25 +350,29 @@ private struct FamilyGroupView: View {
     private var familyToggleBinding: Binding<Bool> {
         Binding(
             get: {
-                styles.allSatisfy { isStyleEnabled($0.index) }
+                styles.allSatisfy { isStyleEnabled($0) }
             },
             set: { enabled in
                 for style in styles {
-                    enabledStyleIndices[String(style.index)] = enabled
+                    enabledStyleIndices[key(for: style)] = enabled
                 }
             }
         )
     }
 
-    private func styleBinding(for index: Int) -> Binding<Bool> {
-        let key = String(index)
+    private func styleBinding(for style: FontStyleEntry) -> Binding<Bool> {
+        let key = key(for: style)
         return Binding(
-            get: { isStyleEnabled(index) },
+            get: { isStyleEnabled(style) },
             set: { enabledStyleIndices[key] = $0 }
         )
     }
 
-    private func isStyleEnabled(_ index: Int) -> Bool {
-        enabledStyleIndices[String(index)] ?? true  // default to enabled
+    private func isStyleEnabled(_ style: FontStyleEntry) -> Bool {
+        enabledStyleIndices[key(for: style)] ?? true  // default to enabled
+    }
+
+    private func key(for style: FontStyleEntry) -> String {
+        stableStyleKey(fontPath: style.fontPath, coordinates: style.coordinates)
     }
 }

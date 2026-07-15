@@ -217,33 +217,9 @@ struct ContentView: View {
     // MARK: - Settings Import
 
     private func importSettings(from url: URL) {
-        _ = url.startAccessingSecurityScopedResource()
-        defer { url.stopAccessingSecurityScopedResource() }
-
-        guard let data = try? Data(contentsOf: url),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            print("Failed to read settings file")
-            return
+        if state.importState(from: url, engine: engine) {
+            print("Settings imported from: \(url.path)")
         }
-
-        if let fontsDict = json["fonts"] as? [String: Any],
-           let paths = fontsDict["paths"] as? [String] {
-            let validPaths = paths.filter { FileManager.default.fileExists(atPath: $0) }
-            if !validPaths.isEmpty {
-                fonts.fontPaths = validPaths
-                fonts.loadedFonts = engine.getFontMetadata(paths: validPaths)
-                state.output.outputDirectory = (validPaths[0] as NSString).deletingLastPathComponent
-                state.applyAvailableFontFeatures(engine: engine)
-            }
-        }
-
-        if let format = json["page_format"] as? String {
-            page.pageFormat = format
-        }
-
-        state.schedulePersistPublic()
-        print("Settings imported from: \(url.path)")
     }
 }
 
