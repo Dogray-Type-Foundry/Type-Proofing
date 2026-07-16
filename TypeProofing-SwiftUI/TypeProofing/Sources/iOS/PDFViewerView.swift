@@ -72,6 +72,9 @@ final class PDFViewCoordinator: ObservableObject, PreviewNavigationHandling {
     }
 
     private var pendingAnchor: Anchor?
+    /// Page to show once the next document load lands — set by the grid view,
+    /// whose taps happen while no PDFView exists.
+    var pendingPageIndex: Int?
 
     private func currentAnchor() -> Anchor? {
         guard let pdfView,
@@ -129,9 +132,21 @@ final class PDFViewCoordinator: ObservableObject, PreviewNavigationHandling {
                 }
                 pdfView.document = document
                 self.lastLoadedPDFPath = path
-                self.restore(in: document, sections: sections)
+                if self.pendingPageIndex == nil {
+                    self.restore(in: document, sections: sections)
+                }
                 self.sections = sections
                 self.loadedDocument = document
+                if let pending = self.pendingPageIndex {
+                    self.pendingPageIndex = nil
+                    let index = min(max(pending, 0), document.pageCount - 1)
+                    if let page = document.page(at: index) {
+                        pdfView.go(to: PDFDestination(
+                            page: page,
+                            at: CGPoint(x: 0, y: page.bounds(for: pdfView.displayBox).height)
+                        ))
+                    }
+                }
                 self.syncCurrentPage()
             }
         }

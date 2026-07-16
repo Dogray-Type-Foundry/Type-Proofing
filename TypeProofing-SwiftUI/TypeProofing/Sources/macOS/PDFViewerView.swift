@@ -21,6 +21,9 @@ class PDFViewCoordinator: ObservableObject, PreviewNavigationHandling {
     private var scaleObservers: [NSObjectProtocol] = []
     var pendingAnchor: Anchor?
     private var pendingAnchorClearTask: DispatchWorkItem?
+    /// Page to show once the next document load lands — set by the grid view,
+    /// whose taps happen while no PDFView exists.
+    var pendingPageIndex: Int?
 
     private func observeScaleChanges() {
         for obs in scaleObservers { NotificationCenter.default.removeObserver(obs) }
@@ -199,9 +202,19 @@ class PDFViewCoordinator: ObservableObject, PreviewNavigationHandling {
                 }
                 pdfView.document = document
                 self.lastLoadedPDFPath = path
-                self.restore(in: document, sections: sections)
+                if self.pendingPageIndex == nil {
+                    self.restore(in: document, sections: sections)
+                }
                 self.updateThumbnails(document: document, sections: sections)
                 self.sections = sections
+                if let pending = self.pendingPageIndex {
+                    self.pendingPageIndex = nil
+                    let index = min(max(pending, 0), document.pageCount - 1)
+                    if let page = document.page(at: index) {
+                        pdfView.goToPageTop(page)
+                        self.thumbnailSidebar?.scrollToPage(index)
+                    }
+                }
             }
         }
     }

@@ -31,10 +31,11 @@ struct GridViewCanvas: View {
                             }
 
                             Button {
+                                // The PDFView doesn't exist while grid mode is
+                                // showing; the coordinator navigates once the
+                                // remounted view finishes loading the document.
+                                pdfCoordinator.pendingPageIndex = pageIndex
                                 page.viewMode = .page
-                                if let page = document.page(at: pageIndex) {
-                                    pdfCoordinator.pdfView?.go(to: page)
-                                }
                             } label: {
                                 GridThumbnailView(document: document, pageIndex: pageIndex)
                             }
