@@ -65,7 +65,14 @@ struct SettingsPanelView: View {
     @EnvironmentObject var proofs: ProofState
     @EnvironmentObject var fonts: FontState
     @EnvironmentObject var engine: ProofEngine
+    @EnvironmentObject var annotations: AnnotationStore
     @State private var selectedTab: SettingsPanelTab = .settings
+
+    private var frozenSelectedOption: ProofOption? {
+        guard let option = proofs.selectedProofOption,
+              annotations.isSectionFrozen(option.id) else { return nil }
+        return option
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -83,7 +90,11 @@ struct SettingsPanelView: View {
 
             switch selectedTab {
             case .settings:
+                if let option = frozenSelectedOption {
+                    LockedSectionBanner(option: option)
+                }
                 settingsContent
+                    .disabled(frozenSelectedOption != nil)
             case .diagnostics:
                 DiagnosticsPanelView()
             }
@@ -410,6 +421,42 @@ struct SettingsPanelView: View {
 private enum SettingsPanelTab: String, CaseIterable {
     case settings = "Settings"
     case diagnostics = "Diagnostics"
+}
+
+/// Pinned above the settings while the selected section is frozen; the
+/// controls below it are disabled.
+private struct LockedSectionBanner: View {
+    let option: ProofOption
+    @EnvironmentObject var annotations: AnnotationStore
+    @State private var confirmClear = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.fill")
+                .foregroundStyle(.orange)
+            Text("Locked — this section has annotations")
+                .font(.caption)
+            Spacer()
+            Button("Clear") { confirmClear = true }
+                .font(.caption)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.09))
+        .confirmationDialog(
+            "Clear annotations on “\(option.name)”?",
+            isPresented: $confirmClear,
+            titleVisibility: .visible
+        ) {
+            Button("Clear Annotations", role: .destructive) {
+                withAnimation { annotations.clearSection(option.id) }
+            }
+        } message: {
+            Text("Pencil drawings and notes on this section are discarded. The section unlocks.")
+        }
+    }
 }
 
 private struct DiagnosticsPanelView: View {

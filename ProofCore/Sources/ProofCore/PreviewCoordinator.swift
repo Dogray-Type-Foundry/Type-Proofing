@@ -168,6 +168,7 @@ public final class PreviewCoordinator: ObservableObject {
         let flatSettings = state.buildFlatProofSettings()
         let selectedID = state.proofs.selectedProof
         for option in enabled {
+            guard !isFrozenWithReadyFragment(option.id) else { continue }
             enqueue(option: option, priority: option.id == selectedID ? .selected : .normal,
                     fullConfig: fullConfig, flatSettings: flatSettings)
         }
@@ -178,6 +179,7 @@ public final class PreviewCoordinator: ObservableObject {
     private func invalidateProof(_ proofID: ProofOption.ID) {
         guard !generationPaused else { return }
         guard let state, let option = state.proofs.proofOptions.first(where: { $0.id == proofID }) else { return }
+        guard !isFrozenWithReadyFragment(proofID) else { return }
         cancelRunning(for: proofID)
         removeQueuedJobs(for: proofID)
         guard option.enabled else {
@@ -191,6 +193,23 @@ public final class PreviewCoordinator: ObservableObject {
                 fullConfig: fullConfig, flatSettings: flatSettings)
         requestCompose(immediate: true)
         pumpQueues()
+    }
+
+    /// True when the option's preview fragment is fully rendered — the page
+    /// content on screen is real, not a placeholder or a stale re-render.
+    /// Pencil markup only accepts ink on ready sections.
+    public func isFragmentReady(_ proofID: ProofOption.ID) -> Bool {
+        if case .ready = fragments[proofID]?.status { return true }
+        return false
+    }
+
+    /// Annotated sections must keep their exact pagination, so they never
+    /// *re*-render. They still render once per launch (fragments start empty)
+    /// and after being re-enabled (disabling removes the fragment).
+    private func isFrozenWithReadyFragment(_ proofID: ProofOption.ID) -> Bool {
+        guard state?.annotations.isSectionFrozen(proofID) == true,
+              let fragment = fragments[proofID], case .ready = fragment.status else { return false }
+        return true
     }
 
     private func enqueue(option: ProofOption, priority: PreviewPriority,
@@ -350,20 +369,20 @@ public final class PreviewCoordinator: ObservableObject {
             return
         }
 
-        var entries: [(name: String, readyPath: String?, message: String)] = []
+        var entries: [(name: String, optionID: UUID, readyPath: String?, message: String)] = []
         for option in enabled {
             let status = fragments[option.id]?.status ?? .empty
             switch status {
             case .ready(let path, _, _):
-                entries.append((option.name, path, "Preview unavailable"))
+                entries.append((option.name, option.id, path, "Preview unavailable"))
             case .failed(let msg):
-                entries.append((option.name, nil, msg))
+                entries.append((option.name, option.id, nil, msg))
             case .generating:
-                entries.append((option.name, fragments[option.id]?.lastReadyPath, "Generating preview..."))
+                entries.append((option.name, option.id, fragments[option.id]?.lastReadyPath, "Generating preview..."))
             case .queued:
-                entries.append((option.name, fragments[option.id]?.lastReadyPath, "Queued for preview..."))
+                entries.append((option.name, option.id, fragments[option.id]?.lastReadyPath, "Queued for preview..."))
             case .empty:
-                entries.append((option.name, nil, "Waiting for preview..."))
+                entries.append((option.name, option.id, nil, "Waiting for preview..."))
             }
         }
         let dims = currentPageDimensions()
@@ -393,7 +412,7 @@ public final class PreviewCoordinator: ObservableObject {
     // actor (a nonisolated *sync* function runs on the caller's executor);
     // page copying and the disk write below must not stall the UI.
     nonisolated private static func performCompose(
-        entries: [(name: String, readyPath: String?, message: String)],
+        entries: [(name: String, optionID: UUID, readyPath: String?, message: String)],
         pageWidth: CGFloat,
         pageHeight: CGFloat,
         outputDir: URL
@@ -402,7 +421,7 @@ public final class PreviewCoordinator: ObservableObject {
         var sections: [ProofSection] = []
 
         for entry in entries {
-            sections.append(ProofSection(name: entry.name, firstPage: output.pageCount))
+            sections.append(ProofSection(name: entry.name, firstPage: output.pageCount, optionID: entry.optionID))
 
             if let path = entry.readyPath,
                let document = PDFDocument(url: URL(fileURLWithPath: path)),

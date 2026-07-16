@@ -8,6 +8,7 @@ struct ContentView: View {
     @EnvironmentObject var page: PageState
     @EnvironmentObject var preview: PreviewState
     @EnvironmentObject var fonts: FontState
+    @EnvironmentObject var annotations: AnnotationStore
     @StateObject private var previewCoordinator = PreviewCoordinator()
     @StateObject private var pdfCoordinator = PDFViewCoordinator()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -96,7 +97,10 @@ struct ContentView: View {
                         PDFKitView(
                             pdfPath: pdfPath,
                             sections: preview.previewSections,
-                            pdfCoordinator: pdfCoordinator
+                            pdfCoordinator: pdfCoordinator,
+                            previewCoordinator: previewCoordinator,
+                            annotations: annotations,
+                            markupActive: ui.isMarkupActive
                         )
                     case .grid:
                         GridViewCanvas(
@@ -131,6 +135,19 @@ struct ContentView: View {
         // The nav bar's only job here was hosting share + the app menu;
         // those float over the preview now, so reclaim the space.
         .toolbar(.hidden, for: .navigationBar)
+        // Nothing may regenerate under wet ink: markup mode pauses the
+        // preview pipeline wholesale and reconciles on exit.
+        .onChange(of: ui.isMarkupActive) { _, active in
+            if active {
+                previewCoordinator.pauseForFinalGeneration()
+            } else {
+                previewCoordinator.resumeAfterFinalGeneration()
+            }
+        }
+        // Markup only exists in page view; leaving it ends the session.
+        .onChange(of: page.viewMode) { _, _ in
+            if ui.isMarkupActive { ui.isMarkupActive = false }
+        }
         // Edge swipes: drag inward from an edge to reveal that panel, drag
         // outward (toward the edge) to hide it.
         .overlay(alignment: .leading) {
@@ -173,25 +190,22 @@ struct ContentView: View {
     /// Share + app menu, floating top-right over the preview.
     private var shareMenuPill: some View {
         HStack(spacing: 2) {
-            let sharePath = preview.previewPDFPath ?? preview.finalPDFPath
-            ShareLink(item: URL(fileURLWithPath: sharePath ?? "")) {
-                Image(systemName: "square.and.arrow.up")
-                    .frame(width: 32, height: 30)
-                    .foregroundStyle(.secondary)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(preview.previewPDFPath == nil)
+            shareLink
 
             // Pre-26 iPads have no menu bar; surface the app menu here too.
             Menu {
+                // Importing/resetting replaces settings wholesale — blocked
+                // while annotations exist (Reset Settings stays as the escape
+                // hatch: it discards annotations along with everything else).
                 Button("Import Settings…") { ui.showSettingsImporter = true }
+                    .disabled(annotations.hasAnyAnnotations)
                 Button("Export Settings…") {
                     ui.settingsExportRequest = state.exportedSettingsJSON()
                 }
                 Divider()
                 Button("Reset Settings", role: .destructive) { state.resetAllSettings() }
                 Button("Reset Fonts", role: .destructive) { state.resetFonts() }
+                    .disabled(annotations.hasAnyAnnotations)
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .frame(width: 32, height: 30)
@@ -205,6 +219,37 @@ struct ContentView: View {
         .liquidGlassCapsule()
         .padding(.top, 10)
         .padding(.trailing, 10)
+    }
+
+    /// Plain file share normally; when markup exists, the shared copy gets
+    /// the annotations baked in as flat vector content on export.
+    @ViewBuilder
+    private var shareLink: some View {
+        let sharePath = preview.previewPDFPath ?? preview.finalPDFPath
+        let label = Image(systemName: "square.and.arrow.up")
+            .frame(width: 32, height: 30)
+            .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
+        if annotations.hasAnyAnnotations, let sharePath {
+            ShareLink(
+                item: AnnotatedProofExport(
+                    sourcePath: sharePath,
+                    annotations: annotations.sections,
+                    sections: preview.previewPDFPath != nil
+                        ? preview.previewSections : preview.finalSections
+                ),
+                preview: SharePreview("Annotated Proof")
+            ) {
+                label
+            }
+            .buttonStyle(.plain)
+        } else {
+            ShareLink(item: URL(fileURLWithPath: sharePath ?? "")) {
+                label
+            }
+            .buttonStyle(.plain)
+            .disabled(sharePath == nil)
+        }
     }
 }
 

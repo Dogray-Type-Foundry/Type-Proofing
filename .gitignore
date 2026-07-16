@@ -38,5 +38,15 @@ native/lib/
 ProofCore/Binaries/
 ProofCore/.build/
 
+# Local-only working files
+TypeProofing-SwiftUI/build/
+crash-report.txt
+.python-version
+_OLD_PLANS/
+
+# Claude Code machine-local state (settings.json/skills may be committed)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
 # Other
 .github

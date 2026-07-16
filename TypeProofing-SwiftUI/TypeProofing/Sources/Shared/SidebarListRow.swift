@@ -8,6 +8,7 @@ struct SidebarListRow<Detail: View>: View {
     @Binding var enabled: Bool
     let isLast: Bool
     let badge: String?
+    let isLocked: Bool
     let isSelected: Bool
     let onRemove: () -> Void
     let onTap: (() -> Void)?
@@ -27,6 +28,7 @@ struct SidebarListRow<Detail: View>: View {
         enabled: Binding<Bool>,
         isLast: Bool,
         badge: String? = nil,
+        isLocked: Bool = false,
         isSelected: Bool = false,
         onRemove: @escaping () -> Void,
         onTap: (() -> Void)? = nil,
@@ -38,6 +40,7 @@ struct SidebarListRow<Detail: View>: View {
         self._enabled = enabled
         self.isLast = isLast
         self.badge = badge
+        self.isLocked = isLocked
         self.isSelected = isSelected
         self.onRemove = onRemove
         self.onTap = onTap
@@ -108,6 +111,13 @@ struct SidebarListRow<Detail: View>: View {
                                     isEditing = true
                                 }
                             }
+                    }
+
+                    if isLocked {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.orange)
+                            .help("Locked — this section has annotations")
                     }
 
                     if let badge {

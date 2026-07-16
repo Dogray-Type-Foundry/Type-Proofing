@@ -30,11 +30,20 @@ public struct FontAxis: Identifiable {
 }
 
 public struct ProofOption: Identifiable, Equatable {
-    public let id = UUID()
+    // Persisted (annotations are keyed by it), so it must survive relaunch.
+    public let id: UUID
     public var name: String
     public var baseType: String     // original proof type key
     public var enabled: Bool
     public var order: Int
+
+    public init(id: UUID = UUID(), name: String, baseType: String, enabled: Bool, order: Int) {
+        self.id = id
+        self.name = name
+        self.baseType = baseType
+        self.enabled = enabled
+        self.order = order
+    }
 }
 
 public enum ProofCost: String, Codable {
@@ -102,6 +111,14 @@ public let DEFAULT_ON_FEATURES: Set<String> = [
 public struct ProofSection: Equatable {
     public let name: String
     public let firstPage: Int   // 0-based page index
+    /// The originating proof option; annotation keys resolve through it.
+    public let optionID: ProofOption.ID?
+
+    public init(name: String, firstPage: Int, optionID: ProofOption.ID? = nil) {
+        self.name = name
+        self.firstPage = firstPage
+        self.optionID = optionID
+    }
 }
 
 public struct PreviewNavigationRequest: Equatable {

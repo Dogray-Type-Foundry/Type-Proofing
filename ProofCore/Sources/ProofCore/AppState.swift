@@ -282,6 +282,9 @@ public final class UIState: ObservableObject {
     @Published public var sidebarWidth: CGFloat = 240
     @Published public var thumbnailStripWidth: CGFloat = 140
     @Published public var inspectorWidth: CGFloat = 300
+    /// Pencil markup mode (iPad page view). Not persisted; always false on
+    /// macOS. While on, the preview pipeline is paused and Generate is gated.
+    @Published public var isMarkupActive = false
 }
 
 // MARK: - OutputState
@@ -303,15 +306,18 @@ public final class AppState: ObservableObject {
     public let page = PageState()
     public let ui = UIState()
     public let output = OutputState()
+    public let annotations = AnnotationStore(fileURL: supportDirectory.appendingPathComponent("annotations.json"))
 
     @Published public private(set) var cachedRunSummary = ProofRunSummary()
 
-    private static let settingsURL: URL = {
+    private static let supportDirectory: URL = {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("TypeProofing", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("prefs.json")
+        return dir
     }()
+
+    private static let settingsURL = supportDirectory.appendingPathComponent("prefs.json")
 
     private var persistTimer: Timer?
     private var fontStylesRefreshTimer: Timer?
@@ -356,6 +362,7 @@ public final class AppState: ObservableObject {
         page.pageFormats = engine.getPageFormats()
 
         if loadPersistedState() {
+            annotations.load(validOptionIDs: Set(proofs.proofOptions.map(\.id)))
             if !page.pageFormats.isEmpty && !page.pageFormats.contains(page.pageFormat) {
                 page.pageFormat = page.pageFormats.first!
             }
@@ -712,6 +719,9 @@ public final class AppState: ObservableObject {
 
     public func removeProofOption(at offsets: IndexSet) {
         let names = offsets.map { proofs.proofOptions[$0].name }
+        for offset in offsets {
+            annotations.clearSection(proofs.proofOptions[offset].id)
+        }
         proofs.proofOptions.remove(atOffsets: offsets)
         for name in names {
             proofs.proofSettingsByProof.removeValue(forKey: name)
@@ -954,6 +964,7 @@ public final class AppState: ObservableObject {
     }
 
     public func flushPendingPersist() {
+        annotations.flushPendingSave()
         guard persistTimer?.isValid == true else { return }
         persistTimer?.invalidate()
         persistTimer = nil
@@ -969,7 +980,7 @@ public final class AppState: ObservableObject {
             fontSortCriteria: fonts.fontSortCriteria,
             styleSourceMode: fonts.styleSourceMode,
             proofOptions: proofs.proofOptions.map {
-                PersistedProofOption(name: $0.name, baseType: $0.baseType, enabled: $0.enabled, order: $0.order)
+                PersistedProofOption(id: $0.id, name: $0.name, baseType: $0.baseType, enabled: $0.enabled, order: $0.order)
             },
             proofSettingsByProof: proofs.proofSettingsByProof,
             pageFormat: page.pageFormat,
@@ -1022,7 +1033,9 @@ public final class AppState: ObservableObject {
         output.customOutputLocation = data.customOutputLocation
 
         proofs.proofOptions = data.proofOptions.map { po in
-            ProofOption(name: po.name, baseType: po.baseType, enabled: po.enabled, order: po.order)
+            // Legacy prefs files carry no IDs; fresh ones orphan any stored
+            // annotations, which load()/prune() then drop.
+            ProofOption(id: po.id ?? UUID(), name: po.name, baseType: po.baseType, enabled: po.enabled, order: po.order)
         }
         proofs.proofSettingsByProof = data.proofSettingsByProof
 
@@ -1069,6 +1082,7 @@ public final class AppState: ObservableObject {
             }
         }
 
+        annotations.prune(validOptionIDs: Set(proofs.proofOptions.map(\.id)))
         clearGeneratedOutput()
         persistState()
         previewCoordinator?.stateChanged(debounced: false)
@@ -1095,6 +1109,7 @@ public final class AppState: ObservableObject {
     public func resetAllSettings() {
         guard proofs.isRegistryLoaded else { return }
 
+        annotations.clearAll()
         resetProofDefaults()
         page.showBaselines = false
         page.showFooter = true
@@ -1114,6 +1129,7 @@ public final class AppState: ObservableObject {
 // MARK: - Persistence Types
 
 public struct PersistedProofOption: Codable {
+    public let id: UUID?    // optional: absent in pre-annotation prefs files
     public let name: String
     public let baseType: String
     public let enabled: Bool

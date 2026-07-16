@@ -9,6 +9,7 @@ struct GridViewCanvas: View {
     let sections: [ProofSection]
     let pdfCoordinator: PDFViewCoordinator
     @EnvironmentObject var page: PageState
+    @EnvironmentObject var annotations: AnnotationStore
 
     @State private var document: PDFDocument?
 
@@ -17,6 +18,7 @@ struct GridViewCanvas: View {
             if let document, document.pageCount > 0 {
                 let pageCount = document.pageCount
                 let sectionMap = buildSectionMap(pageCount: pageCount)
+                let annotatedPages = annotations.annotatedPages(in: sections)
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], spacing: 12) {
                     ForEach(0..<pageCount, id: \.self) { pageIndex in
@@ -40,6 +42,11 @@ struct GridViewCanvas: View {
                                 GridThumbnailView(document: document, pageIndex: pageIndex)
                             }
                             .buttonStyle(.plain)
+                            .overlay(alignment: .topTrailing) {
+                                if annotatedPages.contains(pageIndex) {
+                                    AnnotationBadgeDot()
+                                }
+                            }
 
                             Text("\(pageIndex + 1)")
                                 .font(.system(size: 9, design: .monospaced))
@@ -72,6 +79,18 @@ struct GridViewCanvas: View {
             map[idx] = section.name
         }
         return map
+    }
+}
+
+/// Marks an annotated page in the grid view and the thumbnail strip. The
+/// hairline ring keeps it visible over dark page content.
+struct AnnotationBadgeDot: View {
+    var body: some View {
+        Circle()
+            .fill(.red)
+            .frame(width: 8, height: 8)
+            .overlay(Circle().stroke(.white, lineWidth: 1))
+            .padding(4)
     }
 }
 

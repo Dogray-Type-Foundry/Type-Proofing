@@ -18,6 +18,7 @@ struct TypeProofingApp: App {
                 .environmentObject(appState.page)
                 .environmentObject(appState.ui)
                 .environmentObject(appState.output)
+                .environmentObject(appState.annotations)
         }
         .commands {
             AppMenuCommands(appState: appState, engine: engine)

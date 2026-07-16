@@ -153,7 +153,7 @@ struct NativeProofOrchestrator {
 
             // One section per proof, matching the preview's section model.
             if renderer.pageCount > proofPagesBefore {
-                sections.append(ProofSection(name: option.name, firstPage: proofPagesBefore))
+                sections.append(ProofSection(name: option.name, firstPage: proofPagesBefore, optionID: option.id))
             }
         }
 

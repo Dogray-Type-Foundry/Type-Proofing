@@ -19,6 +19,11 @@ final class PDFViewCoordinator: ObservableObject, PreviewNavigationHandling {
     @Published private(set) var currentPageIndex: Int = 0
 
     var sections: [ProofSection] = []
+    /// Set by AnnotationOverlayProvider; drops a note on the current page.
+    var placeNoteAction: (() -> Void)?
+    /// Fires after a document load lands and `sections` is current — the
+    /// annotation layer re-attaches its freeText annotations here.
+    var onDocumentLoaded: (() -> Void)?
     var lastLoadedPDFPath: String?
     var requestedPDFPath: String?
     var lastHandledNavigationRequestID: UUID?
@@ -131,6 +136,9 @@ final class PDFViewCoordinator: ObservableObject, PreviewNavigationHandling {
                     self.pendingAnchor = self.currentAnchor()
                 }
                 pdfView.document = document
+                // PDFKit recomputes scale limits on document load — re-assert
+                // the 800% ceiling or zoom silently clamps to the default.
+                pdfView.maxScaleFactor = 8.0
                 self.lastLoadedPDFPath = path
                 if self.pendingPageIndex == nil {
                     self.restore(in: document, sections: sections)
@@ -148,6 +156,7 @@ final class PDFViewCoordinator: ObservableObject, PreviewNavigationHandling {
                     }
                 }
                 self.syncCurrentPage()
+                self.onDocumentLoaded?()
             }
         }
     }
@@ -170,14 +179,27 @@ struct PDFKitView: UIViewRepresentable {
     let pdfPath: String?
     let sections: [ProofSection]
     let pdfCoordinator: PDFViewCoordinator
+    let previewCoordinator: PreviewCoordinator
+    let annotations: AnnotationStore
+    let markupActive: Bool
+
+    func makeCoordinator() -> AnnotationOverlayProvider {
+        AnnotationOverlayProvider(
+            store: annotations,
+            pdfCoordinator: pdfCoordinator,
+            previewCoordinator: previewCoordinator
+        )
+    }
 
     func makeUIView(context: Context) -> PDFView {
         let pdfView = PDFView()
         pdfView.autoScales = true
+        pdfView.maxScaleFactor = 8.0
         pdfView.displaysPageBreaks = true
         pdfView.displayMode = .singlePageContinuous
         pdfView.displayDirection = .vertical
         pdfView.backgroundColor = .secondarySystemBackground
+        context.coordinator.attach(to: pdfView)
         pdfCoordinator.pdfView = pdfView
         pdfCoordinator.lastLoadedPDFPath = nil
         pdfCoordinator.requestedPDFPath = nil
@@ -185,6 +207,7 @@ struct PDFKitView: UIViewRepresentable {
     }
 
     func updateUIView(_ pdfView: PDFView, context: Context) {
+        context.coordinator.setMarkupActive(markupActive)
         if let path = pdfPath {
             if pdfCoordinator.lastLoadedPDFPath != path {
                 pdfCoordinator.loadDocument(path: path, sections: sections)
@@ -211,6 +234,7 @@ struct PDFKitView: UIViewRepresentable {
 struct ThumbnailStrip: View {
     let sections: [ProofSection]
     @ObservedObject var pdfCoordinator: PDFViewCoordinator
+    @EnvironmentObject var annotations: AnnotationStore
 
     private var sectionNamesByFirstPage: [Int: String] {
         Dictionary(sections.map { ($0.firstPage, $0.name) }) { first, _ in first }
@@ -220,6 +244,7 @@ struct ThumbnailStrip: View {
         if let document = pdfCoordinator.loadedDocument {
             ScrollViewReader { proxy in
                 ScrollView {
+                    let annotatedPages = annotations.annotatedPages(in: sections)
                     LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(0..<document.pageCount, id: \.self) { index in
                             if let page = document.page(at: index) {
@@ -236,6 +261,11 @@ struct ThumbnailStrip: View {
                                     isCurrent: index == pdfCoordinator.currentPageIndex
                                 ) {
                                     pdfCoordinator.pdfView?.go(to: page)
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    if annotatedPages.contains(index) {
+                                        AnnotationBadgeDot()
+                                    }
                                 }
                                 .id(index)
                             }
@@ -314,6 +344,7 @@ private struct ThumbnailCell: View {
 struct PDFFloatingToolbar: View {
     @EnvironmentObject var ui: UIState
     @EnvironmentObject var page: PageState
+    @EnvironmentObject var annotations: AnnotationStore
     @Binding var columnVisibility: NavigationSplitViewVisibility
     @Binding var showThumbnails: Bool
     @ObservedObject var pdfCoordinator: PDFViewCoordinator
@@ -367,12 +398,15 @@ struct PDFFloatingToolbar: View {
                     .frame(height: 16)
                     .padding(.horizontal, 4)
 
+                // Baselines/footer re-render every page — locked while annotated.
                 toolbarButton("line.3.horizontal", active: page.showBaselines, help: "Baseline grid") {
                     page.showBaselines.toggle()
                 }
+                .disabled(annotations.hasAnyAnnotations)
                 toolbarButton("text.append", active: page.showFooter, help: page.showFooter ? "Hide footer" : "Show footer") {
                     page.showFooter.toggle()
                 }
+                .disabled(annotations.hasAnyAnnotations)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
@@ -408,6 +442,32 @@ struct PDFFloatingToolbar: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .liquidGlassCapsule()
+
+            // Pencil markup: page view only, and the restricted vector tool
+            // picker needs iPadOS 18.
+            if #available(iOS 18.0, *), page.viewMode == .page {
+                HStack(spacing: 2) {
+                    toolbarButton(
+                        "applepencil.and.scribble",
+                        active: ui.isMarkupActive,
+                        help: ui.isMarkupActive ? "Done annotating" : "Annotate"
+                    ) {
+                        ui.isMarkupActive.toggle()
+                    }
+                    if ui.isMarkupActive {
+                        toolbarButton(
+                            "character.textbox",
+                            active: false,
+                            help: "Add a note to this page"
+                        ) {
+                            pdfCoordinator.placeNoteAction?()
+                        }
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .liquidGlassCapsule()
+            }
         }
         .padding(.top, 10)
     }
@@ -426,6 +486,6 @@ struct PDFFloatingToolbar: View {
     private func zoom(by delta: CGFloat) {
         guard let pdfView = pdfCoordinator.pdfView else { return }
         pdfView.autoScales = false
-        pdfView.scaleFactor = max(0.1, min(pdfView.scaleFactor + delta, 5.0))
+        pdfView.scaleFactor = max(0.1, min(pdfView.scaleFactor + delta, 8.0))
     }
 }

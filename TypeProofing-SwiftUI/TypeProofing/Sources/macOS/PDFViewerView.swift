@@ -201,6 +201,9 @@ class PDFViewCoordinator: ObservableObject, PreviewNavigationHandling {
                     self.pendingAnchor = self.currentAnchor()
                 }
                 pdfView.document = document
+                // PDFKit recomputes scale limits on document load — re-assert
+                // the 800% ceiling or zoom silently clamps to the default.
+                pdfView.maxScaleFactor = 8.0
                 self.lastLoadedPDFPath = path
                 if self.pendingPageIndex == nil {
                     self.restore(in: document, sections: sections)
@@ -231,6 +234,7 @@ struct PDFCanvasView: NSViewRepresentable {
     func makeNSView(context: Context) -> PDFView {
         let pdfView = PDFView()
         pdfView.autoScales = true
+        pdfView.maxScaleFactor = 8.0
         pdfView.displaysPageBreaks = true
         pdfView.displayMode = .singlePageContinuous
         pdfCoordinator.pdfView = pdfView

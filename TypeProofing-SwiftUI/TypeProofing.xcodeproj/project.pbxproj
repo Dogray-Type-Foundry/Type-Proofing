@@ -11,8 +11,10 @@
 		0E9398AE32C814E4C7DEF9CB /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = E493E6A783430EC1B5DCD13C /* README.md */; };
 		1C526D7B9502C2A495842C43 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 65794A061E53E1ACC420FDF0 /* Assets.xcassets */; };
 		1FA6056C35E98D3A53DD2393 /* FontAxesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AF3FB2EE3A9C2FCB75488EB /* FontAxesView.swift */; };
+		21234407D80F56A5B3827A22 /* AnnotationPDFExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D5694E40F88FDD7CA8F435A /* AnnotationPDFExporter.swift */; platformFilters = (ios, ); };
 		2AF36C6E0907A72413F25E4C /* GridViewCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 592C0B06E74BB3BFB8D16638 /* GridViewCanvas.swift */; };
 		38B4777F7E10599BBCAF4709 /* TypeProofing.icns in Resources */ = {isa = PBXBuildFile; fileRef = 3D33E010FA40B61EFD0077A8 /* TypeProofing.icns */; };
+		39140FE7F08BECCF201B6AC0 /* AnnotationInkRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = B04AFDF77EDF3B87F87BF52B /* AnnotationInkRendering.swift */; platformFilters = (ios, ); };
 		3BAB0B9C92DF98AE89333BFA /* CoreWiring.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ADADE3DEAC6893C4D2925E /* CoreWiring.swift */; };
 		516DECD73658A104BC3DB249 /* FontSortBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A8475BDAA43AF40840641E2 /* FontSortBar.swift */; };
 		5A50BE985FF9D61B53FBA46F /* LiquidGlassCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54049540BDFCC4A5429EB10A /* LiquidGlassCompat.swift */; };
@@ -29,7 +31,9 @@
 		9D4BEFF98293E4D66A23AFE2 /* CompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 351D5130D308C2BD089FC530 /* CompareView.swift */; platformFilters = (ios, ); };
 		9E787FB53F11627158613C87 /* SettingsPanelUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B45C6D0EF3F226D95AF506 /* SettingsPanelUITests.swift */; };
 		A308ADFF4E98AB4DE35A3DB5 /* FontsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A201276DF83A709D844353 /* FontsSection.swift */; };
+		AF4E4D231A82187D8AA2CEF7 /* AnnotationOverlayProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E57D1732DE75CD9AFECE03 /* AnnotationOverlayProvider.swift */; platformFilters = (ios, ); };
 		B2F36B75D14C5448A2D7D6AF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1682FC1712F54F7242F387B1 /* ContentView.swift */; platformFilters = (macos, ); };
+		B62DBCC33D93C387DE9C2D9F /* AnnotationTextBoxes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89C897FA01499378BE574FD2 /* AnnotationTextBoxes.swift */; platformFilters = (ios, ); };
 		CA97A1D89D6983F077D330E4 /* SidebarProofsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23EF8E2D87DC6BA2B05BCFC /* SidebarProofsUITests.swift */; };
 		CE3DD426098387EE9CEC20F6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F082098AD3A3F46F9A30401E /* ContentView.swift */; platformFilters = (ios, ); };
 		D338BCA471E9B8810A7E2C6A /* FontStyleSelectionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AAD940D7FC7ECE22E80E798 /* FontStyleSelectionViews.swift */; };
@@ -75,11 +79,15 @@
 		6B071ADE6EA360957FAB7E70 /* AppMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMenuCommands.swift; sourceTree = "<group>"; };
 		707BC43C0F1760CEB8073343 /* HoverComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverComponents.swift; sourceTree = "<group>"; };
 		7D7FCB2FD81DBACB3AF8E10E /* TypeProofing.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TypeProofing.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		89C897FA01499378BE574FD2 /* AnnotationTextBoxes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationTextBoxes.swift; sourceTree = "<group>"; };
+		90E57D1732DE75CD9AFECE03 /* AnnotationOverlayProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationOverlayProvider.swift; sourceTree = "<group>"; };
 		9329069396100F27E28354EB /* PlainTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlainTextEditor.swift; sourceTree = "<group>"; };
 		9769F1DB175821D894C4A9FC /* SidebarFontsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFontsUITests.swift; sourceTree = "<group>"; };
 		9D3C01E89FBDC4A0734814C7 /* SharedOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedOverlays.swift; sourceTree = "<group>"; };
+		9D5694E40F88FDD7CA8F435A /* AnnotationPDFExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationPDFExporter.swift; sourceTree = "<group>"; };
 		A23EF8E2D87DC6BA2B05BCFC /* SidebarProofsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarProofsUITests.swift; sourceTree = "<group>"; };
 		A9EF30B3F95A888DDD41CC9A /* SettingsPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanelView.swift; sourceTree = "<group>"; };
+		B04AFDF77EDF3B87F87BF52B /* AnnotationInkRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationInkRendering.swift; sourceTree = "<group>"; };
 		BD0FC932935540E76A1FC78A /* AppIntegrationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntegrationUITests.swift; sourceTree = "<group>"; };
 		C4D7DBC1455476D39F561233 /* TypeProofing.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = TypeProofing.icon; sourceTree = "<group>"; };
 		D7B45C6D0EF3F226D95AF506 /* SettingsPanelUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanelUITests.swift; sourceTree = "<group>"; };
@@ -170,6 +178,10 @@
 		94A76C32EAF78EFEB7FEA9E9 /* iOS */ = {
 			isa = PBXGroup;
 			children = (
+				B04AFDF77EDF3B87F87BF52B /* AnnotationInkRendering.swift */,
+				90E57D1732DE75CD9AFECE03 /* AnnotationOverlayProvider.swift */,
+				9D5694E40F88FDD7CA8F435A /* AnnotationPDFExporter.swift */,
+				89C897FA01499378BE574FD2 /* AnnotationTextBoxes.swift */,
 				351D5130D308C2BD089FC530 /* CompareView.swift */,
 				F082098AD3A3F46F9A30401E /* ContentView.swift */,
 				6893746E8410314CA52C6DB1 /* PDFViewerView.swift */,
@@ -351,6 +363,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				F9E6F5A33E5DB61611BDFA6F /* AddProofPopover.swift in Sources */,
+				39140FE7F08BECCF201B6AC0 /* AnnotationInkRendering.swift in Sources */,
+				AF4E4D231A82187D8AA2CEF7 /* AnnotationOverlayProvider.swift in Sources */,
+				21234407D80F56A5B3827A22 /* AnnotationPDFExporter.swift in Sources */,
+				B62DBCC33D93C387DE9C2D9F /* AnnotationTextBoxes.swift in Sources */,
 				6D14C1FCE8D4178A5DA6ADC3 /* AppMenuCommands.swift in Sources */,
 				9D4BEFF98293E4D66A23AFE2 /* CompareView.swift in Sources */,
 				B2F36B75D14C5448A2D7D6AF /* ContentView.swift in Sources */,

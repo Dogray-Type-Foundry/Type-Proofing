@@ -9,12 +9,17 @@ struct SidebarView: View {
     @EnvironmentObject var ui: UIState
     @EnvironmentObject var page: PageState
     @EnvironmentObject var preview: PreviewState
+    @EnvironmentObject var annotations: AnnotationStore
 
     var body: some View {
         VStack(spacing: 0) {
+            if annotations.hasAnyAnnotations {
+                AnnotationLockBanner()
+            }
             ScrollView {
                 VStack(spacing: 0) {
                     fontsSection
+                        .disabled(annotations.hasAnyAnnotations)
                     Divider().padding(.horizontal, 12)
                     SidebarProofsSection()
                 }
@@ -24,6 +29,7 @@ struct SidebarView: View {
 
             Divider()
             outputSection
+                .disabled(annotations.hasAnyAnnotations)
             Divider()
             generateSection
         }
@@ -108,7 +114,7 @@ struct SidebarView: View {
             .glassProminentButtonStyle()
             .tint(state.isFinalPDFStale ? .orange : .dograyPurple)
             .help(state.isFinalPDFStale ? "Final PDF is out of sync with current settings" : "Generate Final PDF")
-            .disabled(engine.isGenerating || fonts.enabledFontPaths.isEmpty)
+            .disabled(engine.isGenerating || fonts.enabledFontPaths.isEmpty || ui.isMarkupActive)
 
             if engine.isGenerating {
                 GenerationProgressView(progress: engine.generationProgress) {
@@ -149,6 +155,48 @@ struct SidebarView: View {
     }
 }
 
+// MARK: - Annotation Lock Banner
+
+/// Shown while any section carries Pencil markup: fonts, axes, and page
+/// format are locked so frozen pagination can never drift underneath the ink.
+private struct AnnotationLockBanner: View {
+    @EnvironmentObject var annotations: AnnotationStore
+    @State private var confirmClearAll = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Settings locked")
+                    .font(.caption.weight(.medium))
+                Text("Annotated proofs keep their exact layout")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Clear All") { confirmClearAll = true }
+                .font(.caption)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.09))
+        .confirmationDialog(
+            "Clear all annotations?",
+            isPresented: $confirmClearAll,
+            titleVisibility: .visible
+        ) {
+            Button("Clear All Annotations", role: .destructive) {
+                withAnimation { annotations.clearAll() }
+            }
+        } message: {
+            Text("All Pencil drawings and notes are discarded. Settings unlock.")
+        }
+    }
+}
+
 // MARK: - Proofs Section (isolated observation)
 
 private struct SidebarProofsSection: View {
@@ -156,8 +204,11 @@ private struct SidebarProofsSection: View {
     @EnvironmentObject var fonts: FontState
     @EnvironmentObject var state: AppState
     @EnvironmentObject var ui: UIState
+    @EnvironmentObject var annotations: AnnotationStore
     @State private var dragSourceIndex: Int?
     @State private var dropTargetIndex: Int?
+    @State private var pendingAnnotatedDelete: ProofOption?
+    @State private var pendingAnnotationClear: ProofOption?
 
     private var visibleProofs: [ProofOption] {
         if fonts.anyFontSupportsArabic { return proofs.proofOptions }
@@ -178,6 +229,7 @@ private struct SidebarProofsSection: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(visibleProofs) { option in
                         if let index = proofs.proofOptions.firstIndex(where: { $0.id == option.id }) {
+                            let isFrozen = annotations.isSectionFrozen(option.id)
                             SidebarListRow(
                                 name: option.name,
                                 enabled: Binding(
@@ -189,9 +241,14 @@ private struct SidebarProofsSection: View {
                                     }
                                 ),
                                 isLast: option.id == visibleProofs.last?.id,
+                                isLocked: isFrozen,
                                 isSelected: proofs.selectedProof == option.id,
                                 onRemove: {
-                                    state.removeProofOption(at: IndexSet(integer: index))
+                                    if isFrozen {
+                                        pendingAnnotatedDelete = option
+                                    } else {
+                                        state.removeProofOption(at: IndexSet(integer: index))
+                                    }
                                 },
                                 onTap: {
                                     proofs.selectedProof = option.id
@@ -205,6 +262,15 @@ private struct SidebarProofsSection: View {
                                     return NSItemProvider(object: option.id.uuidString as NSString)
                                 }
                             )
+                            .contextMenu {
+                                if isFrozen {
+                                    Button(role: .destructive) {
+                                        pendingAnnotationClear = option
+                                    } label: {
+                                        Label("Clear Annotations", systemImage: "pencil.slash")
+                                    }
+                                }
+                            }
                             .reorderDropIndicator(index: index, source: dragSourceIndex, target: dropTargetIndex)
                             #if os(macOS)
                             .onDrop(of: [.text], delegate: ProofDropDelegate(
@@ -238,6 +304,39 @@ private struct SidebarProofsSection: View {
                     }
                 }
                 .padding(.vertical, 4)
+                .confirmationDialog(
+                    "Delete “\(pendingAnnotatedDelete?.name ?? "")”?",
+                    isPresented: Binding(
+                        get: { pendingAnnotatedDelete != nil },
+                        set: { if !$0 { pendingAnnotatedDelete = nil } }
+                    ),
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete Section & Annotations", role: .destructive) {
+                        if let option = pendingAnnotatedDelete,
+                           let index = proofs.proofOptions.firstIndex(where: { $0.id == option.id }) {
+                            state.removeProofOption(at: IndexSet(integer: index))
+                        }
+                    }
+                } message: {
+                    Text("Deleting this section discards its annotations.")
+                }
+                .confirmationDialog(
+                    "Clear annotations on “\(pendingAnnotationClear?.name ?? "")”?",
+                    isPresented: Binding(
+                        get: { pendingAnnotationClear != nil },
+                        set: { if !$0 { pendingAnnotationClear = nil } }
+                    ),
+                    titleVisibility: .visible
+                ) {
+                    Button("Clear Annotations", role: .destructive) {
+                        if let option = pendingAnnotationClear {
+                            withAnimation { annotations.clearSection(option.id) }
+                        }
+                    }
+                } message: {
+                    Text("Pencil drawings and notes on this section are discarded. The section unlocks.")
+                }
 
                 HStack {
                     HoverButton("Add Proof", systemImage: "plus") {
