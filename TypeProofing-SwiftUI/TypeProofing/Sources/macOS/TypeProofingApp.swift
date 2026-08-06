@@ -21,7 +21,7 @@ struct TypeProofingApp: App {
                 .environmentObject(appState.annotations)
         }
         .commands {
-            AppMenuCommands(appState: appState, engine: engine)
+            AppMenuCommands(appState: appState, engine: engine, proofs: appState.proofs, annotations: appState.annotations)
         }
     }
 }

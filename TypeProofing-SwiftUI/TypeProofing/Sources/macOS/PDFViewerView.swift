@@ -196,7 +196,13 @@ class PDFViewCoordinator: ObservableObject, PreviewNavigationHandling {
             let document = PDFDocument(url: url)
             DispatchQueue.main.async {
                 guard let self, self.requestedPDFPath == path else { return }
-                guard let document, let pdfView = self.pdfView else { return }
+                guard let document, let pdfView = self.pdfView else {
+                    // A failed load must not pin requestedPDFPath to this
+                    // path — the dedupe guard above would block every retry
+                    // and the viewer would show the stale preview forever.
+                    self.requestedPDFPath = self.lastLoadedPDFPath
+                    return
+                }
                 if self.pendingAnchor == nil {
                     self.pendingAnchor = self.currentAnchor()
                 }
@@ -327,7 +333,15 @@ struct CompareViewCanvas: View {
                 leftPageIndex: leftPageIndex,
                 rightPageIndex: rightPageIndex,
                 vertical: vertical,
-                onPageCount: { pageCount = $0 }
+                onPageCount: { count in
+                    // Clamp against the *new* document's count — the
+                    // onChange below still sees the previous one, and an
+                    // out-of-range index left a pane pinned to the old,
+                    // deleted document.
+                    pageCount = count
+                    leftPageIndex = min(leftPageIndex, max(count - 1, 0))
+                    rightPageIndex = min(rightPageIndex, max(count - 1, 0))
+                }
             )
         }
         .onChange(of: pdfPath) { _ in

@@ -131,7 +131,13 @@ final class PDFViewCoordinator: ObservableObject, PreviewNavigationHandling {
             let document = PDFDocument(url: url)
             DispatchQueue.main.async {
                 guard let self, self.requestedPDFPath == path else { return }
-                guard let document, let pdfView = self.pdfView else { return }
+                guard let document, let pdfView = self.pdfView else {
+                    // A failed load must not pin requestedPDFPath to this
+                    // path — the dedupe guard above would block every retry
+                    // and the viewer would show the stale preview forever.
+                    self.requestedPDFPath = self.lastLoadedPDFPath
+                    return
+                }
                 if self.pendingAnchor == nil {
                     self.pendingAnchor = self.currentAnchor()
                 }
@@ -345,6 +351,7 @@ struct PDFFloatingToolbar: View {
     @EnvironmentObject var ui: UIState
     @EnvironmentObject var page: PageState
     @EnvironmentObject var annotations: AnnotationStore
+    @EnvironmentObject var engine: ProofEngine
     @Binding var columnVisibility: NavigationSplitViewVisibility
     @Binding var showThumbnails: Bool
     @ObservedObject var pdfCoordinator: PDFViewCoordinator
@@ -454,6 +461,10 @@ struct PDFFloatingToolbar: View {
                     ) {
                         ui.isMarkupActive.toggle()
                     }
+                    // Entering markup mid-generation would coalesce its pause
+                    // with the generation pause, and the post-run resume
+                    // would then regenerate under wet ink.
+                    .disabled(engine.isGenerating)
                     if ui.isMarkupActive {
                         toolbarButton(
                             "character.textbox",

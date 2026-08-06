@@ -12,6 +12,7 @@ struct CoreWiring: ViewModifier {
     @EnvironmentObject var page: PageState
     @EnvironmentObject var fonts: FontState
     @EnvironmentObject var proofs: ProofState
+    @EnvironmentObject var annotations: AnnotationStore
 
     let previewCoordinator: PreviewCoordinator
     let pdfCoordinator: any PreviewNavigationHandling
@@ -39,6 +40,18 @@ struct CoreWiring: ViewModifier {
             .onChange(of: fonts.styleSourceMode) { _ in
                 state.refreshFontStyles(engine: engine)
                 state.schedulePersistPublic()
+            }
+            // Style lists and the feature list are derived from the enabled
+            // fonts in order — keep them in sync when fonts are toggled,
+            // reordered, or sorted (add/remove refresh directly; the repeat
+            // here is idempotent).
+            .onChange(of: fonts.disabledFontPaths) { _ in
+                state.refreshFontStyles(engine: engine)
+                state.applyAvailableFontFeatures(engine: engine)
+            }
+            .onChange(of: fonts.fontPaths) { _ in
+                state.refreshFontStyles(engine: engine)
+                state.applyAvailableFontFeatures(engine: engine)
             }
             .onChange(of: fonts.axisValuesByFont) { _ in
                 if fonts.styleSourceMode == .customPositions {
@@ -73,12 +86,16 @@ struct CoreWiring: ViewModifier {
                 allowsMultipleSelection: true
             ) { result in
                 if case .success(let urls) = result {
-                    for url in urls { _ = url.startAccessingSecurityScopedResource() }
+                    let accessed = urls.filter { $0.startAccessingSecurityScopedResource() }
                     state.addFonts(urls: urls, engine: engine)
-                    for url in urls { url.stopAccessingSecurityScopedResource() }
+                    for url in accessed { url.stopAccessingSecurityScopedResource() }
                 }
             }
             .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+                // Fonts are locked while annotations exist (the sidebar is
+                // disabled for the same reason) — a window-level drop must
+                // not slip past that and shift frozen pagination.
+                guard !annotations.hasAnyAnnotations else { return false }
                 FontFileDropHandler.handle(providers, state: state, engine: engine)
                 return true
             }

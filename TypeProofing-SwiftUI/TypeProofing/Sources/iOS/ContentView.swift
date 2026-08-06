@@ -73,7 +73,10 @@ struct ContentView: View {
             pdfCoordinator: pdfCoordinator
         ))
         // "Open in Type Proofing" from Files hands over a security-scoped URL.
+        // Fonts are locked while annotations exist — this path must not
+        // bypass the freeze the sidebar enforces.
         .onOpenURL { url in
+            guard !annotations.hasAnyAnnotations else { return }
             let accessed = url.startAccessingSecurityScopedResource()
             state.addFonts(urls: [url], engine: engine)
             if accessed { url.stopAccessingSecurityScopedResource() }
@@ -225,7 +228,11 @@ struct ContentView: View {
     /// the annotations baked in as flat vector content on export.
     @ViewBuilder
     private var shareLink: some View {
+        // Annotated exports composite onto the preview (ink is keyed to its
+        // pagination); plain shares prefer a final PDF that is still in sync
+        // over the composed preview file with its placeholder pages.
         let sharePath = preview.previewPDFPath ?? preview.finalPDFPath
+        let plainSharePath = (!state.isFinalPDFStale ? preview.finalPDFPath : nil) ?? preview.previewPDFPath
         let label = Image(systemName: "square.and.arrow.up")
             .frame(width: 32, height: 30)
             .foregroundStyle(.secondary)
@@ -244,11 +251,11 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
         } else {
-            ShareLink(item: URL(fileURLWithPath: sharePath ?? "")) {
+            ShareLink(item: URL(fileURLWithPath: plainSharePath ?? "")) {
                 label
             }
             .buttonStyle(.plain)
-            .disabled(sharePath == nil)
+            .disabled(plainSharePath == nil)
         }
     }
 }

@@ -114,12 +114,15 @@ struct ContentView: View {
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
                 HStack(spacing: 2) {
-                    let sharePath = preview.previewPDFPath ?? preview.finalPDFPath
+                    // Prefer a final PDF that is still in sync — the composed
+                    // preview file carries placeholder pages and a
+                    // preview-<uuid>.pdf name.
+                    let sharePath = (!state.isFinalPDFStale ? preview.finalPDFPath : nil) ?? preview.previewPDFPath
                     ShareLink(item: URL(fileURLWithPath: sharePath ?? "")) {
                         Image(systemName: "square.and.arrow.up")
                     }
                     .help("Share PDF")
-                    .disabled(preview.previewPDFPath == nil)
+                    .disabled(sharePath == nil)
 
                     Button {} label: {
                         Image(systemName: "arrow.left.arrow.right")
@@ -225,13 +228,6 @@ struct FloatingToolbar: View {
                 .frame(width: 34)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
-                .onSubmit {
-                    let text = "\(pdfCoordinator.zoomPercent)"
-                    if let pct = Int(text), pct >= 10, pct <= 800 {
-                        pdfCoordinator.pdfView?.autoScales = false
-                        pdfCoordinator.pdfView?.scaleFactor = CGFloat(pct) / 100.0
-                    }
-                }
                 Text("%")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.tertiary)

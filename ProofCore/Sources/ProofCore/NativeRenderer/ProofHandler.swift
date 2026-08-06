@@ -128,7 +128,12 @@ struct ProofParams {
     let paragraphs: Int
     let tracking: CGFloat
     let alignment: CTTextAlignment
+    /// Absolute line height in points, resolved as ratio × the Size setting.
     let lineHeight: CGFloat?
+    /// The unitless ratio the user set (CSS-style). Handlers that render at a
+    /// size other than the Size setting (auto-size) must recompute from this,
+    /// and the footer displays it.
+    let lineHeightRatio: CGFloat?
     let otFeatures: [String: Bool]
     let columnGap: CGFloat
     let direction: String
@@ -203,7 +208,9 @@ extension ProofHandler {
         let fontSize = settingsValue(makeSettingsKey("fontSize"), default: 10, from: settings) as Int
         let cols = settingsValue(makeSettingsKey("cols"), default: defaultCols, from: settings)
         let paras = settingsValue(makeSettingsKey("para"), default: defaultParas, from: settings)
-        let tracking = settingsValue(makeSettingsKey("tracking"), default: 0, from: settings) as Int
+        // Stored as Double by buildFlatProofSettings — an Int read always
+        // misses and silently falls back to 0.
+        let tracking = settingsValue(makeSettingsKey("tracking"), default: 0.0, from: settings) as Double
         let alignStr = settingsValue(makeSettingsKey("align"), default: "left", from: settings) as String
         let lineHeightRatio = settingsValue(makeSettingsKey("lineHeight"), default: 0.0, from: settings) as Double
 
@@ -244,6 +251,7 @@ extension ProofHandler {
             tracking: CGFloat(tracking),
             alignment: resolveAlignment(alignStr),
             lineHeight: lineHeight,
+            lineHeightRatio: lineHeightRatio > 0 ? CGFloat(lineHeightRatio) : nil,
             otFeatures: features,
             columnGap: CGFloat(columnGap),
             direction: directionStr,

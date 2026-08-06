@@ -227,7 +227,7 @@ struct SettingsPanelView: View {
 
                     // MARK: Generative Language
 
-                    if entry?.hasTextConfig ?? false {
+                    if entry?.hasGenerativeText ?? false {
                         Divider()
 
                         InspectorGroup(icon: "globe", title: "Text Generation") {
@@ -314,6 +314,14 @@ struct SettingsPanelView: View {
                                 TextField("e.g. g", text: settings.biasChars)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.system(.body, design: .monospaced))
+                                    // The engine needs both a character AND a
+                                    // strength > 0; seed a working strength so
+                                    // typing a character visibly does something.
+                                    .onChange(of: settings.biasChars.wrappedValue) { newValue in
+                                        if !newValue.isEmpty && settings.biasStrength.wrappedValue == 0 {
+                                            settings.biasStrength.wrappedValue = 0.5
+                                        }
+                                    }
                             }
 
                             if !settings.biasChars.wrappedValue.isEmpty {
@@ -350,7 +358,10 @@ struct SettingsPanelView: View {
                         }
 
                         if option.baseType == "version_comparison" {
-                            BaselineFontSection(baselineFontPath: settings.baselineFontPath)
+                            BaselineFontSection(
+                                baselineFontPath: settings.baselineFontPath,
+                                baselineFontBookmark: settings.baselineFontBookmark
+                            )
                             Divider()
                             TextPresetsSection(customText: settings.customText, language: settings.generativeLanguage.wrappedValue)
                             VersionCustomTextSection(text: settings.customText)
@@ -366,7 +377,10 @@ struct SettingsPanelView: View {
                                 text: settings.customText,
                                 markupEnabled: settings.markupEnabled,
                                 generateOnce: settings.generateOnce,
-                                showGenerateOnce: !(entry?.isMultiStyle ?? false)
+                                showGenerateOnce: !(entry?.isMultiStyle ?? false),
+                                // Only the Custom Text handler renders markup;
+                                // multi-style would show a dead toggle.
+                                showMarkup: !(entry?.isMultiStyle ?? false)
                             )
 
                             if !(entry?.isMultiStyle ?? false) && settings.generateOnce.wrappedValue {
@@ -659,6 +673,7 @@ struct PDFOutputSection: View {
 struct BaselineFontSection: View {
     @EnvironmentObject var state: AppState
     @Binding var baselineFontPath: String
+    @Binding var baselineFontBookmark: Data?
     @State private var showFontPicker = false
 
     var body: some View {
@@ -682,7 +697,15 @@ struct BaselineFontSection: View {
                 allowedContentTypes: fontFileContentTypes
             ) { result in
                 if case .success(let url) = result {
-                    baselineFontPath = url.path
+                    // Bookmark while the picker's scope is active, then keep
+                    // a session-long scope open via the access store — the
+                    // engine re-reads the baseline file on every render.
+                    let accessed = url.startAccessingSecurityScopedResource()
+                    let ref = FontFileReference(url: url)
+                    if accessed { url.stopAccessingSecurityScopedResource() }
+                    FontAccessStore.shared.restoreAccess(to: ref)
+                    baselineFontPath = ref.path
+                    baselineFontBookmark = ref.bookmark
                     state.schedulePersistPublic()
                 }
             }
@@ -1139,6 +1162,7 @@ struct CustomTextSection: View {
     @Binding var markupEnabled: Bool
     @Binding var generateOnce: Bool
     let showGenerateOnce: Bool
+    var showMarkup: Bool = true
     @State private var showMarkupHelp = false
 
     var body: some View {
@@ -1149,19 +1173,21 @@ struct CustomTextSection: View {
             PlainTextEditor(text: $text)
                 .frame(minHeight: 150)
                 .border(Color.secondary.opacity(0.3))
-            HStack {
-                Toggle("Enable Markup", isOn: $markupEnabled)
-                    .checkboxToggleStyle()
-                Button {
-                    showMarkupHelp.toggle()
-                } label: {
-                    Image(systemName: "questionmark.circle")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Markup syntax help")
-                .popover(isPresented: $showMarkupHelp, arrowEdge: .trailing) {
-                    MarkupHelpPopover()
+            if showMarkup {
+                HStack {
+                    Toggle("Enable Markup", isOn: $markupEnabled)
+                        .checkboxToggleStyle()
+                    Button {
+                        showMarkupHelp.toggle()
+                    } label: {
+                        Image(systemName: "questionmark.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Markup syntax help")
+                    .popover(isPresented: $showMarkupHelp, arrowEdge: .trailing) {
+                        MarkupHelpPopover()
+                    }
                 }
             }
             if showGenerateOnce {

@@ -134,7 +134,9 @@ struct PageLayout {
             }
         }
         if let lh = lineHeight, lh > 0 {
-            let lhStr = "Line Height: \(String(format: "%.1f", lh))"
+            // Unitless ratio (CSS-style), as the user set it — not the
+            // computed point value.
+            let lhStr = "Line Height: \(String(format: "%g", lh))"
             if secondLineText.isEmpty {
                 secondLineText = lhStr
             } else {

@@ -51,7 +51,11 @@ struct CustomTextProofHandler: ProofHandler {
                 lineHeight: params.lineHeight,
                 otFeatures: params.otFeatures.isEmpty ? nil : params.otFeatures,
                 variations: defaultAxisValues,
-                allFontPaths: context.allFontPaths
+                allFontPaths: context.allFontPaths,
+                paragraphIndent: params.paragraphIndent,
+                paragraphSpace: params.paragraphSpace,
+                hyphenation: params.hyphenation,
+                hangingPunctuation: params.hangingPunctuation
             )
             let pageSegments = MarkupRenderer.buildPages(tokens: tokens, config: config)
             drawMarkupPages(pageSegments, sectionName: sectionName, params: params, context: context, renderer: renderer)
@@ -100,6 +104,7 @@ struct CustomTextProofHandler: ProofHandler {
                 tracking: params.tracking,
                 context: context,
                 renderer: renderer,
+                lineHeight: params.lineHeightRatio,
                 columnGap: params.columnGap
             )
         }
@@ -118,8 +123,12 @@ struct CustomTextProofHandler: ProofHandler {
         let fontName = URL(fileURLWithPath: context.indFont).deletingPathExtension().lastPathComponent
             .components(separatedBy: "-").first ?? "Unknown"
 
+        let direction: TextDirection = params.direction == "rtl" ? .rtl : .ltr
+
         for page in segments.pages {
-            let colRects = PageLayout.columnRects(contentRect: contentRect, columns: params.columns, direction: .ltr)
+            let colRects = PageLayout.columnRects(
+                contentRect: contentRect, columns: params.columns,
+                gutter: params.columnGap, direction: direction)
             var colIdx = 0
             var pageOpen = false
 

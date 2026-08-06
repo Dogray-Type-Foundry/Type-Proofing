@@ -88,17 +88,29 @@ enum AnnotationPDFExporter {
         guard !box.text.isEmpty else { return }
         let font = box.fontName.flatMap { UIFont(name: $0, size: box.fontSize) }
             ?? .systemFont(ofSize: box.fontSize, weight: .medium)
-        let attributed = NSAttributedString(string: box.text, attributes: [
+        drawText(box.text, font: font, color: UIColor(annotationHex: box.colorHex),
+                 in: box.rect, context: context)
+    }
+
+    /// Draws note text with CoreText using the actual UIFont object. Shared
+    /// with the on-screen freeText annotation, which can't go through PDFKit's
+    /// own text rendering: PDFKit resolves annotation fonts by PostScript
+    /// name, the system font's name is private, and the fallback is Times.
+    static func drawText(_ text: String, font: UIFont, color: UIColor,
+                         in rect: CGRect, context: CGContext) {
+        let attributed = NSAttributedString(string: text, attributes: [
             .font: font,
-            .foregroundColor: UIColor(annotationHex: box.colorHex),
+            .foregroundColor: color,
         ])
         let framesetter = CTFramesetterCreateWithAttributedString(attributed)
-        // Mirror the on-screen UITextView insets (container 2pt + fragment
-        // padding 5pt horizontally, 4pt vertically).
-        let rect = box.rect.insetBy(dx: 7, dy: 4)
+        // Mirror the on-screen UITextView insets exactly: lineFragmentPadding
+        // 2pt horizontally, textContainerInset 2pt vertically. A wider inset
+        // shifted text on commit and wrapped long lines one line early,
+        // clipping the last line.
+        let inset = rect.insetBy(dx: 2, dy: 2)
         let frame = CTFramesetterCreateFrame(
             framesetter, CFRange(location: 0, length: 0),
-            CGPath(rect: rect, transform: nil), nil
+            CGPath(rect: inset, transform: nil), nil
         )
         context.saveGState()
         context.textMatrix = .identity

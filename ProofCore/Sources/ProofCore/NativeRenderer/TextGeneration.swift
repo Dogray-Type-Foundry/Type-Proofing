@@ -132,6 +132,9 @@ struct TextGeneration {
         let upperSet = Set(cat.uniLu)
         let lowerSet = Set(cat.uniLl)
 
+        // Premade text is the intended output for complete fonts (including
+        // the hoeflerStyle Structured Text proofs); the generators below are
+        // the fallback for fonts missing template letters.
         if cat.uppercaseOnly
             && upperTemplate.isSubset(of: upperSet)
             && !forceWordsiv {

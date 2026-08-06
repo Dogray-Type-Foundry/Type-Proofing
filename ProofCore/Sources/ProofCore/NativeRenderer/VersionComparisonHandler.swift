@@ -16,6 +16,7 @@ import Foundation
 struct VersionComparisonHandler: ProofHandler {
     let proofName: String
     let proofKey: String
+    let baseType: String
 
     private static let oldColor = CGColor(red: 0.85, green: 0.10, blue: 0.10, alpha: 1)
     private static let newColor = CGColor(red: 0.10, green: 0.45, blue: 0.95, alpha: 1)
@@ -87,7 +88,7 @@ struct VersionComparisonHandler: ProofHandler {
             return custom
         }
 
-        let config = ProofRegistry.entry(forKey: proofKey)?.textConfig
+        let config = ProofRegistry.entry(forKey: baseType)?.textConfig
         let charsetKey = config?.characterSetKey ?? "base_letters"
         let characterSet = context.cat.resolveCharacterSet(forKey: charsetKey)
         return TextGeneration.generateTextProofString(
@@ -128,7 +129,7 @@ struct VersionComparisonHandler: ProofHandler {
                     context: renderer.context, pageSize: pageSize, title: fullTitle,
                     fontName: fontName, otFeatures: params.otFeatures.isEmpty ? nil : params.otFeatures,
                     tracking: params.tracking, pageNumber: renderer.pageCount,
-                    showPageNumber: true, lineHeight: params.lineHeight, footerNote: footerNote)
+                    showPageNumber: true, lineHeight: params.lineHeightRatio, footerNote: footerNote)
             }
 
             for colRect in colRects {

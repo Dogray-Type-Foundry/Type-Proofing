@@ -66,6 +66,11 @@ public struct ProofRegistryEntry {
     public let displayOrder: Int
     public let previewCost: ProofCost
     public let hasTextConfig: Bool
+    /// True only when the proof's generator honors the Text Generation
+    /// settings. Accented-word, inject-text, and Arabic/Farsi proofs have a
+    /// text config but produce fixed/curated structures that ignore them —
+    /// the UI hides the group for those.
+    public var hasGenerativeText: Bool = false
 
     /// Proofs that don't support tracking/alignment/line height
     /// (character-set style proofs)
@@ -394,11 +399,19 @@ public final class ProofEngine: ObservableObject {
                 isCancelled: { Task.isCancelled }
             )
         }
+        // A hung generation would occupy its queue lane forever — the render
+        // loops poll isCancelled, so cancelling the worker unblocks it at the
+        // next page/font boundary.
+        let timeoutTask = Task.detached {
+            try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+            if !Task.isCancelled { worker.cancel() }
+        }
         let output = await withTaskCancellationHandler(operation: {
             await worker.value
         }, onCancel: {
             worker.cancel()
         })
+        timeoutTask.cancel()
 
         return (output.fragment, output.diagnostics)
     }
@@ -510,7 +523,10 @@ public final class ProofEngine: ObservableObject {
                 defaultEnabled: info.defaultEnabled,
                 displayOrder: displayOrder,
                 previewCost: cost,
-                hasTextConfig: info.textConfig != nil
+                hasTextConfig: info.textConfig != nil,
+                hasGenerativeText: info.textConfig.map {
+                    $0.accents == 0 && $0.injectTextKey == nil && $0.language == nil
+                } ?? false
             )
         }
     }

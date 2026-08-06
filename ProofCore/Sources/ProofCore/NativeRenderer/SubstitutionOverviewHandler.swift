@@ -150,6 +150,9 @@ struct SubstitutionOverviewHandler: ProofHandler {
         newPage()
 
         for feature in features {
+            // Per-feature checkboxes in the settings panel; missing key = on,
+            // matching the default-enabled state the UI seeds.
+            guard settingsValue(makeSettingsKey("sub", feature.tag), default: true, from: context.proofSettings) else { continue }
             let eligibleEntries = feature.entries.filter { !$0.inputGlyphIDs.isEmpty && !$0.outputGlyphIDs.isEmpty }
             if eligibleEntries.isEmpty { continue }
 

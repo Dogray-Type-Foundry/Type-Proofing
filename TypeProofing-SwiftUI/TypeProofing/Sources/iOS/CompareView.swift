@@ -30,7 +30,15 @@ struct CompareViewCanvas: View {
                 leftPageIndex: leftPageIndex,
                 rightPageIndex: rightPageIndex,
                 vertical: vertical,
-                onPageCount: { pageCount = $0 }
+                onPageCount: { count in
+                    // Clamp against the *new* document's count — the
+                    // onChange below still sees the previous one, and an
+                    // out-of-range index left a pane pinned to the old,
+                    // deleted document.
+                    pageCount = count
+                    leftPageIndex = min(leftPageIndex, max(count - 1, 0))
+                    rightPageIndex = min(rightPageIndex, max(count - 1, 0))
+                }
             )
         }
         .onChange(of: pdfPath) { _, _ in

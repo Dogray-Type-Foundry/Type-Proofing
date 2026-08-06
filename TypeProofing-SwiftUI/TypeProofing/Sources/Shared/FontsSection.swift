@@ -122,7 +122,7 @@ enum FontFileDropHandler {
                 provider.loadObject(ofClass: URL.self) { url, _ in
                     guard let url, fontExtensions.contains(url.pathExtension.lowercased()) else { return }
                     DispatchQueue.main.async {
-                        state.addFonts(urls: [url], engine: engine)
+                        addWithScope(url, state: state, engine: engine)
                     }
                 }
             } else {
@@ -132,11 +132,21 @@ enum FontFileDropHandler {
                           fontExtensions.contains(url.pathExtension.lowercased())
                     else { return }
                     DispatchQueue.main.async {
-                        state.addFonts(urls: [url], engine: engine)
+                        addWithScope(url, state: state, engine: engine)
                     }
                 }
             }
         }
+    }
+
+    /// Bookmark creation inside `addFonts` needs the URL's security scope
+    /// active — without it (iPad sandbox) the bookmark silently fails and the
+    /// dropped font vanishes on relaunch.
+    @MainActor
+    private static func addWithScope(_ url: URL, state: AppState, engine: ProofEngine) {
+        let accessed = url.startAccessingSecurityScopedResource()
+        state.addFonts(urls: [url], engine: engine)
+        if accessed { url.stopAccessingSecurityScopedResource() }
     }
 }
 

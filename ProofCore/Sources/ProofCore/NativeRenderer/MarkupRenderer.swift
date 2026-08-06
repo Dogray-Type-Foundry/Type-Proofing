@@ -5,14 +5,21 @@ import Foundation
 struct MarkupRenderer {
 
     struct RenderConfig {
-        let fontPath: String
-        let fontSize: CGFloat
-        let alignment: CTTextAlignment
-        let tracking: CGFloat
-        let lineHeight: CGFloat?
-        let otFeatures: [String: Bool]?
-        let variations: [String: Double]?
-        let allFontPaths: [String]
+        var fontPath: String
+        var fontSize: CGFloat
+        var alignment: CTTextAlignment
+        var tracking: CGFloat
+        var lineHeight: CGFloat?
+        var otFeatures: [String: Bool]?
+        var variations: [String: Double]?
+        var allFontPaths: [String]
+        // Formatting settings the markup path previously dropped — the
+        // non-markup custom-text path honors all of these.
+        var paragraphIndent: CGFloat = 0
+        var paragraphSpace: CGFloat = 0
+        var hyphenation: Bool = false
+        var hangingPunctuation: Bool = false
+        var language: String = "en"
     }
 
     struct PageSegments {
@@ -59,16 +66,8 @@ struct MarkupRenderer {
                 let multiplier: CGFloat = token.kind == .heading1 ? 2.5 : 1.8
                 let headingSize = min(config.fontSize * multiplier, 90)
                 var headingConfig = config
-                headingConfig = RenderConfig(
-                    fontPath: config.fontPath,
-                    fontSize: headingSize,
-                    alignment: config.alignment,
-                    tracking: config.tracking,
-                    lineHeight: config.lineHeight.map { $0 / config.fontSize * headingSize },
-                    otFeatures: config.otFeatures,
-                    variations: config.variations,
-                    allFontPaths: config.allFontPaths
-                )
+                headingConfig.fontSize = headingSize
+                headingConfig.lineHeight = config.lineHeight.map { $0 / config.fontSize * headingSize }
                 appendRun(to: currentString, text: token.text, config: headingConfig)
 
             case .bold:
@@ -131,8 +130,15 @@ struct MarkupRenderer {
             path: fontPath,
             size: fontSize,
             features: features,
-            variations: variations
+            variations: variations,
+            hangingPunctuation: config.hangingPunctuation
         ) else { return }
+
+        // A fixed line height sized for the body text would overlap/clip a
+        // {size:N} span — scale it with the span like headings do.
+        let lineHeight = config.lineHeight.map {
+            fontSizeOverride == nil ? $0 : $0 / config.fontSize * fontSize
+        }
 
         let kernDisabled = features?["kern"] == false
         TextRenderer.appendText(
@@ -142,9 +148,13 @@ struct MarkupRenderer {
             fontSize: fontSize,
             alignment: config.alignment,
             tracking: tracking,
-            lineHeight: config.lineHeight,
+            lineHeight: lineHeight,
             foregroundColor: color,
-            kernDisabled: kernDisabled
+            kernDisabled: kernDisabled,
+            paragraphIndent: config.paragraphIndent,
+            paragraphSpace: config.paragraphSpace,
+            hyphenation: config.hyphenation,
+            language: config.language
         )
     }
 

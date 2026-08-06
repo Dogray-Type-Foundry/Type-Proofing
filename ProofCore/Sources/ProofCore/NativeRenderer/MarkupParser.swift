@@ -59,10 +59,10 @@ struct MarkupParser {
                 tokens.append(Token(kind: .pageBreak))
             } else if stripped == "#colbreak()" {
                 tokens.append(Token(kind: .columnBreak))
-            } else if line.hasPrefix("## ") {
-                tokens.append(Token(kind: .heading2, text: unescape(String(line.dropFirst(3)))))
-            } else if line.hasPrefix("# ") {
-                tokens.append(Token(kind: .heading1, text: unescape(String(line.dropFirst(2)))))
+            } else if stripped.hasPrefix("## ") {
+                tokens.append(Token(kind: .heading2, text: unescape(String(stripped.dropFirst(3)))))
+            } else if stripped.hasPrefix("# ") {
+                tokens.append(Token(kind: .heading1, text: unescape(String(stripped.dropFirst(2)))))
             } else {
                 tokenizeInline(line, into: &tokens)
             }
@@ -212,11 +212,20 @@ struct MarkupParser {
         }
 
         var result: [String: String] = [:]
+        var lastKey: String?
         for part in parts {
-            guard let colonIdx = part.firstIndex(of: ":") else { continue }
+            guard let colonIdx = part.firstIndex(of: ":") else {
+                // No colon: this is a comma-separated continuation of the
+                // previous value, e.g. the "onum" in {feat:smcp,onum}.
+                if let lastKey, let existing = result[lastKey], !part.isEmpty {
+                    result[lastKey] = existing + "," + part
+                }
+                continue
+            }
             let key = part[part.startIndex..<colonIdx].trimmingCharacters(in: .whitespaces)
             let value = part[part.index(after: colonIdx)...].trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
             result[key] = value
+            lastKey = key
         }
         return result
     }

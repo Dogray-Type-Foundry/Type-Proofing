@@ -152,7 +152,10 @@ struct StylePairing {
                 }) {
                     return .staticUprightItalic(upright: uprightMatch.path, italic: currentMeta.path)
                 }
-            } else if !currentMeta.isItalic {
+            } else if !currentMeta.isItalic && currentMeta.weight != 400 {
+                // Weight 400 is excluded: its U/I pairing is generated from
+                // the Italic (branch above) — without the exclusion a
+                // Regular+Italic family rendered the identical pairing twice.
                 if let italicMatch = allMeta.first(where: {
                     $0.familyName == currentMeta.familyName
                     && $0.weight == currentMeta.weight
@@ -417,7 +420,7 @@ struct StylePairing {
     }
 }
 
-private struct SeededRNG: RandomNumberGenerator {
+struct SeededRNG: RandomNumberGenerator {
     var state: UInt64
 
     init(seed: UInt64) {

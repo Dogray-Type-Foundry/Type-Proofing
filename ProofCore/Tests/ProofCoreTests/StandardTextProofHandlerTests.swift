@@ -52,7 +52,7 @@ final class StandardTextProofHandlerTests: XCTestCase {
         let pageSize = PageLayout.pageDimensions["A4Landscape"]!
         let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))!
 
-        let handler = StandardTextProofHandler(proofName: "Structured Text (Text)", proofKey: "basic_paragraph_small")
+        let handler = StandardTextProofHandler(proofName: "Structured Text (Text)", proofKey: "basic_paragraph_small", baseType: "basic_paragraph_small")
         let context = makeContext()
 
         handler.generateProof(context: context, renderer: renderer)
@@ -72,7 +72,7 @@ final class StandardTextProofHandlerTests: XCTestCase {
         let pageSize = PageLayout.pageDimensions["A4Landscape"]!
         let renderer = PDFRenderer(url: url, mediaBox: CGRect(origin: .zero, size: pageSize))!
 
-        let handler = StandardTextProofHandler(proofName: "Structured Text (Heading)", proofKey: "basic_paragraph_large")
+        let handler = StandardTextProofHandler(proofName: "Structured Text (Heading)", proofKey: "basic_paragraph_large", baseType: "basic_paragraph_large")
         var context = makeContext(fontSize: 28)
         // Override the settings key for this handler
         let settings: [String: Any] = [

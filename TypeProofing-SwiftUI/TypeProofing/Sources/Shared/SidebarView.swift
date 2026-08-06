@@ -147,11 +147,18 @@ struct SidebarView: View {
                 preview.previewSections = result.sections
             }
             state.refreshCurrentConfigFingerprint()
-            if preview.currentConfigFingerprint == capturedFingerprint {
-                preview.finalGeneratedConfigFingerprint = capturedFingerprint
-            }
+            // Record what this run was generated from unconditionally: if the
+            // config changed mid-run the mismatch is exactly what makes
+            // isFinalPDFStale flag the PDF as out of sync. (Leaving it nil
+            // reported the first-ever run as fresh even when it wasn't.)
+            preview.finalGeneratedConfigFingerprint = capturedFingerprint
         }
-        state.previewCoordinator?.resumeAfterFinalGeneration()
+        // If the user entered markup while this ran, its pause must survive —
+        // resuming would regenerate fragments under wet ink. Markup exit
+        // resumes the pipeline itself.
+        if !ui.isMarkupActive {
+            state.previewCoordinator?.resumeAfterFinalGeneration()
+        }
     }
 }
 

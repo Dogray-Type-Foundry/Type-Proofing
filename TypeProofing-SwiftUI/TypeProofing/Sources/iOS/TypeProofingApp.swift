@@ -21,12 +21,14 @@ struct TypeProofingApp: App {
                 .environmentObject(appState.annotations)
         }
         .commands {
-            AppMenuCommands(appState: appState, engine: engine)
+            AppMenuCommands(appState: appState, engine: engine, proofs: appState.proofs, annotations: appState.annotations)
         }
         // Persistence is debounced by 3s; iOS has no willTerminate moment,
-        // so flush whenever the app leaves the foreground.
+        // so flush whenever the app leaves the foreground. Include .inactive:
+        // force-quitting from the app switcher can kill the process without a
+        // .background transition.
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background {
+            if phase == .background || phase == .inactive {
                 appState.flushPendingPersist()
             }
         }

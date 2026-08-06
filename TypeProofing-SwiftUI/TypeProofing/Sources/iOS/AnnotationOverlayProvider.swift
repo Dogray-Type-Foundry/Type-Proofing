@@ -166,7 +166,11 @@ final class AnnotationOverlayProvider: NSObject {
     private func anchorToolPicker() {
         guard isMarkupActive, let pdfView,
               let picker = ensureToolPicker() else { return }
+        // A placeholder page's overlay is non-interactive and can't hold
+        // first-responder status — falling back keeps the picker visible
+        // while scrolling across it.
         let current = pdfView.currentPage.flatMap { overlays[$0] }
+            .flatMap { $0.isUserInteractionEnabled ? $0 : nil }
         guard let overlay = current ?? overlays.values.first(where: \.isUserInteractionEnabled)
         else { return }
         picker.setVisible(true, forFirstResponder: overlay.canvas)
@@ -241,7 +245,8 @@ final class AnnotationOverlayProvider: NSObject {
     }
 
     private func makeFreeTextAnnotation(for box: TextBox) -> PDFAnnotation {
-        let annotation = PDFAnnotation(bounds: box.rect, forType: .freeText, withProperties: nil)
+        let annotation = SystemFontFreeTextAnnotation(
+            bounds: box.rect, forType: .freeText, withProperties: nil)
         annotation.isReadOnly = true
         annotation.color = .clear
         let border = PDFBorder()
@@ -412,5 +417,20 @@ extension AnnotationOverlayProvider: PKCanvasViewDelegate {
         else { return }
         entry.value.deselectBoxes()
         commitInk(canvasView, for: entry.key)
+    }
+}
+
+// MARK: - SystemFontFreeTextAnnotation
+
+/// PDFKit renders freeText annotations by font PostScript *name*; the system
+/// font's name is private, so it silently falls back to Times. Draw the text
+/// ourselves with the actual UIFont — via the exporter's CoreText path, so
+/// screen and export stay identical. The context is in PDF page space.
+private final class SystemFontFreeTextAnnotation: PDFAnnotation {
+    override func draw(with box: PDFDisplayBox, in context: CGContext) {
+        guard shouldDisplay, let text = contents, !text.isEmpty, let font else { return }
+        AnnotationPDFExporter.drawText(
+            text, font: font, color: fontColor ?? .black,
+            in: bounds, context: context)
     }
 }

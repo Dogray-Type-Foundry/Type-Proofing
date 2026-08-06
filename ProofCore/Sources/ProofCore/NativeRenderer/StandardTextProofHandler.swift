@@ -5,12 +5,17 @@ import Foundation
 struct StandardTextProofHandler: ProofHandler {
     let proofName: String
     let proofKey: String
+    let baseType: String
     let config: TextProofConfig
 
-    init(proofName: String, proofKey: String) {
+    init(proofName: String, proofKey: String, baseType: String) {
         self.proofName = proofName
         self.proofKey = proofKey
-        self.config = ProofRegistry.entry(forKey: proofKey)?.textConfig ?? TextProofConfig()
+        self.baseType = baseType
+        // Registry lookups must use baseType: proofKey is name-derived for
+        // duplicated/renamed instances and misses the registry, which would
+        // silently strip the proof's charset/language/wordsiv config.
+        self.config = ProofRegistry.entry(forKey: baseType)?.textConfig ?? TextProofConfig()
     }
 
     func generateProof(context: ProofContext, renderer: PDFRenderer) {
@@ -37,7 +42,7 @@ struct StandardTextProofHandler: ProofHandler {
 
         let params = resolveParams(
             from: context,
-            defaultCols: ProofRegistry.entry(forKey: proofKey)?.defaultCols ?? 2,
+            defaultCols: ProofRegistry.entry(forKey: baseType)?.defaultCols ?? 2,
             defaultParas: config.defaultParagraphs
         )
 
@@ -141,7 +146,7 @@ struct StandardTextProofHandler: ProofHandler {
             tracking: params.tracking,
             context: context,
             renderer: renderer,
-            lineHeight: params.lineHeight,
+            lineHeight: params.lineHeightRatio,
             columnGap: params.columnGap,
             footerNote: footerNote
         )
@@ -163,7 +168,7 @@ struct StandardTextProofHandler: ProofHandler {
 
         let params = resolveParams(
             from: context,
-            defaultCols: ProofRegistry.entry(forKey: proofKey)?.defaultCols ?? 2,
+            defaultCols: ProofRegistry.entry(forKey: baseType)?.defaultCols ?? 2,
             defaultParas: config.defaultParagraphs
         )
 
@@ -230,7 +235,7 @@ struct StandardTextProofHandler: ProofHandler {
                 tracking: params.tracking,
                 context: context,
                 renderer: renderer,
-                lineHeight: params.lineHeight,
+                lineHeight: params.lineHeightRatio,
                 columnGap: params.columnGap,
                 footerNote: "Pairing: " + noteParts.joined(separator: " + ")
             )
@@ -255,7 +260,10 @@ struct StandardTextProofHandler: ProofHandler {
             if count == 0 { continue }
 
             result += " |\(char)| "
-            available.shuffle()
+            // Seeded so preview and export pick the same words (the system
+            // RNG made every regeneration differ).
+            var rng = SeededRNG(seed: TextGeneration.wordsivSeed &+ UInt64(char.unicodeScalars.first?.value ?? 0))
+            available.shuffle(using: &rng)
             let selected = available.prefix(count)
             for word in selected {
                 if char.isUppercase {

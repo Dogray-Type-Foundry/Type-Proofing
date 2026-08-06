@@ -156,7 +156,7 @@ public final class PreviewCoordinator: ObservableObject {
         fastQueue.removeAll()
         wordsivQueue.removeAll()
 
-        let enabled = state.proofs.proofOptions.filter(\.enabled)
+        let enabled = state.renderableEnabledProofs
         guard !state.fonts.enabledFontPaths.isEmpty, !enabled.isEmpty else {
             fragments.removeAll()
             state.preview.previewPDFPath = nil
@@ -362,7 +362,7 @@ public final class PreviewCoordinator: ObservableObject {
     private func composePreview() async {
         guard !generationPaused else { return }
         guard let state else { return }
-        let enabled = state.proofs.proofOptions.filter(\.enabled)
+        let enabled = state.renderableEnabledProofs
         guard !enabled.isEmpty, !state.fonts.enabledFontPaths.isEmpty else {
             state.preview.previewPDFPath = nil
             state.preview.previewSections = []

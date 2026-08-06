@@ -67,17 +67,42 @@ struct MultiStyleComparisonHandler: ProofHandler {
             return
         }
 
-        let fontSize = params.fontSize
+        let autoSize = settingsValue(makeSettingsKey("autoSize"), default: false, from: context.proofSettings) as Bool
         let showFallback = settingsValue(makeSettingsKey("showFallback"), default: false, from: context.proofSettings) as Bool
 
+        // One size for the whole proof: fit every group's text in every
+        // enabled style and take the smallest result — i.e. the size at which
+        // the longest line anywhere still fits. Per-group sizing would make
+        // each page render at a different size.
+        var autoFontSize: CGFloat?
+        if autoSize {
+            autoFontSize = textGroups.flatMap { _, groupText in
+                styles.map { style in
+                    AutoSizing.fitToLine(
+                        text: groupText,
+                        fontPath: style.fontPath,
+                        pageFormat: context.pageFormat,
+                        tracking: params.tracking,
+                        otFeatures: params.otFeatures.isEmpty ? nil : params.otFeatures,
+                        variations: style.variations
+                    )
+                }
+            }.min()
+        }
+
         for (groupLabel, groupText) in textGroups {
+            let fontSize = autoFontSize ?? params.fontSize
+            // Line height is a unitless ratio — resolve it against the size
+            // actually rendered, which under auto-size differs from the
+            // Size setting.
+            let lineHeight = params.lineHeightRatio.map { $0 * fontSize }
             let attrString = buildMultiStyleString(
                 text: groupText,
                 styles: styles,
                 fontSize: fontSize,
                 tracking: params.tracking,
                 alignment: params.alignment,
-                lineHeight: params.lineHeight,
+                lineHeight: lineHeight,
                 otFeatures: params.otFeatures,
                 showFallback: showFallback
             )
@@ -92,7 +117,7 @@ struct MultiStyleComparisonHandler: ProofHandler {
                 tracking: params.tracking,
                 context: context,
                 renderer: renderer,
-                lineHeight: params.lineHeight,
+                lineHeight: params.lineHeightRatio,
                 columnGap: params.columnGap
             )
         }

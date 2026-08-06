@@ -81,6 +81,9 @@ public struct ProofSettings: Codable {
     public var pairingMode: String = "automatic"
     public var manualPairings: [ManualPairing] = []
     public var baselineFontPath: String = ""
+    /// Security-scoped bookmark for the baseline font — the picker's grant
+    /// doesn't survive relaunch on iPad without it.
+    public var baselineFontBookmark: Data? = nil
 
     public init() {}
 
@@ -96,7 +99,7 @@ public struct ProofSettings: Codable {
         case biasChars, biasStrength
         case wordsPerSentence, sentencesPerParagraph
         case pairingMode, manualPairings
-        case baselineFontPath
+        case baselineFontPath, baselineFontBookmark
     }
 
     public init(from decoder: Decoder) throws {
@@ -140,6 +143,7 @@ public struct ProofSettings: Codable {
         pairingMode = try container.decodeIfPresent(String.self, forKey: .pairingMode) ?? "automatic"
         manualPairings = try container.decodeIfPresent([ManualPairing].self, forKey: .manualPairings) ?? []
         baselineFontPath = try container.decodeIfPresent(String.self, forKey: .baselineFontPath) ?? ""
+        baselineFontBookmark = try container.decodeIfPresent(Data.self, forKey: .baselineFontBookmark)
     }
 }
 
@@ -208,7 +212,7 @@ public final class ProofState: ObservableObject {
     @Published public var selectedProof: ProofOption.ID?
     @Published public var proofSettingsByProof: [String: ProofSettings] = [:]
 
-    public var registryByKey: [String: ProofRegistryEntry] = [:]
+    @Published public var registryByKey: [String: ProofRegistryEntry] = [:]
 
     public var onSettingsChanged: ((ProofOption.ID) -> Void)?
 
@@ -344,6 +348,21 @@ public final class AppState: ObservableObject {
 
     // MARK: - Cross-Cutting Computed
 
+    /// Enabled proofs that can actually render with the loaded fonts. Arabic
+    /// proofs are hidden from the sidebar when no font supports Arabic — they
+    /// must not generate either, or the preview/final PDF fills with failed
+    /// placeholder sections the user can't see or disable.
+    public var renderableEnabledProofs: [ProofOption] {
+        proofs.proofOptions.filter { option in
+            guard option.enabled else { return false }
+            if !fonts.anyFontSupportsArabic,
+               proofs.registryByKey[option.baseType]?.isArabic == true {
+                return false
+            }
+            return true
+        }
+    }
+
     public var isFinalPDFStale: Bool {
         guard preview.finalPDFPath != nil,
               let generated = preview.finalGeneratedConfigFingerprint else { return false }
@@ -378,6 +397,8 @@ public final class AppState: ObservableObject {
                 if existingPaths.count != fonts.fontPaths.count {
                     fonts.fontPaths = existingPaths
                     fonts.fontBookmarks = fonts.fontBookmarks.filter { existingPaths.contains($0.key) }
+                    fonts.axisValuesByFont = fonts.axisValuesByFont.filter { existingPaths.contains($0.key) }
+                    fonts.disabledFontPaths = fonts.disabledFontPaths.filter { existingPaths.contains($0) }
                 }
                 if !fonts.fontPaths.isEmpty {
                     fonts.loadedFonts = engine.getFontMetadata(paths: fonts.fontPaths)
@@ -464,7 +485,10 @@ public final class AppState: ObservableObject {
     public func requestPreviewNavigation(to proofID: ProofOption.ID) {
         guard let option = proofs.proofOptions.first(where: { $0.id == proofID }),
               option.enabled,
-              let section = preview.previewSections.first(where: { $0.name == option.name })
+              // Match by ID: name matching silently no-ops right after a
+              // rename, until the debounced re-render catches up.
+              let section = preview.previewSections.first(where: { $0.optionID == option.id })
+                  ?? preview.previewSections.first(where: { $0.name == option.name })
         else { return }
         let request = PreviewNavigationRequest(
             proofID: proofID,
@@ -525,7 +549,9 @@ public final class AppState: ObservableObject {
     /// OT/substitution feature lists against what the fonts actually support.
     /// Call after `fonts.fontPaths` and `fonts.loadedFonts` have been updated.
     public func applyAvailableFontFeatures(engine: ProofEngine) {
-        guard let firstPath = fonts.fontPaths.first else {
+        // Prefer the first *enabled* font — proofs render with enabled fonts,
+        // so a disabled first font must not dictate the feature list.
+        guard let firstPath = fonts.enabledFontPaths.first ?? fonts.fontPaths.first else {
             fonts.availableOTFeatures = []
             fonts.availableSubstitutionFeatures = []
             fonts.anyFontSupportsOpbd = false
@@ -614,7 +640,35 @@ public final class AppState: ObservableObject {
             fonts.fontBookmarks.removeValue(forKey: path)
             FontAccessStore.shared.releaseAccess(toPath: path)
         }
-        if let engine { refreshFontStyles(engine: engine) }
+        // Settings referencing the removed font would silently keep using it
+        // (or fail to load it on iPad once access is released).
+        for name in proofs.proofSettingsByProof.keys {
+            guard var settings = proofs.proofSettingsByProof[name] else { continue }
+            var changed = false
+            if pathsToRemove.contains(settings.defaultFontPath) {
+                settings.defaultFontPath = ""
+                settings.defaultFontAxisDict = nil
+                changed = true
+            }
+            if pathsToRemove.contains(settings.baselineFontPath) {
+                settings.baselineFontPath = ""
+                changed = true
+            }
+            let pruned = settings.enabledStyleIndices.filter { entry in
+                !pathsToRemove.contains(where: { entry.key.hasPrefix($0 + "|") })
+            }
+            if pruned.count != settings.enabledStyleIndices.count {
+                settings.enabledStyleIndices = pruned
+                changed = true
+            }
+            if changed {
+                proofs.proofSettingsByProof[name] = settings
+            }
+        }
+        if let engine {
+            refreshFontStyles(engine: engine)
+            applyAvailableFontFeatures(engine: engine)
+        }
         schedulePersist()
     }
 
@@ -642,6 +696,8 @@ public final class AppState: ObservableObject {
         fonts.availableOTFeatures.removeAll()
         fonts.availableSubstitutionFeatures.removeAll()
         fonts.anyFontSupportsOpbd = false
+        fonts.fontSortCriteria.removeAll()
+        fonts.styleSourceMode = .namedInstances
         output.outputDirectory = ""
         output.useCustomOutputLocation = false
         output.customOutputLocation = ""
@@ -748,7 +804,7 @@ public final class AppState: ObservableObject {
         return ProofConfig(
             fontPaths: fonts.enabledFontPaths,
             axisValuesByFont: axisValuesForEngine,
-            proofOptions: proofs.proofOptions,
+            proofOptions: renderableEnabledProofs,
             proofSettings: pySettings,
             pageFormat: page.pageFormat,
             outputDir: outDir,
@@ -795,7 +851,7 @@ public final class AppState: ObservableObject {
     }
 
     public func makeRunSummary() -> ProofRunSummary {
-        let enabledProofs = proofs.proofOptions.filter(\.enabled)
+        let enabledProofs = renderableEnabledProofs
         let axisCounts = fonts.enabledFontPaths.map { path -> Int in
             guard let axes = fonts.axisValuesByFont[path], !axes.isEmpty else { return 1 }
             return axes.values.reduce(1) { partial, values in
@@ -1046,6 +1102,13 @@ public final class AppState: ObservableObject {
         if output.outputDirectory.isEmpty, let first = fonts.fontPaths.first {
             output.outputDirectory = defaultOutputDirectory(forFontAt: first)
         }
+
+        // Version-comparison baseline fonts live outside the font list; their
+        // sandbox access must be re-established from the stored bookmark.
+        for settings in proofs.proofSettingsByProof.values where !settings.baselineFontPath.isEmpty {
+            FontAccessStore.shared.restoreAccess(to: FontFileReference(
+                path: settings.baselineFontPath, bookmark: settings.baselineFontBookmark))
+        }
     }
 
     /// Imports a settings file in the app's own persisted format (the same
@@ -1054,8 +1117,8 @@ public final class AppState: ObservableObject {
     /// sorting, style refresh, available OT features.
     @discardableResult
     public func importState(from url: URL, engine: ProofEngine) -> Bool {
-        _ = url.startAccessingSecurityScopedResource()
-        defer { url.stopAccessingSecurityScopedResource() }
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
 
         guard let json = try? Data(contentsOf: url),
               let data = try? JSONDecoder().decode(PersistedState.self, from: json) else {
@@ -1070,14 +1133,20 @@ public final class AppState: ObservableObject {
             )
         }
         fonts.fontBookmarks = fonts.fontBookmarks.filter { fonts.fontPaths.contains($0.key) }
+        fonts.axisValuesByFont = fonts.axisValuesByFont.filter { fonts.fontPaths.contains($0.key) }
+        fonts.disabledFontPaths = fonts.disabledFontPaths.filter { fonts.fontPaths.contains($0) }
         if fonts.fontPaths.isEmpty {
             fonts.loadedFonts = []
+            output.outputDirectory = ""
         } else {
             fonts.loadedFonts = engine.getFontMetadata(paths: fonts.fontPaths)
             applySortCriteria()
             refreshFontStyles(engine: engine)
             applyAvailableFontFeatures(engine: engine)
-            if output.outputDirectory.isEmpty {
+            // Recompute unconditionally: a mid-session import swaps the font
+            // set, and keeping the previous session's directory would write
+            // PDFs next to fonts that are no longer loaded.
+            if !output.useCustomOutputLocation {
                 output.outputDirectory = defaultOutputDirectory(forFontAt: fonts.fontPaths[0])
             }
         }
@@ -1109,6 +1178,10 @@ public final class AppState: ObservableObject {
     public func resetAllSettings() {
         guard proofs.isRegistryLoaded else { return }
 
+        // Reset during markup would leave the pipeline paused with dead
+        // option IDs on screen — any stroke drawn after that would create a
+        // phantom, unclearable annotation. End the markup session first.
+        ui.isMarkupActive = false
         annotations.clearAll()
         resetProofDefaults()
         page.showBaselines = false
