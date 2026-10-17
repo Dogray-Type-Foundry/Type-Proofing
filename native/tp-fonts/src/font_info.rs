@@ -137,6 +137,49 @@ pub fn get_named_instances(data: &[u8]) -> Vec<NamedInstanceRecord> {
         .collect()
 }
 
+/// Human-readable UI names for stylistic sets (ss01–ss20), read from each
+/// feature's FeatureParams uiNameId via the name table. Returns (tag, name)
+/// pairs for features that carry a resolvable name; features without
+/// FeatureParams are simply absent.
+pub fn get_feature_ui_names(data: &[u8]) -> Vec<(String, String)> {
+    use read_fonts::tables::layout::FeatureParams;
+
+    let font = match FontRef::new(data) {
+        Ok(f) => f,
+        Err(_) => return vec![],
+    };
+    let gsub = match font.gsub() {
+        Ok(g) => g,
+        Err(_) => return vec![],
+    };
+    let feature_list = match gsub.feature_list() {
+        Ok(l) => l,
+        Err(_) => return vec![],
+    };
+
+    let mut seen = std::collections::BTreeSet::new();
+    let mut out = Vec::new();
+    for record in feature_list.feature_records() {
+        let tag = record.feature_tag().to_string();
+        let is_stylistic_set = tag.starts_with("ss")
+            && matches!(tag[2..].parse::<u8>(), Ok(1..=20));
+        if !is_stylistic_set || !seen.insert(tag.clone()) {
+            continue;
+        }
+        let Ok(feature) = record.feature(feature_list.offset_data()) else { continue };
+        let Some(Ok(FeatureParams::StylisticSet(params))) = feature.feature_params() else { continue };
+        let name = font
+            .localized_strings(params.ui_name_id())
+            .english_or_first()
+            .map(|s| s.chars().collect::<String>())
+            .unwrap_or_default();
+        if !name.is_empty() {
+            out.push((tag, name));
+        }
+    }
+    out
+}
+
 fn extract_features(font: &FontRef) -> Vec<String> {
     let mut tags = std::collections::BTreeSet::new();
     if let Ok(gsub) = font.gsub() {

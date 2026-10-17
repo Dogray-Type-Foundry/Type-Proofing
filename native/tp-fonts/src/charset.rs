@@ -27,6 +27,12 @@ pub fn filtered_charset(data: &[u8]) -> String {
                     continue;
                 }
                 if let Some(ch) = char::from_u32(*codepoint) {
+                    // CFF fonts commonly map U+0000 (.null) and other control
+                    // codes in cmap; a NUL in the charset makes the C-string
+                    // FFI return null, so the app saw an empty charset.
+                    if ch.is_control() {
+                        continue;
+                    }
                     if seen.insert(ch) {
                         chars.push(ch);
                     }
@@ -41,6 +47,9 @@ pub fn filtered_charset(data: &[u8]) -> String {
             for gid in &has_outlines {
                 if let Some(name) = post.glyph_name(GlyphId16::new(*gid as u16)) {
                     if let Some(ch) = crate::agl::agl_to_unicode(name) {
+                        if ch.is_control() {
+                            continue;
+                        }
                         if seen.insert(ch) {
                             chars.push(ch);
                         }

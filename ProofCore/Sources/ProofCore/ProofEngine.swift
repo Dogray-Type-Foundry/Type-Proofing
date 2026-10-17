@@ -501,6 +501,10 @@ public final class ProofEngine: ObservableObject {
         SubstitutionBridge.getSubstitutions(fontPath: path).map(\.tag)
     }
 
+    public func getStylisticSetNames(path: String) -> [String: String] {
+        OTFeatureNames.stylisticSetNames(fontPath: path)
+    }
+
     // MARK: - Config Queries
 
     public func getProofRegistry() -> [ProofRegistryEntry] {

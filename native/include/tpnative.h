@@ -74,6 +74,13 @@ void tp_free_font_info(struct TPFontInfo *ptr);
 
 char *tp_get_charset(const uint8_t *data, uintptr_t len);
 
+/**
+ * JSON object mapping stylistic-set tags to their UI names from GSUB
+ * FeatureParams, e.g. {"ss01":"Single-story a"}. Tags without a name are
+ * omitted.
+ */
+char *tp_get_feature_names_json(const uint8_t *data, uintptr_t len);
+
 char *tp_get_axes_json(const uint8_t *data, uintptr_t len);
 
 char *tp_get_named_instances_json(const uint8_t *data, uintptr_t len);

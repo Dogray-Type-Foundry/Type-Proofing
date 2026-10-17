@@ -55,6 +55,22 @@ public struct SubstitutionBridge {
     }
 }
 
+public struct OTFeatureNames {
+
+    /// Human-readable stylistic-set names (ss01–ss20) from GSUB FeatureParams,
+    /// e.g. ["ss01": "Single-story a"]. Sets without a UI name are absent.
+    public static func stylisticSetNames(fontPath: String) -> [String: String] {
+        FontLoader.withFontBytes(path: fontPath, fallback: [:]) { ptr, len -> [String: String] in
+            guard let jsonPtr = tp_get_feature_names_json(ptr, len) else { return [:] }
+            defer { wsv_free_string(jsonPtr) }
+            let jsonStr = String(cString: jsonPtr)
+            guard let jsonData = jsonStr.data(using: .utf8),
+                  let dict = try? JSONSerialization.jsonObject(with: jsonData) as? [String: String] else { return [:] }
+            return dict
+        }
+    }
+}
+
 struct SubstitutionOverviewHandler: ProofHandler {
     let proofName: String
     let proofKey: String
@@ -149,6 +165,8 @@ struct SubstitutionOverviewHandler: ProofHandler {
 
         newPage()
 
+        let setNames = OTFeatureNames.stylisticSetNames(fontPath: context.indFont)
+
         for feature in features {
             // Per-feature checkboxes in the settings panel; missing key = on,
             // matching the default-enabled state the UI seeds.
@@ -159,8 +177,9 @@ struct SubstitutionOverviewHandler: ProofHandler {
             ensureSpace(headerHeight)
             let col = colRects[colIdx]
 
+            let headerText = setNames[feature.tag].map { "\(feature.tag) — \($0)" } ?? feature.tag
             let headerStr = TextRenderer.makeAttributedString(
-                text: feature.tag,
+                text: headerText,
                 font: headerFont,
                 fontSize: labelSize,
                 alignment: .left,

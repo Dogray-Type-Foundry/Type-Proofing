@@ -352,7 +352,10 @@ struct SettingsPanelView: View {
                                 CategoryCheckboxes(categories: settings.categories)
                             }
                             if option.baseType == "substitution_overview" {
-                                SubstitutionCheckboxes(features: settings.substitutionFeatures)
+                                SubstitutionCheckboxes(
+                                    features: settings.substitutionFeatures,
+                                    fontPath: fonts.enabledFontPaths.first
+                                )
                             }
                             Divider()
                         }
@@ -1130,6 +1133,9 @@ struct CategoryCheckboxes: View {
 
 struct SubstitutionCheckboxes: View {
     @Binding var features: [SubstitutionFeature]
+    var fontPath: String?
+
+    @State private var featureNames: [String: String] = [:]
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -1146,11 +1152,26 @@ struct SubstitutionCheckboxes: View {
             } else {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 4) {
                     ForEach($features) { $feature in
-                        Toggle(feature.tag, isOn: $feature.enabled)
-                            .checkboxToggleStyle()
+                        Toggle(isOn: $feature.enabled) {
+                            if let name = featureNames[feature.tag] {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(feature.tag)
+                                    Text(name)
+                                        .font(.system(size: 8.5))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            } else {
+                                Text(feature.tag)
+                            }
+                        }
+                        .checkboxToggleStyle()
                     }
                 }
             }
+        }
+        .task(id: fontPath) {
+            featureNames = fontPath.map { OTFeatureNames.stylisticSetNames(fontPath: $0) } ?? [:]
         }
     }
 }
@@ -1288,6 +1309,7 @@ struct OTFeaturesSection: View {
     // slider tick and keystroke that touched the proof settings.
     @State private var defaultVariations: [String: Double]?
     @State private var featureSamples: [String: String] = [:]
+    @State private var featureNames: [String: String] = [:]
 
     private func computeDefaultVariations() -> [String: Double]? {
         guard let path = fontPath else { return nil }
@@ -1484,7 +1506,8 @@ struct OTFeaturesSection: View {
                             forceOff: isSpacingProof && feature.tag == "kern",
                             fontPath: fontPath,
                             defaultVariations: defaultVariations,
-                            featureSample: featureSamples[feature.tag]
+                            featureSample: featureSamples[feature.tag],
+                            featureName: featureNames[feature.tag]
                         )
                     }
                 }
@@ -1493,6 +1516,7 @@ struct OTFeaturesSection: View {
         .task(id: fontPath) {
             defaultVariations = computeDefaultVariations()
             featureSamples = computeFeatureSamples(variations: defaultVariations)
+            featureNames = fontPath.map { OTFeatureNames.stylisticSetNames(fontPath: $0) } ?? [:]
         }
     }
 }
@@ -1505,6 +1529,7 @@ private struct OTFeaturePill: View {
     var fontPath: String?
     var defaultVariations: [String: Double]?
     var featureSample: String?
+    var featureName: String?
 
     private var isActive: Bool { !forceOff && feature.enabled }
 
@@ -1530,8 +1555,16 @@ private struct OTFeaturePill: View {
                 Circle()
                     .fill(isActive ? Color.dograyPurple : Color.primary.opacity(0.15))
                     .frame(width: 5, height: 5)
-                Text(forceOff ? "\(feature.tag) (off)" : feature.tag)
-                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(forceOff ? "\(feature.tag) (off)" : feature.tag)
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                    if let featureName {
+                        Text(featureName)
+                            .font(.system(size: 8.5))
+                            .foregroundStyle(isActive ? Color.white.opacity(0.75) : Color.secondary)
+                            .lineLimit(1)
+                    }
+                }
                 Spacer()
                 Text(featureSample ?? fallbackSampleText(for: feature.tag))
                     .font(featureFont ?? .system(size: 13))

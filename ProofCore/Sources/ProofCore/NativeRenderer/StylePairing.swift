@@ -118,6 +118,21 @@ struct StylePairing {
         }
     }
 
+    /// Family key for pairing comparisons. Some families bake style words into
+    /// the family name ("IvyMazarin Regular", "Chronicle Bold"), which made
+    /// cross-style matches fail; strip trailing RIBBI words before comparing.
+    static func familyKey(_ name: String) -> String {
+        var words = name.split(separator: " ")
+        while let last = words.last, last == "Regular" || last == "Italic" || last == "Bold" {
+            words.removeLast()
+        }
+        return words.isEmpty ? name : words.joined(separator: " ")
+    }
+
+    private static func sameFamily(_ a: FontMeta, _ b: FontMeta) -> Bool {
+        familyKey(a.familyName) == familyKey(b.familyName)
+    }
+
     static func detectPairing(
         fontPath: String,
         axisValues: [String: Double]?,
@@ -128,11 +143,16 @@ struct StylePairing {
 
         let allMeta = allFontPaths.compactMap { loadFontMeta(path: $0) }
 
-        // 1) Static Regular/Bold pairing: generated from Regular subfamily
-        if currentMeta.subfamilyName == "Regular" && !currentMeta.isVariable {
+        // 1) Static Regular/Bold pairing: generated from the Regular. The bold
+        // partner matches by subfamily name or by weight 700 — style-linked
+        // families often name their Bold's subfamily "Regular" too.
+        if currentMeta.subfamilyName == "Regular" && currentMeta.weight == 400
+            && !currentMeta.isItalic && !currentMeta.isVariable {
             if let boldMatch = allMeta.first(where: {
-                $0.familyName == currentMeta.familyName
-                && $0.subfamilyName == "Bold"
+                sameFamily($0, currentMeta)
+                && ($0.subfamilyName == "Bold" || $0.weight == 700)
+                && !$0.isItalic
+                && $0.path != currentMeta.path
                 && !$0.isVariable
             }) {
                 return .staticRegularBold(regular: currentMeta.path, bold: boldMatch.path)
@@ -145,7 +165,7 @@ struct StylePairing {
         if !currentMeta.isVariable {
             if currentMeta.weight == 400 && currentMeta.isItalic {
                 if let uprightMatch = allMeta.first(where: {
-                    $0.familyName == currentMeta.familyName
+                    sameFamily($0, currentMeta)
                     && $0.weight == currentMeta.weight
                     && !$0.isItalic
                     && !$0.isVariable
@@ -157,7 +177,7 @@ struct StylePairing {
                 // the Italic (branch above) — without the exclusion a
                 // Regular+Italic family rendered the identical pairing twice.
                 if let italicMatch = allMeta.first(where: {
-                    $0.familyName == currentMeta.familyName
+                    sameFamily($0, currentMeta)
                     && $0.weight == currentMeta.weight
                     && $0.isItalic
                     && !$0.isVariable
@@ -227,10 +247,17 @@ struct StylePairing {
         let allMeta = allFontPaths.compactMap { loadFontMeta(path: $0) }
 
         // Skip Bold if Regular exists in same family (R/B generated from Regular)
+        // — unless Bold has a same-weight italic partner: then Bold still
+        // generates the Bold/Bold Italic pairing (RIBBI needs R/I, R/B, B/BI).
         if meta.subfamilyName == "Bold" {
-            if allMeta.contains(where: {
-                $0.familyName == meta.familyName && $0.subfamilyName == "Regular" && !$0.isVariable
-            }) {
+            let hasRegular = allMeta.contains {
+                sameFamily($0, meta) && $0.subfamilyName == "Regular" && $0.weight == 400
+                    && !$0.isItalic && !$0.isVariable
+            }
+            let hasItalicPartner = allMeta.contains {
+                sameFamily($0, meta) && $0.weight == meta.weight && $0.isItalic && !$0.isVariable
+            }
+            if hasRegular && !hasItalicPartner {
                 return true
             }
         }
@@ -238,7 +265,7 @@ struct StylePairing {
         // Skip non-Regular-weight italic if matching upright exists (U/I generated from upright)
         if meta.isItalic && meta.weight != 400 {
             if allMeta.contains(where: {
-                $0.familyName == meta.familyName && $0.weight == meta.weight && !$0.isItalic && !$0.isVariable
+                sameFamily($0, meta) && $0.weight == meta.weight && !$0.isItalic && !$0.isVariable
             }) {
                 return true
             }
@@ -337,15 +364,20 @@ struct StylePairing {
         func fmt(_ v: Double) -> String {
             v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v)
         }
+        // Style-linked families can name a 700-weight font "Regular"; append
+        // the weight so footers like "Regular + Regular" stay readable.
+        func styleLabel(_ path: String, fallback: String) -> String {
+            guard let meta = loadFontMeta(path: path) else { return fallback }
+            if (meta.subfamilyName == "Regular" || meta.subfamilyName == "Italic") && meta.weight != 400 {
+                return "\(meta.subfamilyName) \(meta.weight)"
+            }
+            return meta.subfamilyName
+        }
         switch pairing {
         case .staticUprightItalic(let upright, let italic):
-            let up = loadFontMeta(path: upright)?.subfamilyName ?? "Upright"
-            let it = loadFontMeta(path: italic)?.subfamilyName ?? "Italic"
-            return "\(up) + \(it)"
+            return "\(styleLabel(upright, fallback: "Upright")) + \(styleLabel(italic, fallback: "Italic"))"
         case .staticRegularBold(let regular, let bold):
-            let reg = loadFontMeta(path: regular)?.subfamilyName ?? "Regular"
-            let bld = loadFontMeta(path: bold)?.subfamilyName ?? "Bold"
-            return "\(reg) + \(bld)"
+            return "\(styleLabel(regular, fallback: "Regular")) + \(styleLabel(bold, fallback: "Bold"))"
         case .variableItal(let upright, let italic):
             return "ital \(fmt(upright)) + ital \(fmt(italic))"
         case .variableSlnt(let upright, let italic):

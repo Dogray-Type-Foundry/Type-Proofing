@@ -348,6 +348,22 @@ pub unsafe extern "C" fn tp_get_charset(data: *const u8, len: usize) -> *mut c_c
     })
 }
 
+/// JSON object mapping stylistic-set tags to their UI names from GSUB
+/// FeatureParams, e.g. {"ss01":"Single-story a"}. Tags without a name are
+/// omitted.
+#[no_mangle]
+pub unsafe extern "C" fn tp_get_feature_names_json(data: *const u8, len: usize) -> *mut c_char {
+    guard(ptr::null_mut(), || unsafe {
+        let slice = std::slice::from_raw_parts(data, len);
+        let map: serde_json::Map<String, serde_json::Value> =
+            tp_fonts::font_info::get_feature_ui_names(slice)
+                .into_iter()
+                .map(|(tag, name)| (tag, serde_json::Value::String(name)))
+                .collect();
+        string_to_c(serde_json::Value::Object(map).to_string())
+    })
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn tp_get_axes_json(data: *const u8, len: usize) -> *mut c_char {
     guard(ptr::null_mut(), || unsafe {
